@@ -90,8 +90,12 @@ const archer_row = row(c => ({
   name: 'Archer row', gy: AR_Y, gz: AR_Z, swap: true, L: 87, still: .1, floorZ: 62, cam: { az: 42, el: 14 },
   muscles: { primary: ['upper_back', 'lats'], secondary: ['biceps', 'rear_delts', 'obliques'] },
   arms: { both: { mode: 'ik', grip: 'bar', palm: s => [.2, 0, -.98 * s], pole: [-1, -.35, .75], target: (sd, s) => [0, AR_Y, AR_Z * s] } },
-  props: [...frame(236, 62), ...[-1, 1].flatMap(s => [
-    { t: 'ring', c: [0, AR_Y + 7, AR_Z * s], n: [0, 0, 1], r: 8.5 }, rod([[0, AR_Y + 15.5, AR_Z * s], [0, 236, AR_Z * s]], .6)])],
+  // uprights placed to project clear of the body from this camera (one past the feet, one past the head); the beam
+  // joining them and the straps run out of the picture
+  props: [rod([[0, 236, 100], [0, 236, -100]], 1.6, 0, 1), rod([[0, 236, -100], [50, 236, -100]], 1.3, 0, 1),
+    ...[[0, 100], [50, -100]].flatMap(([x, z]) => [rod([[x, 236, z], [x, 0, z]], 1.3, 0, 1),
+    rod([[x - 26, 1.2, z], [x + 26, 1.2, z]], 1.3, 0, 1)]), ...[-1, 1].flatMap(s => [
+    { t: 'ring', c: [0, AR_Y + 7, AR_Z * s], n: [0, 0, 1], r: 8.5 }, rod([[0, AR_Y + 15.5, AR_Z * s], [0, 236, AR_Z * s]], .6, 0, 1)])],
   prep({ settle }) {
     rowGeometry(c, settle, 12, .95);
     // top: shift towards the right ring until the left arm is straight (98.5%)

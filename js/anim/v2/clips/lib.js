@@ -40,10 +40,14 @@ export const hold = (a, b, dur = 4.4) => [{ cyclic: [a, b], dur, breath: 'cycle'
 
 // props
 export const box = (a, b, bias) => ({ t: 'box', a, b, bias });
-export const rod = (pts, r = 1.6, bias) => ({ t: 'tube', pts, r, bias });
-// a free-standing frame: top bar along z at height y (half-width w), uprights to the floor with a foot under each
-export const frame = (y, w, x = 0) => [rod([[x, y, -w], [x, y, w]]),
-  ...[-w, w].flatMap(z => [rod([[x, y, z], [x, 0, z]], 1.3), rod([[x - 26, 1.2, z], [x + 26, 1.2, z]], 1.3)])];
+export const rod = (pts, r = 1.6, bias, nv) => ({ t: 'tube', pts, r, bias, nv });   // nv: not used to frame the view
+// a free-standing frame: top bar along z at height y (half-width w), uprights to the floor with a foot under each.
+// Only the top bar frames the view (none of it with nv, e.g. rings hanging from high up): the rest may run out of the
+// picture, which keeps the figure large.
+// back: uprights stand at x = back (behind the body) and reach the top bar with a horizontal arm, so none crosses it.
+export const frame = (y, w, x = 0, nv = 0, back = x) => [rod([[x, y, -w], [x, y, w]], 1.6, 0, nv),
+  ...[-w, w].flatMap(z => [rod([[back, y, z], [back, 0, z]], 1.3, 0, 1), rod([[back - 26, 1.2, z], [back + 26, 1.2, z]], 1.3, 0, 1),
+    ...(back !== x ? [rod([[back, y, z], [x, y, z]], 1.3, 0, 1)] : [])])];
 
 // ---------------------------------------------------------------------------------------------------------------
 // floor plank family: a rigid body line pivoting on the balls of the feet (at height fy). Hips on a circle of radius L

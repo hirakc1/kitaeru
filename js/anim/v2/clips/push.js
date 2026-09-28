@@ -204,10 +204,13 @@ const bench_dip = (() => {
   return c;
 })();
 
-// parallel bars (along x) on a grounded station; lean a little forward, shoulders just below the elbows at the bottom
-const DIP_Y = 118;
-const dipStation = (z, y = DIP_Y) => [-z, z].flatMap(zz => [rod([[-42, y, zz], [42, y, zz]], 1.9),
-  rod([[-36, y, zz], [-36, 0, zz]], 1.7), rod([[36, y, zz], [36, 0, zz]], 1.7), rod([[-46, 1.3, zz], [46, 1.3, zz]], 1.4)]);
+// parallel bars (along x) on a grounded station; lean a little forward, shoulders just below the elbows at the bottom.
+// Station kept simple and set back: each bar runs forward from one rear post (behind the tucked feet) with a floor foot,
+// and a low brace joins the posts, so no upright crosses the body in the 3/4 view.
+const DIP_Y = 118, POST_X = -58;
+const dipStation = (z, y = DIP_Y) => [...[-z, z].flatMap(zz => [rod([[POST_X - 6, y, zz], [24, y, zz]], 1.9),
+  rod([[POST_X, y, zz], [POST_X, 0, zz]], 1.8, 0, 1), rod([[POST_X - 18, 1.3, zz], [POST_X + 18, 1.3, zz]], 1.5, 0, 1)]),
+  rod([[POST_X, 30, -z], [POST_X, 30, z]], 1.5, 0, 1)];
 function dip(f) {
   const c = {
     cam: { az: 30, el: 7 }, floor: true, floorZ: 50, trail: ['acromionR'], still: .45, gz: 26,
@@ -235,9 +238,10 @@ const ring_dip = dip(c => ({
   name: 'Ring dip', gz: 23, shift: .6, shiftRoll: 1.1, cam: { az: 30, el: 6 },
   muscles: { primary: ['chest', 'triceps'], secondary: ['front_delts', 'biceps', 'abs'] },
   arms: { both: { mode: 'ik', grip: 'bar', palm: s => [.35, 0, .94 * s], pole: [-1, -.3, .2], target: (sd, s) => [0, DIP_Y, c.gz * s] } },
-  props: [...frame(FRAME_Y, 55), ...[-1, 1].flatMap(s => [
+  // frame and straps run up out of the picture; the view is framed on the body and the rings
+  props: [...frame(FRAME_Y, 55, 0, 1, -75), ...[-1, 1].flatMap(s => [
     { t: 'ring', c: [0, DIP_Y + RING_R - 1.5, c.gz * s], n: [0, 0, 1], r: RING_R },
-    rod([[0, DIP_Y + 2 * RING_R - 1.5, c.gz * s], [0, FRAME_Y, c.gz * s]], .6)])],
+    rod([[0, DIP_Y + 2 * RING_R - 1.5, c.gz * s], [0, FRAME_Y, c.gz * s]], .6, 0, 1)])],
 }));
 
 Object.assign(CLIPS, {

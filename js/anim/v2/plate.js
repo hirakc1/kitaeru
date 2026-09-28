@@ -622,11 +622,10 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const T = K.period(clip);
     for (let i = 0; i < 16; i++) { const S = K.poseAt(clip, i / 16 * T); for (const n in S.pt) inc(cam.pr(S.pt[n]), 4); inc(cam.pr(K.P(S.F.head, [1, 17, 0])), 3); }
     const b = clip.bar;
-    if (b) for (const z of [-b.w - 5, b.w + 5]) {
-      inc(cam.pr([b.x || 0, b.y, z]), 3); inc(cam.pr([b.x || 0, b.posts === 'down' ? 0 : b.y + 16, z]), 2);
-      if (b.posts === 'down') for (const dx of [-26, 26]) inc(cam.pr([(b.x || 0) + dx, 0, z]), 2);
-    }
-    for (const p of st.props) for (const q of propPts(p)) inc(cam.pr(q), 1);
+    // the bar frames the view; floor-standing uprights and their feet may run out of the picture (figure stays large)
+    if (b) for (const z of [-b.w * .7, b.w * .7]) inc(cam.pr([b.x || 0, b.y, z]), 3);
+    if (b && b.posts !== 'down') for (const z of [-b.w - 5, b.w + 5]) inc(cam.pr([b.x || 0, b.y + 16, z]), 2);
+    for (const p of st.props) if (!p.nv) for (const q of propPts(p)) inc(cam.pr(q), 1);   // nv: may run out of frame
     if (clip.floor) inc(cam.pr([0, 0, 0]), st.lod ? 2 : 5);
     const pad = st.lod ? 2 : 8; x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
     let w = x1 - x0, h = y1 - y0;
