@@ -597,11 +597,15 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
       if (st.tr !== tr) { st.tr = tr; root.setAttribute('transform', tr); }
     }
     // side switch (swap) or a loop that restarts elsewhere (cut: negatives): a quick dip through the paper, not a teleport
+    let u = 1;
     if (clip.swap || clip.cut) {
-      const h = clip.swap ? K.swapTime(clip) : -1, ts = tn * T, d = Math.min(ts, h < 0 ? 1e9 : Math.abs(ts - h), T - ts), u = Math.min(1, d / .35);
-      const op = f2(.15 + .85 * u * u * (3 - 2 * u));
-      if (st.op !== op) { st.op = op; if (op >= 1) root.removeAttribute('opacity'); else root.setAttribute('opacity', op); }
+      const h = clip.swap ? K.swapTime(clip) : -1, ts = tn * T, d = Math.min(ts, h < 0 ? 1e9 : Math.abs(ts - h), T - ts);
+      u = Math.min(1, d / .35);
     }
+    // a flow moving on to the next step's clip (setAnim while playing): the same quick dip, unless the clips share a frame
+    if (st.dip) { const v = (performance.now() - st.dip) / 450; if (v >= 1) st.dip = 0; else u = Math.min(u, Math.max(0, v)); }
+    const op = f2(.15 + .85 * u * u * (3 - 2 * u));
+    if (st.op !== op) { st.op = op; if (op >= 1) root.removeAttribute('opacity'); else root.setAttribute('opacity', op); }
     S._strands = K.strands(S, st.groups);
     for (const k in G) G[k].begin(); over.begin();
     st.props = clip.swap && tn * T >= K.swapTime(clip) ? st.propsM : st.props0;
@@ -632,6 +636,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   function setAnim(id, prim = primary, sec = secondary) {
     const clip = CLIPS[id];
     if (!clip) throw new Error(`anim v2: clip '${id}' not loaded`);
+    if (st.clip && st.clip !== clip && st.playing && !(clip.frame && clip.frame === st.clip.frame)) st.dip = performance.now();
     st.clip = clip; st.id = id;
     st.prim = new Set(prim ?? clip.muscles.primary); st.sec = new Set(sec ?? clip.muscles.secondary);
     st.groups = new Set([...st.prim, ...st.sec]);

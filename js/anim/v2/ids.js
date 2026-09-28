@@ -17,10 +17,12 @@ export const V2_GROUPS = {
   // Morning Taisō: the 13 steps of radio_taiso_1 (stretch up, side bend and trunk twist are also standalone) + heel raise
   taiso: ['rt_stretch_up', 'rt_arm_swing_knee_bend', 'rt_arm_circles', 'rt_chest_opener', 'rt_side_bend', 'rt_forward_back_bend',
     'rt_trunk_twist', 'rt_arms_up_down', 'rt_diagonal_bend', 'rt_trunk_circle', 'rt_two_foot_hops', 'rt_heel_raise', 'rt_deep_breath'],
-  flow: ['taichi_cloud_hands', 'taichi_brush_knee'],
+  // Tai Chi: the six forms of taichi_short_flow (Simplified 24-form) plus the golden rooster
+  taichi: ['taichi_commencement', 'taichi_part_horse_mane', 'taichi_white_crane', 'taichi_brush_knee', 'taichi_cloud_hands',
+    'taichi_golden_rooster', 'taichi_closing'],
 };
 // clips that exist (compare page) but are not yet cue-checked for the app: kept out of the animation gate
-export const V2_DRAFT = new Set(['taichi_cloud_hands', 'taichi_brush_knee']);
+export const V2_DRAFT = new Set([]);
 export const V2_GROUP_OF = Object.fromEntries(Object.entries(V2_GROUPS).flatMap(([g, ids]) => ids.map(id => [id, g])));
 export const V2_ALL = new Set(Object.keys(V2_GROUP_OF));
 export const V2_IDS = new Set([...V2_ALL].filter(id => !V2_DRAFT.has(id)));

@@ -203,7 +203,7 @@ export function rowGeometry(c, settle, topGap = 7, reach = .985) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// stepping helpers (core leg mode 'step'; see flow.js for the conventions)
+// stepping helpers (core leg mode 'step'; see taichi.js for the conventions)
 // ---------------------------------------------------------------------------------------------------------------
 // feet in world terms: { R: [x, worldZ, toeOut, lift, pitch, pivot], L: [...] } -> sided channels (footZ is lateral: *side).
 // x / z locate the heel, or the ball when pivot = 1 (a foot that turns on its ball: woodchop back foot)
@@ -238,6 +238,16 @@ export const stepLegs = { both: { mode: 'ik', foot: 'step', pole: (s, ch) => { c
 // in prep. The right arm is the clip's (FK by default).
 // ---------------------------------------------------------------------------------------------------------------
 // standing: two planted feet (stepping legs, constant), weight shared by the keyed 'weight'; free hands
+// a free hand target for an arm raised el degrees from hanging (90 = horizontal, 180 = overhead), in a plane turned az
+// degrees from straight ahead (0) to straight out to the side (90; negative: across the body), r cm from the shoulder
+// to the wrist (about 53 straight, less for soft elbows). Returns the T4-frame target of a standing trunk (the T4 frame
+// leans forward about 21°; the glenoid sits at about (2, 3, 15.5) in it), with optional extra channels. side: 'R'/'L'
+// for one hand only (sided channel names), else both.
+export function arm(el, az, r = 52.8, extra = {}, side = '') {
+  const e = el * R, a = az * R, wx = Math.sin(e) * Math.cos(a), wy = -Math.cos(e), wz = Math.sin(e) * Math.sin(a);
+  const o = { handX: +(1.9 + r * (wx * .934 - wy * .356)).toFixed(1), handY: +(3.3 + r * (wx * .356 + wy * .934)).toFixed(1), handZ: +(15.5 + r * wz).toFixed(1), ...extra };
+  return side ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k + side, v])) : o;
+}
 export const HANG = { handX: 3, handY: -42, handZ: 21, palm: 90, fingers: 25, wrist: 4 };   // arms hanging loose by the thighs
 export const stand = (feetAt, over) => ({
   floor: true, lag: .2, headLag: .4, shift: 0, shiftRoll: 0, stepBalance: true, legs: stepLegs,

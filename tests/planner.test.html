@@ -584,8 +584,8 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     const r = P.applySessionLog(lv, p, dl('b', '2026-03-04'), ALL_EXERCISES, [dl('a', '2026-03-02')]);
     ok(r.levels.push_horizontal === 'push_up' && !r.changes.length, 'a swapped-in daṇḍ log never moves the push ladder');
   }
-  ok(Object.values(visibleById).every(isVisible) && ALL_EXERCISES.every(e => !!visibleById[e.id] === isVisible(e)) && !visibleById.taichi_short_flow, 'byId hides them too (library deep links, swaps)');
-  ok(!FAMILIES.flow_taichi && !!FAMILIES.flow_sequence === !!visibleById.radio_taiso_1 && Object.keys(FAMILIES).every(f => EXERCISES.some(e => e.family === f)), 'FAMILIES lists only families with visible items');
+  ok(Object.values(visibleById).every(isVisible) && ALL_EXERCISES.every(e => !!visibleById[e.id] === isVisible(e)), 'byId hides them too (library deep links, swaps)');
+  ok(!!FAMILIES.flow_taichi === !!visibleById.taichi_commencement && !!FAMILIES.flow_sequence === !!(visibleById.radio_taiso_1 || visibleById.taichi_short_flow) && Object.keys(FAMILIES).every(f => EXERCISES.some(e => e.family === f)), 'FAMILIES lists only families with visible items');
   ok(['open_book', 'thread_the_needle', 'pallof_press', 'plank_shoulder_tap'].every(id => contentVisible(ALL_BY_ID[id])), 'generic rotation / anti-rotation need no fact-check (the animation gate still applies)');
 
   // ---- animation gate: nothing is listed, planned, offered in Quick or swapped without an animation
@@ -704,7 +704,7 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     wk = P.generateWeek(pb, P.initialLevels(pb, lib), lib, 2);
     ok(blocksOf(wk, 'balance').length >= 2, `balance goal (${lib === LIB ? 'preview' : 'gated'}): ${blocksOf(wk, 'balance').length} balance blocks`);
     ok(wk.sessions.filter(s => s.light).length === 1, `balance goal: one light flow day (${wk.sessions.map(s => s.name)})`);
-    if (lib === EXERCISES) ok(blocksOf(wk, 'balance').every(s => s.blocks.find(b => b.kind === 'balance').items.every(i => /Balance/.test(i.notes) && !i.flow)), 'balance goal without Tai Chi: generic single-leg work with a support note');
+    if (lib === EXERCISES) ok(blocksOf(wk, 'balance').every(s => s.blocks.find(b => b.kind === 'balance').items.every(i => i.flow ? visibleById[i.exerciseId] : /Balance/.test(i.notes))), 'balance goal (gated): visible flows only (Tai Chi once animated), else generic single-leg work with a support note');
     else ok(blocksOf(wk, 'flow').length === 1 && allIt(blocksOf(wk, 'flow')[0]).some(i => i.exerciseId === 'taichi_short_flow'), 'balance goal light day: a Tai Chi flow');
   }
   const p30 = mk({ age: 30, primaryGoal: 'strength', daysPerWeek: 3 });

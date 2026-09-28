@@ -5,7 +5,7 @@
 // lasts counts × that; on its own (library, warm-ups) a clip plays at its natural brisk tempo.
 // Free hands are placed in the upper-chest (T4) frame: handX forward, handY up the spine, handZ out to that hand's side.
 // Every clip follows the fact-checked cues in js/data/exercises.js.
-import { CLIPS, stand, feet } from './lib.js';
+import { CLIPS, stand, feet, arm } from './lib.js';
 
 const W = 20;                                           // half stance width (cm): feet about hip-width apart
 const RT_FEET = { R: [-5, W, 8], L: [-5, -W, 8] };
@@ -19,10 +19,7 @@ const heels = up => ({ footPitchR: -up, footPitchL: -up, onBalls: 1 });   // hee
 const H = (x, y, z, extra = {}) => ({ handX: x, handY: y, handZ: z, ...extra });
 // a straight arm (r cm to the wrist) raised el degrees from hanging (90 = horizontal, 180 = overhead), in a plane turned
 // az degrees from straight ahead (0) to straight out to the side (90), as a T4-frame target for a standing trunk
-const ARM = (el, az, extra = {}, r = 52.8) => {
-  const e = el * Math.PI / 180, a = az * Math.PI / 180, wx = Math.sin(e) * Math.cos(a), wy = -Math.cos(e), wz = Math.sin(e) * Math.sin(a);
-  return H(+(1.9 + r * (wx * .934 - wy * .356)).toFixed(1), +(3.3 + r * (wx * .356 + wy * .934)).toFixed(1), +(15.5 + r * wz).toFixed(1), extra);
-};
+const ARM = (el, az, extra = {}, r = 52.8) => arm(el, az, r, extra);
 const UP = ARM(172, 12, { palm: 0, fingers: 5 }, 54.5);          // arms straight overhead, palms in
 const FRONT = ARM(90, 8, { palm: 0, fingers: 10 });          // arms forward at shoulder height
 const SIDE = ARM(90, 88, { palm: 90, fingers: 10 });         // arms out to the sides, palms down

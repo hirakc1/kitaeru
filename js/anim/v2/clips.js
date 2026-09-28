@@ -8,7 +8,7 @@ import './clips/trunk.js';
 import './clips/rot.js';
 import './clips/trad.js';
 import './clips/taiso.js';
-import './clips/flow.js';
+import './clips/taichi.js';
 
 export { CLIPS };
 export const CLIP_IDS = Object.keys(CLIPS);
