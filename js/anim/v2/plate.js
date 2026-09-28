@@ -533,7 +533,8 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     st.props = st.props0 = (typeof clip.props === 'function' ? clip.props(clip) : clip.props) || [];
     // sides alternate (swap): the props swap too (a band anchored on the other side)
     const fz = v => (typeof v === 'function' ? v : [v[0], v[1], -v[2]]);
-    st.propsM = clip.swap ? st.props0.map(p => ({ ...p, ...(p.a ? { a: fz(p.a) } : {}), ...(p.b && p.t === 'box' ? { a: [p.a[0], p.a[1], -p.b[2]], b: [p.b[0], p.b[1], -p.a[2]] } : p.b ? { b: fz(p.b) } : {}),
+    // (keepArms: the support hand stays on the same wall, so the props stay too)
+    st.propsM = clip.swap && !clip.keepArms ? st.props0.map(p => ({ ...p, ...(p.a ? { a: fz(p.a) } : {}), ...(p.b && p.t === 'box' ? { a: [p.a[0], p.a[1], -p.b[2]], b: [p.b[0], p.b[1], -p.a[2]] } : p.b ? { b: fz(p.b) } : {}),
       ...(p.pts ? { pts: p.pts.map(fz) } : {}), ...(p.c ? { c: fz(p.c) } : {}), ...(p.n ? { n: fz(p.n) } : {}) })) : st.props0;
     st.pnames = st.props.map((_, i) => 'prop' + i);
     st.props.forEach((p, i) => { G[st.pnames[i]] = new Grp(root, st.pnames[i]); });

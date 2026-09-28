@@ -76,7 +76,7 @@ const hollow_body_hold = (() => {
 // straight legs to bar height
 function hangRaise(name, top, muscles) {
   return hang(c => ({
-    name, cam: { az: 70, el: 6 }, trail: ['ankleR'], still: .1, muscles,
+    name, cam: { az: 24, el: 6 }, trail: ['ankleR'], still: .1, muscles,
     base: { hipFlex: 4, knee: 6, ankle: 25, hipFlexL: 4, kneeL: 6, fingers: 200 },
     keys: { hang: { rootY: 110, scapElev: -.6, scapProt: -4, thoracic: -2, head: 0 }, top: { rootY: 110, scapElev: -.8, scapProt: -6, head: -3, ...top } },
     timeline: repUp('hang', 'top', { p0: .5, con: 1.3, p1: .4, ecc: 2.2 }),
@@ -97,15 +97,17 @@ const l_sit = (() => {
     name: 'L-sit', cam: { az: 38, el: 8 }, floor: true, trail: [], still: 0, props: parallettes,
     lag: .15, headLag: .3, shift: 0, shiftRoll: 0,
     arms: { both: { mode: 'ik', grip: 'bar', palm: s => [0, 0, s], pole: [-1, -.2, .2], target: (sd, s) => [0, PH, PG * s] } },
-    balance: () => 0,   // the centre of mass over the hands (x = 0)
     base: { pitch: 14, lumbar: 4, thoracic: 3, cervical: 0, head: -4, scapElev: -1.2, scapProt: 4, knee: 0, ankle: 40, fingers: 150, hipAbd: 0 },
     keys: { a: { rootY: 60, hipFlex: 96 }, b: { rootY: 60, hipFlex: 97, thoracic: 3.6 } },
     timeline: hold('a', 'b', 4.4),
     prep({ settle }) {
       for (const n in c.keys) {
         const k = c.keys[n];
-        k.rootY = solve(PH + 10, PH + 80, y => settle({ ...k, rootY: y }).reach, .985);
         k.hipFlex = solve(60, 130, h => { const S = settle({ ...k, hipFlex: h }, true); return S.pt.ankleR[1] - S.pt.hipR[1]; }, 0);   // legs level
+        for (let i = 0; i < 4; i++) {   // the centre of mass over the hands (x = 0), arms locked (99.5%)
+          k.rootX = solve(-40, 40, x => settle({ ...k, rootX: x }).com[0], 0);
+          k.rootY = solve(PH + 10, PH + 80, y => settle({ ...k, rootY: y }).reach, .995);
+        }
       }
     },
   };
@@ -184,12 +186,18 @@ function handstand(f) {
 // squeezed, ribs in; a breathing hold
 const WALL_X = -26;
 const wall_handstand = handstand(c => ({
-  name: 'Wall handstand', cam: { az: 50, el: 6 },
+  name: 'Wall handstand', cam: { az: 68, el: 6 },
   keys: { a: { pitch: 186, balance: false, rootX: -6 }, b: { pitch: 186, balance: false, rootX: -6, scapElev: 1.8 } },
   timeline: hold('a', 'b', 4.4),
   props: [box([WALL_X - 16, 0, -60], [WALL_X, 230, 60], -1e4)],
   prep2({ settle }) {   // feet lean on the wall: toes just touching it
-    for (const n in c.keys) { const k = c.keys[n]; k.pitch = solve(178, 200, p => settle({ ...k, pitch: p }, true).pt.toeR[0], WALL_X + .6); }
+    for (const n in c.keys) {
+      const k = c.keys[n];
+      for (let i = 0; i < 3; i++) {   // arms locked (98.5%) with the toes on the wall
+        k.pitch = solve(178, 200, p => settle({ ...k, pitch: p }, true).pt.toeR[0], WALL_X + .6);
+        k.rootY = solve(80, 170, y => settle({ ...k, rootY: y }).reach, .985);
+      }
+    }
   },
 }));
 // freestanding handstand: kick up with control, then balance on the fingertips, wrists, shoulders and hips stacked:
@@ -204,7 +212,7 @@ const freestanding_handstand = handstand(() => ({
 // head tripod (the crown just above the floor), then press hard, glutes and legs squeezed
 const WHX = 24;
 const wall_handstand_push_up = handstand(c => ({
-  name: 'Wall handstand push-up', cam: { az: -36, el: 6 }, trail: ['headTop'], still: .1,
+  name: 'Wall handstand push-up', cam: { az: -112, el: 6 }, trail: ['headTop'], still: .1,
   muscles: { primary: ['front_delts', 'triceps'], secondary: ['side_delts', 'traps', 'upper_back'] },
   keys: { top: { pitch: 175, balance: false }, bottom: { pitch: 172, balance: false, scapElev: 2.2, scapUp: 6, cervical: -10, head: -14 } },
   timeline: rep('top', 'bottom', { p0: .4, ecc: 2.2, con: 1.2 }),
