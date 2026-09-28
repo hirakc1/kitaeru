@@ -116,7 +116,9 @@ function openDetail(id) {
     title: e.name, html: detailHTML(e), cls: 'sheet-tall',
     onMount(el) {
       let p = null;
-      try { p = createSkeletonPlayer(el.querySelector('[data-stage]'), e.anim || e.id, { primary: e.muscles.primary, secondary: e.muscles.secondary, size: Math.min(260, window.innerWidth - 80), playing: !reducedMotion() }); } catch (err) { console.warn(err); }
+      const st = getState().settings;   // animation extras: trail always here, breath guide on holds
+      try { p = createSkeletonPlayer(el.querySelector('[data-stage]'), e.anim || e.id, { primary: e.muscles.primary, secondary: e.muscles.secondary, size: Math.min(260, window.innerWidth - 80), playing: !reducedMotion(),
+        trail: st.animTrail !== false, breath: e.mode === 'hold' && st.animBreath !== false }); } catch (err) { console.warn(err); }
       try { renderBodyMap(el.querySelector('[data-bodymap]'), { primary: e.muscles.primary, secondary: e.muscles.secondary, size: 140 }); } catch (err) { console.warn(err); }
       return () => { try { p && p.destroy(); } catch { /* ignore */ } };
     },

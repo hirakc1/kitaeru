@@ -93,6 +93,7 @@ export const SCAP = {
   acromion: [3.6, 7.4, 8.3],
 };
 export const FOOT = { heel: [-5.6, -6.2, .3], ball: [14.2, -7.1, 0], toe: [20.8, -7.2, -.6] };
+const HEEL_Y = 7.5 + FOOT.heel[1];   // heel point height with the foot flat (ankle 7.5 cm up)
 export const TMJ = [.8, 1.3];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -155,10 +156,14 @@ function gauss(A, b) {
 // ---------------------------------------------------------------------------------------------------------------
 // Channels
 // ---------------------------------------------------------------------------------------------------------------
+// foot* (stepping feet, leg mode 'step'): footX = heel x (world), footZ = heel lateral offset (world z = footZ * side),
+// footLift = heel height above the floor, footTurn = toe-out (deg), footPitch = + toes up about the heel (heel strike),
+// - heel up about the ball (toe-off)
 const SIDED = ['scapElev', 'scapProt', 'scapUp', 'shFlex', 'shAbd', 'elbow', 'wrist', 'palm', 'fingers', 'handX', 'handY', 'handZ',
-  'hipFlex', 'hipAbd', 'knee', 'ankle'];
+  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch'];
+// weight: stepping clips, share of body weight on the right foot (0..1) while both feet are down
 const AXIAL = ['rootX', 'rootY', 'rootZ', 'pitch', 'yaw', 'roll', 'lumbar', 'thoracic', 'cervical', 'head', 'headYaw', 'bend', 'twist',
-  'jaw', 'bodyAngle'];
+  'jaw', 'bodyAngle', 'weight'];
 export const CHANNELS = [...AXIAL, ...SIDED.flatMap(k => [k + 'R', k + 'L'])];
 export const expand = pose => {
   const o = {};
@@ -175,7 +180,7 @@ export function mirrorPose(p) {
   for (const k in p) {
     const m = /^(.*)([RL])$/.exec(k);
     if (m && SIDED.includes(m[1])) o[m[1] + (m[2] === 'R' ? 'L' : 'R')] = p[k];
-    else o[k] = MIRROR_NEG.has(k) ? -p[k] : p[k];
+    else o[k] = MIRROR_NEG.has(k) ? -p[k] : k === 'weight' ? 1 - p[k] : p[k];
   }
   return o;
 }
@@ -333,6 +338,7 @@ function arm(S, ch, ctx, sd, s) {
     extra = want;
   }
   const { G, E, W, ant, scap } = res;
+  if (res.herr != null) S.humerusErr = Math.max(S.humerusErr || 0, res.herr);   // QA: upper-arm stretch with a planted elbow
   S.F['scapula' + sd] = scap;
   const [hu, fo] = limbFrames(G, E, W, ant, s);
   S.F['humerus' + sd] = hu; S.F['fore' + sd] = fo;
@@ -358,14 +364,19 @@ function armFK(ch, G, sd, s, T4) {
 }
 
 function armIK(S, ch, G, spec, sd, s, T4) {
-  const pl = spec.pole;
+  const pl = spec.pole || [0, -1, 0];
   const pole = nrm(add(add(mul(T4.x, pl[0]), mul(T4.y, pl[1])), mul(T4.z, pl[2] * s)));
   let W, hand = null;
-  if (spec.grip === 'palm') {                               // flat hand planted on the floor
-    const c = spec.target(sd, s);
-    const d = nrm(spec.dir(s)), a = [0, -1, 0];
-    W = add(madd(c, d, -5.2), [0, 2.4, 0]);
-    hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), s), len: 18, grip: 'palm' };
+  // planted / bar hands: z = thumb side (medial when palm-down or overhand, lateral underhand), as for free hands
+  if (spec.grip === 'palm') {                               // flat hand planted on a surface (floor; spec.normal: wall, bench)
+    const c = spec.target(sd, s), n = spec.normal ? nrm(spec.normal(s)) : [0, 1, 0];
+    const d = nrm(spec.dir(s)), a = mul(n, -1);
+    W = madd(madd(c, d, -5.2), n, 2.4);
+    hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'palm' };
+  } else if (spec.grip === 'forearm') {                     // forearm flat on the floor (forearm plank): elbow + hand planted
+    const E = spec.target(sd, s), d = nrm(spec.dir(s)), a = [0, -1, 0];
+    W = madd(E, d, LEN.fore);
+    return { E, W, ant: d, herr: Math.abs(len(sub(E, G)) - LEN.humerus), hand: { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'palm' } };
   } else if (spec.grip === 'bar') {                          // hand wrapped around a bar: pivots about the bar axis
     const B = spec.target(sd, s);
     let dirv = nrm(sub(G, B));
@@ -375,8 +386,9 @@ function armIK(S, ch, G, spec, sd, s, T4) {
       dirv = nrm(lerp3(nrm(sub(r.mid, B)), nrm(sub(G, B)), .35));
     }
     W = madd(B, dirv, 6.6);
-    const d = nrm(sub(B, W)), a = perp([1, 0, 0], d);
-    hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), s), len: 18, grip: 'bar', bar: B };
+    // palm faces forward (overhand); sup: underhand (chin-up); spec.palm(s): any other, e.g. neutral on dip bars / rings
+    const d = nrm(sub(B, W)), a = perp(spec.palm ? spec.palm(s) : [spec.sup ? -1 : 1, 0, 0], d);
+    hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'bar', bar: B };
   } else {                                                   // free hand driven by a target in chest space
     W = P(T4, [ch['handX' + sd], ch['handY' + sd], ch['handZ' + sd] * s]);
   }
@@ -406,15 +418,51 @@ function leg(S, ch, ctx, sd, s) {
       const Rf = mm(ry(-s * (spec.toeOut ?? 10)), [1, 0, 0, 0, 1, 0, 0, 0, s]);
       A = spec.ankle(sd, s, ch);
       foot = frameR(A, Rf);
-    } else {                                                // on the toes: ball + toes planted, heel lifts as needed
-      const yaw = -s * (spec.toeOut ?? 4);
-      const ball = spec.ball(sd, s);
-      const D = Math.sqrt(LEN.femur ** 2 + LEN.tibia ** 2 + 2 * LEN.femur * LEN.tibia * Math.cos((spec.knee ?? 2) * DEG));
-      const at = be => { const Rf = mm(ry(yaw), mm(rz(-be), [1, 0, 0, 0, 1, 0, 0, 0, s])); return { A: sub(ball, mv(Rf, FOOT.ball)), Rf }; };
-      let lo = 0, hi = 115;
-      for (let i = 0; i < 28; i++) { const m = (lo + hi) / 2; if (len(sub(H, at(m).A)) > D) lo = m; else hi = m; }
-      const r = at((lo + hi) / 2);
-      A = r.A; foot = frameR(A, r.Rf); foot.toeFlat = mm(ry(yaw), [1, 0, 0, 0, 1, 0, 0, 0, s]);
+    } else if (spec.foot === 'step') {                      // stepping: the foot is placed by channels, heel first
+      // Parametrised by the heel, so a foot that turns while planted pivots about its heel, a heel strike (pitch > 0)
+      // rotates about the heel and a toe-off (pitch < 0) about the ball. Constant channels = a planted, unmoving foot.
+      const turn = ch['footTurn' + sd], pitch = ch['footPitch' + sd], lift = Math.max(0, ch['footLift' + sd]);
+      const Rf0 = mm(ry(-s * turn), [1, 0, 0, 0, 1, 0, 0, 0, s]);
+      const heel = [ch['footX' + sd], HEEL_Y + lift, ch['footZ' + sd] * s];
+      let Rf = Rf0, pe = pitch;
+      A = sub(heel, mv(Rf0, FOOT.heel));
+      const ball = add(A, mv(Rf0, FOOT.ball)), onBall = p => { const R2 = mm(Rf0, rz(p)); return { R2, A2: sub(ball, mv(R2, FOOT.ball)) }; };
+      // a rear foot peels its heel as far as the leg needs (like walking), planted or trailing into the swing: the leg is
+      // never overstretched
+      if (pitch < 2) {
+        const D = LEN.femur + LEN.tibia - .6, far = p => len(sub(H, onBall(p).A2)) > D;
+        if (far(pitch)) { let lo = pitch, hi = -80; if (!far(hi)) { for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (far(m)) lo = m; else hi = m; } } pe = hi; }
+      }
+      if (pe > 0) { Rf = mm(Rf0, rz(pe)); A = sub(heel, mv(Rf, FOOT.heel)); }
+      else if (pe < 0) { const o = onBall(pe); Rf = o.R2; A = o.A2; }
+      foot = frameR(A, Rf);
+      if (pe < 0) foot.toeFlat = Rf0;
+      S.support = S.support || [];
+      if (lift < .05) S.support.push(sd);   // touching the floor (flat, heel strike or toe-off): can bear the keyed weight
+    } else if (spec.foot === 'fixed') {                     // planted in any orientation: axes = [toes, up, lateral] (world)
+      const [x, y, z] = spec.axes(sd, s, ch);
+      A = spec.ankle(sd, s, ch);
+      foot = { o: A, x: nrm(x), y: nrm(y), z: nrm(z) };
+    } else {                                                // pivoting on a planted point: 'toes' = ball + toes planted, heel lifts
+      // as needed; 'heel' = heel planted, toes lift (rows). Foot pitch = spec.lift(s, ch) if given (split-squat back foot),
+      // else solved so the knee has the flexion spec.knee (number or (s, ch) => deg)
+      const heel = spec.foot === 'heel', yaw = -s * (spec.toeOut ?? 4);
+      const piv = heel ? spec.heel(sd, s, ch) : spec.ball(sd, s, ch), off = heel ? FOOT.heel : FOOT.ball;
+      const at = be => { const Rf = mm(ry(yaw), mm(rz(-be), [1, 0, 0, 0, 1, 0, 0, 0, s])); return { A: sub(piv, mv(Rf, off)), Rf }; };
+      let be;
+      if (spec.lift) be = spec.lift(s, ch);
+      else {
+        const kn = typeof spec.knee === 'function' ? spec.knee(s, ch) : (spec.knee ?? 2);
+        const D = Math.sqrt(LEN.femur ** 2 + LEN.tibia ** 2 + 2 * LEN.femur * LEN.tibia * Math.cos(kn * DEG));
+        const f = b => len(sub(H, at(b).A)) - D;
+        let lo = heel ? -115 : 0, hi = heel ? 0 : 115;
+        const up = f(lo) > f(hi);
+        for (let i = 0; i < 28; i++) { const m = (lo + hi) / 2; if ((f(m) > 0) === up) lo = m; else hi = m; }
+        be = (lo + hi) / 2;
+      }
+      const r = at(be);
+      A = r.A; foot = frameR(A, r.Rf);
+      if (!heel) foot.toeFlat = mm(ry(yaw), [1, 0, 0, 0, 1, 0, 0, 0, s]);
     }
     const r = ik2(H, A, LEN.femur, LEN.tibia, pole);
     K = r.mid; A = r.end; ant = pole;
@@ -447,6 +495,13 @@ function leg(S, ch, ctx, sd, s) {
 // ---------------------------------------------------------------------------------------------------------------
 export function poseAt(clip, ts) {
   prepare(clip);
+  if (clip.swap) {                                  // unilateral: every other cycle is the mirror image (the other side)
+    const T = compile(clip).T, u = ((ts % (2 * T)) + 2 * T) % (2 * T);
+    return u >= T ? pose1(mirrored(clip), u - T) : pose1(clip, u);
+  }
+  return pose1(clip, ts);
+}
+function pose1(clip, ts) {
   const sm = sample(clip, ts);
   const ch = { ...sm.ch };
   const lag = clip.lag ? sample(clip, ts - clip.lag).ch : ch;
@@ -459,8 +514,17 @@ export function poseAt(clip, ts) {
   ch.roll += (clip.shiftRoll ?? .6) * Math.sin(w + 1.1);
   const ctx = { clip, breath: sm.breath, sm, lag };
   clip.derive?.(ch, lag, sm);
-  let S = build(ch, ctx);
-  if (clip.balance) {
+  let S = settle(clip, ch, ctx);
+  if (clip.stepBalance) {                          // weight transfer: centre of mass over the weighted feet (x and z)
+    for (let i = 0; i < 4; i++) {
+      const t = supportTarget(S, ch.weight);
+      if (!t) break;
+      const ex = t[0] - S.com[0], ez = t[1] - S.com[2];
+      if (Math.abs(ex) + Math.abs(ez) < .03) break;
+      ch.rootX += ex; ch.rootZ += ez;
+      S = build(ch, ctx);
+    }
+  } else if (clip.balance) {
     for (let i = 0; i < 3; i++) {
       const err = clip.balance(S) - S.com[0];
       if (Math.abs(err) < .02) break;
@@ -471,12 +535,62 @@ export function poseAt(clip, ts) {
   S.sm = sm;
   return S;
 }
-export const period = clip => compile(clip).T;
+// where the centre of mass should sit: over the one flat foot, or between both by the keyed weight (share on the right)
+function supportTarget(S, w) {
+  const c = sd => [S.pt['heel' + sd][0] * .6 + S.pt['ball' + sd][0] * .4, S.pt['heel' + sd][2] * .6 + S.pt['ball' + sd][2] * .4];   // mid-foot, heel side
+  const sup = S.support || [];
+  if (sup.length === 1) return c(sup[0]);
+  if (sup.length === 2) { const r = c('R'), l = c('L'), u = clamp(w, 0, 1); return [l[0] + (r[0] - l[0]) * u, l[1] + (r[1] - l[1]) * u]; }
+  return null;
+}
+export const period = clip => { prepare(clip); return compile(clip).T * (clip.swap ? 2 : 1); };
+export const swapTime = clip => (clip.swap ? compile(clip).T : 0);   // seconds per side (for the switch fade)
+
+// Mirror a whole clip left <-> right: keys and base mirrored, limb specs swapped between sides with their world
+// targets reflected in z, derive / balance / pin run on the mirrored channels and skeleton. Not for clips with
+// 'fixed' feet (side plank): a z-mirror would turn the body away from the camera.
+const OTHER = { R: 'L', L: 'R' }, fz = v => [v[0], v[1], -v[2]];
+const swapPt = S => ({ ...S, pt: Object.fromEntries(Object.entries(S.pt).map(([k, v]) => [/[RL]$/.test(k) ? k.slice(0, -1) + OTHER[k.slice(-1)] : k, fz(v)])) });
+function mirrorSpec(sp) {
+  if (!sp) return sp;
+  const o = { ...sp }, mc = ch => ch && mirrorPose(ch);
+  for (const k of ['ankle', 'ball', 'heel', 'target']) if (typeof sp[k] === 'function') o[k] = (sd, s, ch) => fz(sp[k](OTHER[sd], -s, mc(ch)));
+  for (const k of ['pole', 'dir', 'normal', 'palm']) if (typeof sp[k] === 'function') o[k] = (s, ch) => fz(sp[k](-s, mc(ch)));
+  if (typeof sp.axes === 'function') o.axes = (sd, s, ch) => sp.axes(OTHER[sd], -s, mc(ch)).map(fz);
+  for (const k of ['knee', 'lift']) if (typeof sp[k] === 'function') o[k] = (s, ch) => sp[k](-s, mc(ch));
+  return o;
+}
+const mirrorLimbs = L => L && { R: mirrorSpec(L.L || L.both), L: mirrorSpec(L.R || L.both) };
+function mirrored(c) {
+  if (c._mir) return c._mir;
+  const m = { ...c, swap: false, prep: null, _prepped: true, _c: null, _an: null, _mir: null, shift: -(c.shift ?? .5), shiftRoll: -(c.shiftRoll ?? .6),
+    base: mirrorPose(expand(c.base || {})), keys: Object.fromEntries(Object.entries(c.keys).map(([k, v]) => [k, mirrorPose(expand(v))])),
+    legs: mirrorLimbs(c.legs), arms: c.keepArms ? c.arms : mirrorLimbs(c.arms) };   // keepArms: a support hand stays put
+  if (c.derive) m.derive = (ch, lag, sm) => { const x = mirrorPose(ch); c.derive(x, mirrorPose(lag), sm); Object.assign(ch, mirrorPose(x)); };
+  if (c.balance) m.balance = S => c.balance(swapPt(S));
+  if (c.pin) m.pin = { ...c.pin, pt: S => fz(c.pin.pt(swapPt(S))) };
+  return (c._mir = m);
+}
+// pin: a body point held at a world position (upper back in a bridge, knees in a knee push-up) by translating the root
+function settle(clip, ch, ctx) {
+  let S = build(ch, ctx);
+  const pn = clip.pin;
+  if (pn) for (let i = 0; i < 3; i++) {
+    const p = pn.pt(S), dx = pn.at[0] == null ? 0 : pn.at[0] - p[0], dy = pn.at[1] == null ? 0 : pn.at[1] - p[1];
+    if (Math.abs(dx) + Math.abs(dy) < .01) break;
+    ch.rootX += dx; ch.rootY += dy;
+    S = build(ch, ctx);
+  }
+  return S;
+}
 
 function prepare(clip) {
   if (clip._prepped) return;
   clip._prepped = true;
-  clip.prep?.({ build: (pose, fk) => build({ ...zeroCh(), ...expand({ ...(clip.base || {}), ...pose }) }, { clip, breath: .5, fk }) });
+  const full = pose => ({ ...zeroCh(), ...expand({ ...(clip.base || {}), ...pose }) });
+  clip.prep?.({ build: (pose, fk) => build(full(pose), { clip, breath: .5, fk }),
+    // derive + pin, as poseAt does (no secondary motion)
+    settle: (pose, fk) => { const ch = full(pose); clip.derive?.(ch, ch, {}); return settle(clip, ch, { clip, breath: .5, fk }); } });
   clip._c = null;
 }
 const zeroCh = () => Object.fromEntries(CHANNELS.map(c => [c, 0]));
@@ -511,7 +625,7 @@ export const MUSCLES = [
   M('lats', { fan: 5, from: [['T8', -4.6, 1, 0], ['pelvis', -6.5, 15, 6.5]], via: [['rib', 8, .26, 0], ['rib', 11, .38, 0]], to: [['humerus', 1.3, 5.2, -.6], ['humerus', 1.3, 6.2, -.6]], w: 2.2, th: 1.1, t: [.12, .12] }),
   M('lower_back', { fan: 2, from: [['pelvis', -7.5, 9, 2], ['pelvis', -7, 12, 4]], via: [['L2', -5.8, 1, 2.8], ['L1', -5.5, 1, 4]], to: [['T6', -5.4, 1, 2.5], ['T8', -6, 1, 5.5]], w: 1.4, th: 1.5, t: [.08, .15] }),
   M('abs', { from: ['pelvis', 6, -2.4, 1.6], via: ['L3', 10.8, 1, 3.4], to: ['rib', 6, .96, 0], w: 2.2, th: .6, t: [.05, .03], segs: 3 }),
-  M('obliques', { fan: 2, from: [['rib', 8, .55, 0], ['rib', 10, .6, 0]], via: [['L3', 6.4, 1, 10.5], ['L4', 4.5, 1, 11]], to: [['pelvis', 5.5, 12, 11.5], ['pelvis', 1, 15.5, 12.5]], w: 2.0, th: .9, t: [.12, .08] }),
+  M('obliques', { fan: 3, from: [['rib', 7, .6, 0], ['rib', 10, .6, 0]], via: [['L3', 6.8, 1, 10.5], ['L4', 4.5, 1, 11]], to: [['pelvis', 5.5, 12, 11.5], ['pelvis', 1, 15.5, 12.5]], w: 2.6, th: 1.2, t: [.1, .08] }),
   M('glutes', { fan: 5, from: [['pelvis', -9, 12, 5.5], ['pelvis', -10, 3, 3]], via: [['pelvis', -11.8, 4, 9], ['pelvis', -10.4, -4, 9]], to: [['femur', -1.5, 9, 1.8], ['femur', -1.2, 12, 1.6]], w: 2.8, th: 2.6, t: [.05, .18] }),
   M('hip_flexors', { from: ['L2', 1.5, 1, 3.2], via: ['pelvis', 5, 2, 7.5], to: ['femur', .3, 5.5, -1.6], w: 1.4, t: [.05, .2] }),
   M('quads', { fan: 3, from: [['pelvis', 5.8, 5.5, 10], ['femur', .2, 7, 2.6]], via: [['femur', 3.8, 20, .2], ['femur', 3.3, 24, 2.4]], to: ['pt', 'patella', 0, 0], w: 2.5, th: 2.4, t: [.08, .14] }),
@@ -563,6 +677,12 @@ export const bulge = (L, Lavg) => clamp(Math.pow(Lavg / L, 1.25), .75, 1.65);
 
 // muscle average lengths over a cycle (for contraction), and a joint path for the motion trail
 export function analyse(clip, groups, trailPts = [], n = 36) {
+  const key = [...groups].sort().join() + '|' + trailPts.join();
+  const memo = clip._an || (clip._an = new Map());
+  if (!memo.has(key)) memo.set(key, analyse1(clip, groups, trailPts, n));
+  return memo.get(key);
+}
+function analyse1(clip, groups, trailPts, n) {
   const T = period(clip), avg = {}, trail = Object.fromEntries(trailPts.map(p => [p, []]));
   let cnt = 0;
   for (let i = 0; i < n; i++) {
@@ -571,7 +691,7 @@ export function analyse(clip, groups, trailPts = [], n = 36) {
     cnt++;
   }
   for (const k in avg) avg[k] /= cnt;
-  const m = 72;
+  const m = trailPts.length ? 72 : -1;
   for (let i = 0; i <= m; i++) { const S = poseAt(clip, i / m * T); for (const p of trailPts) trail[p].push(S.pt[p]); }
   return { avg, trail };
 }

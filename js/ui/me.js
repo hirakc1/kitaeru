@@ -29,6 +29,9 @@ export function render(root, ctx) {
         <div class="set-row"><span>Units</span>${seg('units', st.units, [['metric', 'Metric'], ['imperial', 'Imperial']])}</div>
         <div class="set-row"><span>Theme</span>${seg('theme', st.theme, [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}</div>
         <label class="set-row"><span>Sound & vibration<br><span class="small muted">Rest-timer beeps and haptics</span></span><input type="checkbox" class="switch" data-sound ${st.sound ? 'checked' : ''}></label>
+        <div class="set-row"><span class="small muted">Animation extras</span></div>
+        <label class="set-row"><span>Breath guide<br><span class="small muted">Breathing ring on holds</span></span><input type="checkbox" class="switch" data-anim-set="animBreath" ${st.animBreath !== false ? 'checked' : ''}></label>
+        <label class="set-row"><span>Motion trail<br><span class="small muted">Movement path in the library</span></span><input type="checkbox" class="switch" data-anim-set="animTrail" ${st.animTrail !== false ? 'checked' : ''}></label>
       </div></section>
 
       <section class="section"><h2 class="section-title">Your data</h2><div class="card">
@@ -71,6 +74,7 @@ export function render(root, ctx) {
   });
   root.addEventListener('change', async e => {
     if (e.target.matches('[data-sound]')) { update(s => { s.settings.sound = e.target.checked; }); return; }
+    if (e.target.matches('[data-anim-set]')) { const k = e.target.dataset.animSet; update(s => { s.settings[k] = e.target.checked; }); return; }
     if (e.target.matches('[data-import]')) {
       const file = e.target.files[0]; e.target.value = '';
       if (!file) return;

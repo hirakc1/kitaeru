@@ -60,9 +60,10 @@ function setStage(exId) {
   const size = 1200; // CSS sizes the hero (full column width, clamp height); this only caps max-width
   if (player && stageId === exId) return;
   const animId = e.anim || e.id;
+  const breath = e.mode === 'hold' && getState().settings.animBreath !== false;   // breath guide on holds; no trail mid-workout
   try {
-    if (player && player.setAnim) player.setAnim(animId, e.muscles.primary, e.muscles.secondary);
-    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: e.muscles.primary, secondary: e.muscles.secondary, size, playing: !reducedMotion() }); }
+    if (player && player.setAnim) { player.setAnim(animId, e.muscles.primary, e.muscles.secondary); player.setBreath?.(breath); }
+    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: e.muscles.primary, secondary: e.muscles.secondary, size, playing: !reducedMotion(), breath }); }
   } catch (err) { console.warn('skeleton failed', err); }
   stageEl.setAttribute('aria-label', `${e.name} demonstration`);
   stageId = exId;
