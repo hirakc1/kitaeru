@@ -18,29 +18,41 @@ This is the current state for a new Claude session picking up the project. Claud
 ## Shipped
 - **v1.0:** onboarding, plan engine (research-based), 82 exercises with a 2D skeletal animation and muscle highlight, workout player, weekly-primary streaks with freezes, progress, library.
 - **v1.1** (2026-09-28): Quick workout with no setup. You pick a time plus a goal or a body area; body-map muscle tapping uses `generateQuickSession`. Also fixed from founder feedback: day chips sync with days/week, the weight format is st&lb | kg | lb, plank baseline is entered in min+sec, and preferences have an edit hub.
+- **Timed holds:** 3-2-1 get-ready, then a countdown to the top of the `holdSec` range. It auto-logs at 0, and "Stop & log" still logs early.
+- **Opening screen:**
+  - One stage only: no pulsing boot square, and the splash is skipped before setup because the Welcome screen is the opening.
+  - It shows the seal, the name, "鍛える · to forge" and the line "The world's movement traditions, brought together to strengthen body and mind."
+  - It runs 3.6 s (the founder found 2.8 s too fast) and can be tapped to skip.
+  - The logo seal sits straight. Only the earned "workout complete" stamp is tilted.
+- **Anim v2, direction A** (deployed as v2026.09.28-1455):
+  - 37 of the 82 exercises (batches 1 and 2) use it, lazy-loaded (~2 KB at first load). v1 is the fallback for the rest.
+  - The breath ring and motion trail are controlled by Me → Animation extras.
+  - Stepping and weight transfer are built (Tai Chi pilots).
+  - Phone speed is still unmeasured: ask the founder how it feels.
 
-- **Opening screen** (deployed as v2026.09.28-1037): the seal, the name, 鍛える, and the founder's line "The world's movement traditions, brought together to strengthen body and mind." It runs 3.6 s (the founder found 2.8 s too fast) and can be tapped to skip. The same line appears in the Me → About section.
-- **Timed holds** (deployed as v2026.09.28-0949): Start runs a 3-2-1 get-ready, then counts down to the target (the top of the `holdSec` range). It auto-logs at 0, and "Stop & log" still logs early.
+## Decisions log (2026-09-28)
+- Animation: A now, B (3D) later as an optional view.
+- **Logo: direction B, the carved seal (白文).** Assets are in `docs/brand/b/` on the designer's branch. Every character is an OFL-font vector path (`docs/brand/LICENSES.md`); nothing depends on a font at runtime. A hand-carved seal by a 篆刻家 is a possible later upgrade.
+- Theme: Auto is the default. Light is the brand identity for store screenshots and marketing.
+- **No paid reviewers (no budget).** Accuracy comes from sources instead:
+  - at least 2 independent sources per move, official ones where they exist;
+  - an independent fact-check agent sets `verified`, never the author;
+  - cards show a "Sources" line, never "Reviewed by".
+- "Suggest a correction" is **parked**: the founder wants a way to filter out bad information first.
+- Radio Taisō:
+  - Shown as "Morning Taisō"; the music is never used.
+  - Attribution: "the Radio Taisō No. 1 movements (NHK / Japan Post Insurance). Kitaeru is not affiliated with them."
+  - The trademark status of the name is unconfirmed.
+- A `balance` goal is added. Morning Taisō keeps the day streak alive but doesn't count towards the weekly target.
 
 ## In progress / next
-1. **Animation level-up.** This is founder feedback: "much higher quality, better skeleton, more fluid, a real level up".
-   - A senior animator was building two prototypes in `js/anim/v2/`, `js/vendor/` and `anim-v2-compare.html`, with screenshots in `docs/anim-v2/`:
-     - **A:** premium 2D anatomical.
-     - **B:** 3D with three.js vendored.
-   - Each prototype covers push_up, bodyweight_squat and pull_up, plus a rotational move.
-   - The prototypes are **complete** (2026-09-28) but **not committed**.
-   - Both directions share one 3D rig: C2 splines, tempo, two-bone IK with no sliding, and secondary motion.
-   - **A** adds about 15–26 KB gzipped and is recommended as the default. **B** adds about 171 KB of three.js, which the animator suggests offering later as an optional "3D view" for Tai Chi and rotation moves.
-   - Converting all 82 exercises takes about 4–6 weeks of agent work. Stepping with a support-foot switch needs about 1 more week.
-   - Still rough: the pelvis and hand silhouettes need an art pass.
-   - **Decided (2026-09-28): A now, B later.** A becomes the default renderer for all 82 exercises. B comes later as an optional "3D view" for the v1.2 world-movement and rotation moves. Prototypes are committed.
-   - **Batch 1 approved (2026-09-28):** 15 exercises on branch `worktree-agent-a9739dc712fdd0781`, not merged or deployed yet. Founder liked the continuous motion, the motion trail and the breath ring.
-     - Agreed placement: the breath ring runs during holds (workout and library), and the motion trail shows in library/detail only. A Me-tab "Animation extras" setting controls both.
-     - Batch 1 fixes in progress: a floor and frame for the pull-ups, a clearer superman lift, and side swap.
-   - **Batch 2 in progress:** about 18 exercises (push-up variants, dips, pull/rows, box/Bulgarian split squat, hip thrust, single-leg calf raise), plus lazy-loading v2. After that come batches 3–5: core/skills, conditioning (needs support-foot switching), and mobility.
-   - Theme: keep Auto as the default. Light is the brand identity for store screenshots and marketing.
-   - The world-movement wave needs trunk rotation, stepping with weight transfer, flows, hand shapes and a breath indicator. That leans towards 3D.
-2. **v1.2 world-movement wave:** see `docs/world-movement.md` §7. It covers Radio Taisō No.1 (movements only; the music is copyrighted, and the name/trademark needs checking), Tai Chi singles and short flow, Baduanjin, horse stance, Hindu push-up and squat, rotation / anti-rotation families, and schema additions (`tradition`, `nativeName`, `sequence`, `plane`). Each tradition must be reviewed and credited by a practitioner before it ships.
+1. **Logo B into the app:** seal(), splash, Welcome, icons, favicon, and a 済 stamp. Designer agent, branch `worktree-agent-a77ca9ac54c00de37`.
+2. **Anim v2 for v1.2 content:** rotation and anti-rotation (14 clips, generic, can ship first), then dand, baithak and horse stance, then Morning Taisō, Tai Chi and Baduanjin. Animator agent, branch `worktree-agent-a9739dc712fdd0781`.
+   - After that, batches 3–5 for the remaining 45 v1 exercises: core/skill, conditioning (needs an airborne mode), and mobility.
+3. **v1.2 world movement:** plan in `docs/v1.2-plan.md`.
+   - Data, planner and UI are done on branch `worktree-agent-af2910817cf165163` (115,203 tests).
+   - **All 5 traditions are verified** (Morning Taisō, Tai Chi, Baduanjin, Pehlwani, Horse stance).
+   - Still hidden, because an animation gate means nothing unanimated is planned. It ships when the clips land and the founder has reviewed it.
 3. **Known gaps:**
    - A reactive deload isn't done.
    - Deleting a log doesn't roll back level changes.
