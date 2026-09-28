@@ -88,9 +88,11 @@ function route() {
 // Shown on every launch over the first screen: seal, name, meaning, then a slow fade out. Tap to skip.
 // Skipped before setup: the Welcome screen is already the seal-and-name opening, so it would show twice.
 const SPLASH_MS = 3600;
+// Also skipped when launched as an installed app: the phone already shows its own launch screen (icon on washi).
 function splash() {
   const s = getState();
   if (!s.profile && !s.settings.quickUser && !s.logs.length) return;
+  if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) return;
   const el = document.createElement('div');
   el.className = 'splash'; el.setAttribute('aria-hidden', 'true');
   el.innerHTML = `${seal('鍛える', { size: 176, cls: 'splash-seal' })}
