@@ -897,6 +897,11 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
       ok(its.every(i => byId[i.exerciseId] && P.isAvailable(byId[i.exerciseId], eff)), `${T}: unavailable ${its.filter(i => !P.isAvailable(byId[i.exerciseId], eff)).map(i => i.exerciseId)}`);
       ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${T}: deterministic`);
       const has = ids => ids.some(id => byId[id] && P.isAvailable(byId[id], eff));
+      if (minutes === 5) ok(content.length >= 2, `${T}: a 5-min session with a single move (${content.map(i => i.exerciseId)})`);
+      if (goal === 'muscle' && prof) { // one rung up at most in a one-off session
+        const lv = P.initialLevels(prof, EXERCISES);
+        for (const i of main) { const cur = byId[lv[i.family]]; if (cur) ok(byId[i.exerciseId].level <= cur.level + 1, `${T}: ${i.exerciseId} is more than one level above ${cur.id}`); }
+      }
       if (goal === 'muscle') {
         ok(main.some(i => /Lower for 3 s/.test(i.notes)), `${T}: no slow-eccentric note (${main.map(i => i.exerciseId)})`);
         if (minutes >= 15 && main.length >= 2) ok(main.some(i => i.superset != null), `${T}: no supersets`);

@@ -894,6 +894,11 @@ function fillMain(parts, fmt, ctx, sess, budget) {
     if (!u && ctx.quick) { const first = units.find(x => x.tier === 1); if (first) { u = mkUnit([first.parts[0]], 'straight', ctx); u.tier = 1; } }
     if (u) tryAdd(u, 45);
   }
+  if (ctx.twoMoves && ctx.D.M <= 5 && chosen.length === 1 && chosen[0].parts.length === 1) { // 5 min: a second move, even if a little over
+    const have = new Set(chosen[0].parts.map(p => p.ex.id));
+    const p2 = units.filter(x => x.tier <= 2).flatMap(x => x.parts).find(p => !have.has(p.ex.id));
+    if (p2) { const u2 = mkUnit([p2], 'straight', ctx); u2.tier = 1; tryAdd(u2, 60); }
+  }
   // §2.3 step 4: never keep a push slot without a horizontal pull
   const hasHP = () => chosen.some(u => u.parts.some(p => HPULL.includes(p.ex.family)));
   const hpUnit = units.find(u => !chosen.includes(u) && u.parts.some(p => HPULL.includes(p.ex.family)));
@@ -1928,28 +1933,29 @@ function goalTemplate(goal, ctx, seed, minutes, quick) {
   const T = (fams, role, tier, extra = {}) => S(fams, role, tier <= 2, { tier, ...extra });
   const pick = ids => ids.map(id => ctx.byId[id]).find(e => e && ctx.isAvail(e)) || null;
   const secs = minutes * 60;
-  // the next rung up the user's ladder (at most ~one level), for hypertrophy: harder or longer-range variants
+  // the next rung up the user's ladder (one level at most; none available = stay at the current level), for hypertrophy: harder or longer-range variants
   const up = fams => {
     for (const f of fams) {
       const av = ctx.avail[f];
       if (!av.length) continue;
       const lvl = ctx.levelsEx[f]?.level ?? av[0].level;
-      const c = av.filter(e => e.level > lvl && e.level <= lvl + 2);
+      const c = av.filter(e => e.level > lvl && e.level <= lvl + 1); // one rung only in a one-off session: two risks failure and poor form
       if (c.length) return nearest(c, lvl + 1);
     }
     return null;
   };
   switch (goal) {
-    case 'muscle': { // research §1.1 muscle: 6-20 reps near failure, 3-4 sets; harder variants, slow eccentrics, accessories, supersets
+    case 'muscle': {
+      const near = ids => { const e = pick(ids); return e && e.level <= (ctx.levelsEx[e.family]?.level ?? e.level) + 1 ? e : null; }; // research §1.1 muscle: 6-20 reps near failure, 3-4 sets; harder variants, slow eccentrics, accessories, supersets
       const tempo = { note: TEMPO_NOTE, reps: [6, 15] }; // 6-15: the efficient middle of the 6-20 range, so a short session fits more sets
       quick.noAgeBalance = true; // a one-off hypertrophy session: the 40+ balance item belongs to the plan's other sessions
       // breadth first (2 sets each), then up to 3-4 sets: several exercises per muscle suit hypertrophy better than one long lift
       return { kind: 'hard', name: '', focus: ['push', 'pull', 'legs', 'core'], targeted: true, ...(minutes >= 15 ? { fmt: 'superset' } : {}), slots: [
         T(['push_horizontal'], 'main', 1, { prefer: up(['push_horizontal']), ...tempo }),
         T(['pull_vertical', ...HPULL], 'main', 1, { prefer: up(['pull_vertical']) || up(HPULL), ...tempo }),
-        T(['squat'], 'main', 1, { prefer: pick(['bulgarian_split_squat']) || up(['squat']), ...tempo }),
-        T(['hinge'], 'main', 2, { prefer: pick(['hip_thrust']) || up(['hinge']), reps: [6, 15] }),
-        T(['dip', 'push_vertical'], 'main', 2, { prefer: pick(['ring_dip', 'bar_dip', 'bench_dip']) || up(['push_vertical']), ...tempo }),
+        T(['squat'], 'main', 1, { prefer: near(['bulgarian_split_squat']) || up(['squat']), ...tempo }),
+        T(['hinge'], 'main', 2, { prefer: near(['hip_thrust']) || up(['hinge']), reps: [6, 15] }),
+        T(['dip', 'push_vertical'], 'main', 2, { prefer: near(['ring_dip']) || near(['bar_dip']) || near(['bench_dip']) || up(['push_vertical']), ...tempo }),
         T(HPULL, 'main', 2, { prefer: up(HPULL), ...tempo }),
         T(['calves'], 'acc', 3, { prefer: up(['calves']) }), T(['core_anterior'], 'core', 3, { prefer: up(['core_anterior']) })] };
     }
@@ -2243,7 +2249,13 @@ export function generateQuickSession(request = {}, profile = null, levels = null
     const ranked = [...ctx.avail.mobility].map((ex, i) => ({ ex, i, sc: muscleScore(ex, muscles).score })).sort((a, b) => b.sc - a.sc || a.i - b.i);
     quick.mobOrder = ranked.map(x => x.ex.id);
   }
-  const sess = buildSession({ key: 'quick', tpl, quick, hardIdx: 0, variant: 0 }, ctx, seed, 0);
+  ctx.twoMoves = focus === 'full'; // "train for a goal": a 5-min session always has at least two moves
+  let sess = buildSession({ key: 'quick', tpl, quick, hardIdx: 0, variant: 0 }, ctx, seed, 0);
+  const contentN = s => s.blocks.filter(b => b.kind !== 'warmup' && b.kind !== 'cooldown').reduce((n, b) => n + b.items.length, 0);
+  if (ctx.twoMoves && minutes <= 5 && contentN(sess) < 2) { // 5 min: never a single move; the warm-up and cool-down shrink to their minimum
+    const retry = buildSession({ key: 'quick', tpl, quick: { ...quick, warm: 0, cool: 0 }, hardIdx: 0, variant: 0 }, ctx, seed, 0);
+    if (contentN(retry) > contentN(sess)) sess = retry;
+  }
   delete sess._tpl; delete sess._key;
   sess.id = 'Q';
   if (pool) {
