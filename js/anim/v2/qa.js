@@ -13,7 +13,7 @@ import { poseAt, period, swapTime } from './core.js';
 export function qaClip(clip, { n = 240, pins = clip.qaPins || [] } = {}) {
   const T = period(clip), anc = {};
   const r = { reach: 0, reachLeg: 0, slide: 0, slideAt: '', floor: 1e9, floorAt: '', offMat: 0, offMatAt: '', humerus: 0, ms: 0, com: 0, comAt: 0 };
-  const zN = clip.floor && !clip.travel ? Math.max(34, clip.floorZ || 0, (clip.bar?.w ?? 0) + 12) : 1e9;   // plate.js drawFloor
+  const zN = clip.floor && !clip.travel && !clip.grid ? Math.max(34, clip.floorZ || 0, (clip.bar?.w ?? 0) + 12) : 1e9;   // plate.js drawFloor
   const t0 = performance.now();
   const h = swapTime(clip);
   for (let i = 0; i < n; i++) {   // (one cycle, not the wrap: travelling clips end where they started + travel)

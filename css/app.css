@@ -738,6 +738,20 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 
 /* ---------- flow player ---------- */
 .logger.flow { gap: 10px; }
+/* Flows: a shorter stage, the step count beside its ring right under the name, so stage, step, count and ring all fit
+   on a 375×812 screen without scrolling (the cues and the step list follow). */
+.is-flow .pl-stage svg, .is-flow .pl-stage .kt-sk { height: clamp(220px, 31vh, 420px) !important; }
+@media (min-width: 720px) { .is-flow .pl-stage svg, .is-flow .pl-stage .kt-sk { height: clamp(300px, 42vh, 520px) !important; } }
+.is-flow .pl-muscles { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; scrollbar-width: none; margin: 2px 0; }
+.is-flow .pl-muscles::-webkit-scrollbar { display: none; }
+.is-flow .pl-muscles .mchip { flex: none; }
+.is-flow .pl-name { font-size: 1.45rem; margin-bottom: 4px; }
+.is-flow .pl-block { margin-bottom: 0; }
+.logger.flow { display: grid; grid-template-columns: 112px 1fr; align-items: center; column-gap: 14px; }
+.logger.flow > .fl-now { grid-column: 2; grid-row: 1; min-height: 112px; align-items: flex-start; text-align: left; }
+.logger.flow > .ring { grid-column: 1; grid-row: 1; }
+.logger.flow > :not(.fl-now):not(.ring) { grid-column: 1 / -1; }
+.logger.flow .fl-count, .logger.flow .fl-beads { justify-content: flex-start; }
 .fl-now { text-align: center; min-height: 128px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
 .fl-now-name { font: 700 1.25rem var(--serif); }
 .fl-now-cue { color: var(--muted); font-size: .95rem; }

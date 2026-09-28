@@ -783,7 +783,7 @@ function placeholder(container, size) {
 }
 // opts.breath / opts.trail (default off): v2 breath ring and motion trail; v1 ignores both
 export function createSkeletonPlayer(container, animId, opts = {}) {
-  const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, pace: null, ...opts };
+  const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, pace: null, fit: null, ...opts };
   let p = null, kind = null, cur = null, gen = 0, dead = false, fixedT = null;
   function mount(k) {
     const old = p;
@@ -792,29 +792,31 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
     if (old) { if (old.svg.parentNode === container) container.insertBefore(p.svg, old.svg); old.destroy(); }
     if (fixedT != null) p.seek(fixedT);
   }
-  function show(id) {
+  function show(id, opts) {
     const k = isV2(id) ? 'v2' : 'v1';
-    if (p && kind === k) p.setAnim(id, o.primary, o.secondary); else mount(k);
+    if (p && kind === k) p.setAnim(id, o.primary, o.secondary, opts); else mount(k);
   }
-  function load(id, prim, sec) {
-    cur = id; if (prim) o.primary = prim; if (sec) o.secondary = sec;
+  // opts (v2): { flow, blend } for flow steps: no fades at the step's ends, and a pose blend from the previous step
+  function load(id, prim, sec, opts = {}) {
+    cur = id; if (prim) o.primary = prim; if (sec) o.secondary = sec; o.flow = !!opts.flow;
     const my = ++gen;
-    if (!isV2(id) || v2Ready(id)) { show(id); return; }
+    if (!isV2(id) || v2Ready(id)) { show(id, opts); return; }
     if (kind !== 'ph') mount('ph');
-    loadV2(id).then(() => { if (!dead && my === gen) show(id); },
+    loadV2(id).then(() => { if (!dead && my === gen) show(id, opts); },
       e => { console.warn('anim v2 unavailable, using v1', e); if (!dead && my === gen) mount('v1'); });
   }
   load(animId);
   return {
     play() { o.playing = true; fixedT = null; p.play(); },
     pause() { o.playing = false; p.pause(); },
-    setAnim(id, prim, sec) { fixedT = null; load(id, prim, sec); },
+    setAnim(id, prim, sec, opts) { fixedT = null; load(id, prim, sec, opts); },
     destroy() { dead = true; p.destroy(); },
     seek(t) { fixedT = t; p.seek(t); },
     setBreath(on) { o.breath = !!on; p.setBreath?.(o.breath); },
     setTrail(on) { o.trail = !!on; p.setTrail?.(o.trail); },
-    // flows: seconds per count of the current step (v2 clips with `counts` fit their cycle to it); null = natural tempo
-    setPace(sec) { o.pace = sec > 0 ? sec : null; p.setPace?.(o.pace); },
+    // flows: seconds per count of the current step (v2 clips with `counts` fit their cycle to it); fit: a timed step's
+    // seconds (a whole number of cycles in them); null = natural tempo
+    setPace(sec, fit) { o.pace = sec > 0 ? sec : null; o.fit = fit > 0 ? fit : null; p.setPace?.(o.pace, o.fit); },
     get svg() { return p.svg; },
     get renderer() { return kind; },   // 'v2' | 'v1' | 'ph' (v2 still loading)
     get ready() { return kind !== 'ph'; },

@@ -116,7 +116,7 @@ function follow(clip, S) {
 }
 
 // ---------- renderer ----------
-export function createPlatePlayer(container, animId, { primary, secondary, size = 320, playing = true, trail = false, breath = false, pace = null } = {}) {
+export function createPlatePlayer(container, animId, { primary, secondary, size = 320, playing = true, trail = false, breath = false, pace = null, fit = null, flow = false } = {}) {
   injectStyle();
   const uid = ++UID;
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -153,7 +153,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   for (const n of GROUPS) G[n] = new Grp(root, n);
   const over = new Grp(svg, 'over');
   const st = { clip: null, cam: null, playing: playing && !reduce, visible: true, t0: 0, elapsed: 0, last: 0, raf: 0, fixedT: null,
-    trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), pace, rate: 1, avg: {}, trailPath: {}, trailPathM: {}, order: '', ms: [],
+    trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), pace, fit, rate: 1, flow, avg: {}, trailPath: {}, trailPathM: {}, order: '', ms: [],
     lod: size < 160 ? 1 : 0, n: 0, slow: false, props: [], props0: [], propsM: [], pnames: [], gnames: GROUPS };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
   if (st.lod) { svg.classList.add('lod'); st.trail = st.breath = false; }   // no overlays on thumbnails
 
@@ -457,7 +457,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const at = splat(cam, [cx, 0, cz], [[hw, 0, 0], [0, .01, 0], [0, 0, 20]]);
     at.fill = `url(#${SHD})`; g.add('ellipse', at, '');
     const zN = Math.max(34, (st.clip.floorZ || 0), (st.clip.bar?.w ?? 0) + 12), zF = -zN, xa = vb[0] - 20, xb = vb[0] + vb[2] + 20;
-    if (st.clip.travel) {   // travelling clip: a wide floor with a world grid of marks that scrolls under the panning camera
+    if (st.clip.travel || st.clip.grid) {   // travelling clip (and its flow's other clips): a wide floor with a world grid that scrolls under the panning camera
       const c = S.com, o = c, W = 180;
       const q = [[c[0] - W, 0, c[2] - W], [c[0] + W, 0, c[2] - W], [c[0] + W, 0, c[2] + W], [c[0] - W, 0, c[2] + W]].map(cam.pr);
       g.add('path', { d: `M${PT(q[0])}L${PT(q[1])}L${PT(q[2])}L${PT(q[3])}Z` }, 'pl-mat');
@@ -590,20 +590,26 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const t0 = performance.now();
     const clip = st.clip, cam = st.cam, T = K.period(clip);
     const tn = st.fixedT != null ? st.fixedT : (!st.playing && st.elapsed === 0 ? (clip.still ?? .45) : (st.elapsed / 1000 % T) / T);
-    const S = K.poseAt(clip, tn * T);
+    let S = K.poseAt(clip, tn * T);
     if (clip.travel) {                              // stepping clips travel: the camera follows the pelvis along the travel
       st.off = follow(clip, S);                     // direction (it ends the cycle exactly one travel on, so the loop wraps)
       const p = st.cam.pr(st.off), tr = `translate(${f2(-p[0])} ${f2(-p[1])})`;
       if (st.tr !== tr) { st.tr = tr; root.setAttribute('transform', tr); }
     }
-    // side switch (swap) or a loop that restarts elsewhere (cut: negatives): a quick dip through the paper, not a teleport
+    // a flow moving on to the next step's clip: the pose blends from where the last step left off (no fade, no cut)
+    if (st.blend) {
+      const v = (performance.now() - st.blend.t0) / st.blend.ms;
+      if (v >= 1 || st.fixedT != null) st.blend = null;
+      else S = K.blendPose(st.blend.S, st.blend.off, S, st.off, v * v * (3 - 2 * v));
+    }
+    // side switch (swap) or a loop that restarts elsewhere (cut): a quick dip through the paper, not a teleport. Only where
+    // the pose actually jumps (K.seams); inside a flow the step's start and end are never faded (the blend covers them).
     let u = 1;
     if (clip.swap || clip.cut) {
-      const h = clip.swap ? K.swapTime(clip) : -1, ts = tn * T, d = Math.min(ts, h < 0 ? 1e9 : Math.abs(ts - h), T - ts);
+      const sm = K.seams(clip), h = clip.swap && !sm.h ? K.swapTime(clip) : -1, ts = tn * T, wrap = !sm.w && !st.flow;
+      const d = Math.min(wrap ? ts : 1e9, h < 0 ? 1e9 : Math.abs(ts - h), wrap ? T - ts : 1e9);
       u = Math.min(1, d / .35);
     }
-    // a flow moving on to the next step's clip (setAnim while playing): the same quick dip, unless the clips share a frame
-    if (st.dip) { const v = (performance.now() - st.dip) / 450; if (v >= 1) st.dip = 0; else u = Math.min(u, Math.max(0, v)); }
     const op = f2(.15 + .85 * u * u * (3 - 2 * u));
     if (st.op !== op) { st.op = op; if (op >= 1) root.removeAttribute('opacity'); else root.setAttribute('opacity', op); }
     S._strands = K.strands(S, st.groups);
@@ -633,11 +639,18 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     st.S = S;
   }
 
-  function setAnim(id, prim = primary, sec = secondary) {
+  // opts.flow: a flow step (no fades at the step's start and end); opts.blend: blend from the pose on screen now
+  function setAnim(id, prim = primary, sec = secondary, opts = {}) {
     const clip = CLIPS[id];
     if (!clip) throw new Error(`anim v2: clip '${id}' not loaded`);
-    // (clip.joins false: it does not start in its frame's shared stance, e.g. the Baduanjin horse-stance pieces)
-    if (st.clip && st.clip !== clip && st.playing && !(clip.frame && clip.frame === st.clip.frame && clip.joins !== false && st.clip.joins !== false)) st.dip = performance.now();
+    st.blend = null;
+    if (opts.blend && st.S && st.clip && st.playing) {       // longer for a bigger change of pose (0.5 to 1.5 s)
+      const S0 = K.poseAt(clip, 0), o0 = clip.travel ? follow(clip, S0) : [0, 0, 0];
+      let gap = 0;
+      for (const p in S0.pt) if (st.S.pt[p]) gap = Math.max(gap, K.len(K.sub(K.sub(st.S.pt[p], st.off), K.sub(S0.pt[p], o0))));
+      st.blend = { S: st.S, off: st.off.slice(), t0: performance.now(), ms: K.clamp(450 + 22 * gap, 500, 1500) };
+    }
+    st.flow = !!opts.flow;
     st.clip = clip; st.id = id;
     st.prim = new Set(prim ?? clip.muscles.primary); st.sec = new Set(sec ?? clip.muscles.secondary);
     st.groups = new Set([...st.prim, ...st.sec]);
@@ -653,7 +666,13 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     draw();
   }
   // flow pace: one clip cycle lasts clip.counts × pace seconds (the flow step's seconds per count); otherwise natural tempo
-  function rateOf(clip) { return st.pace > 0 && clip.counts ? K.period(clip) / (clip.counts * st.pace) : 1; }
+  // (a timed step without a count, e.g. a quiet stance: a whole number of cycles in the step's seconds)
+  function rateOf(clip) {
+    const T = K.period(clip);
+    if (st.pace > 0 && clip.counts) return T / (clip.counts * st.pace);
+    if (st.fit > 0) return T * Math.max(1, Math.round(st.fit / T)) / st.fit;
+    return 1;
+  }
   function trailPaths() {
     st.trailPath = {};
     if (!st.trail) return;
@@ -717,17 +736,17 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   const kick = () => { if (st.playing && st.visible && !st.raf) { st.last = 0; st.raf = requestAnimationFrame(loop); } };
   let io = null;
   if (typeof IntersectionObserver === 'function') { io = new IntersectionObserver(es => { for (const e of es) st.visible = e.isIntersecting; kick(); }); io.observe(svg); }
-  setAnim(animId, primary, secondary);
+  setAnim(animId, primary, secondary, { flow });
   kick();
   const api = {
     play() { st.fixedT = null; st.playing = true; kick(); },
     pause() { st.playing = false; if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0; },
-    setAnim(id, p, s) { st.fixedT = null; setAnim(id, p, s); kick(); },
+    setAnim(id, p, s, o) { st.fixedT = null; setAnim(id, p, s, o); kick(); },
     destroy() { api.pause(); if (io) io.disconnect(); svg.remove(); },
     seek(t) { st.fixedT = t; draw(); },
     setTrail(on) { on = !!on && !st.lod; if (on !== st.trail) { st.trail = on; trailPaths(); draw(); } },
     setBreath(on) { on = !!on && !st.lod; if (on !== st.breath) { st.breath = on; draw(); } },
-    setPace(sec) { st.pace = sec > 0 ? sec : null; st.rate = rateOf(st.clip); },   // (elapsed is clip time: no jump)
+    setPace(sec, fit) { st.pace = sec > 0 ? sec : null; st.fit = fit > 0 ? fit : null; st.rate = rateOf(st.clip); },   // (elapsed is clip time: no jump)
     setContacts(on) { st.contacts = !!on; draw(); },   // compare page: show which foot points bear weight
     stats() { const a = st.ms.slice().sort((x, y) => x - y); return { median: a[a.length >> 1] || 0, p95: a[Math.floor(a.length * .95)] || 0, n: a.length }; },
     get skeleton() { return st.S; }, get cam() { return st.cam; },

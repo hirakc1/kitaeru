@@ -160,10 +160,11 @@ function gauss(A, b) {
 // footLift = heel height above the floor, footTurn = toe-out (deg), footPitch = + toes up about the heel (heel strike),
 // - heel up about the ball (toe-off)
 const SIDED = ['scapElev', 'scapProt', 'scapUp', 'shFlex', 'shAbd', 'elbow', 'wrist', 'palm', 'fingers', 'handX', 'handY', 'handZ',
-  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch', 'footPivot', 'handShape', 'release', 'elbowOut'];
+  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch', 'footPivot', 'handShape', 'release', 'elbowOut', 'trace', 'traceAt'];
 // release: a planted palm (grip 'palm') lifts off towards the free target handX/Y/Z (0 = planted, 1 = at the target)
 // footPivot: 1 = footX / footZ locate the ball and the foot turns on it (0 = heel). handShape: rounded to HAND_SHAPES
-// elbowOut: free / IK arms, 0 = the spec's elbow direction (pole), 1 = the elbow points out to the side (drawing a bow)
+// trace / traceAt: a free hand runs down the back of its leg (trace = how much, 0..1; traceAt = where: 0 the back of
+// the hip, .5 behind the knee, 1 behind the ankle), e.g. two hands hold the feet. elbowOut: free / IK arms, 0 = the spec's elbow direction (pole), 1 = the elbow points out to the side (drawing a bow)
 export const HAND_SHAPES = ['relaxed', 'palm', 'fist', 'hook', 'point', 'bazi'];
 // weight: stepping clips, share of body weight on the right foot (0..1) while both feet are down; onBalls: 0 = weight over
 // the mid-foot (heel side), 1 = over the balls (shift it before the heels rise: heel raises, hops)
@@ -343,6 +344,7 @@ function arm(S, ch, ctx, sd, s) {
     extra = want;
   }
   const { G, E, W, ant, scap } = res;
+  if (res.reach != null) S.reach = Math.max(S.reach || 0, res.reach);   // the final solve (after the scapular rotation)
   if (res.herr != null) S.humerusErr = Math.max(S.humerusErr || 0, res.herr);   // QA: upper-arm stretch with a planted elbow
   S.F['scapula' + sd] = scap;
   const [hu, fo] = limbFrames(G, E, W, ant, s);
@@ -407,10 +409,17 @@ function armIK(S, ch, G, spec, sd, s, T4) {
     hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'bar', bar: B };
   } else {                                                   // free hand driven by a target in chest space
     W = P(T4, [ch['handX' + sd], ch['handY' + sd], ch['handZ' + sd] * s]);
+    const tr = clamp(ch['trace' + sd] || 0, 0, 1);
+    if (tr > 0 && S.pt['ankle' + sd]) {
+      const u = clamp(ch['traceAt' + sd] || 0, 0, 1), back = mul(S.F.pelvis.x, -1);
+      const a = u < .5 ? S.pt['hip' + sd] : S.pt['knee' + sd], b = u < .5 ? S.pt['knee' + sd] : S.pt['ankle' + sd], v = u < .5 ? u * 2 : u * 2 - 1;
+      const L = madd(lerp3(a, b, v), back, 10 - 3 * u);                // behind the leg (a little closer at the ankle)
+      W = lerp3(W, L, tr * tr * (3 - 2 * tr));
+    }
   }
   const r = ik2(G, W, LEN.humerus, LEN.fore, pole);
-  S.reach = Math.max(S.reach || 0, r.reach);
-  return { E: r.mid, W: r.end, ant: mul(pole, -1), hand };
+  // (reach is recorded once the scapula has settled: see arm())
+  return { E: r.mid, W: r.end, ant: mul(pole, -1), hand, reach: r.reach };
 }
 
 // hand from forearm: palm = pronation (0 palm forward / anatomical, 90 palm facing in, 180 palm back); wrist = flexion
@@ -550,7 +559,7 @@ function pose1(clip, ts) {
       S = build(ch, ctx);
     }
   }
-  S.sm = sm;
+  S.sm = sm; S.src = clip;
   return S;
 }
 // where the centre of mass should sit: over the one flat foot, or between both by the keyed weight (share on the right)
@@ -562,6 +571,29 @@ function supportTarget(S, w, onBalls = 0) {
   if (sup.length === 1) return c(sup[0]);
   // both feet down, or both in the air (a hop: stay over where they will land)
   const r = c('R'), l = c('L'), u = clamp(w, 0, 1); return [l[0] + (r[0] - l[0]) * u, l[1] + (r[1] - l[1]) * u];
+}
+// Pose blend between two skeletons (flows: one step's clip into the next): channels mixed with weight e (0 = a, 1 = b),
+// each taken relative to its camera offset (travelling clips), rebuilt with b's limb specs and put back at b's offset.
+export function blendPose(Sa, offA, Sb, offB, e) {
+  const rel = (ch, o, sg) => { const c = { ...ch };
+    c.rootX -= sg * o[0]; c.rootZ -= sg * o[2]; c.footXR -= sg * o[0]; c.footXL -= sg * o[0]; c.footZR -= sg * o[2]; c.footZL += sg * o[2]; return c; };
+  const a = rel(Sa.ch, offA, 1), b = rel(Sb.ch, offB, 1), ch = {};
+  for (const k of CHANNELS) ch[k] = (a[k] ?? 0) + ((b[k] ?? 0) - (a[k] ?? 0)) * e;
+  const S = build(rel(ch, offB, -1), { clip: Sb.src, breath: Sb.breath });
+  S.sm = Sb.sm; S.src = Sb.src;
+  return S;
+}
+// Where a clip's loop is seamless (cm-level): at the side switch of a swap clip (h) and at the wrap (w, one travel on).
+// The plate only fades through the paper where it is not.
+export function seams(clip) {
+  if (clip._seams) return clip._seams;
+  const T = period(clip), e = 1e-3, tv = clip.travel || [0, 0, 0];
+  // compared on the channels (degrees / cm), so a breath that restarts (the chest a few mm) does not count as a jump
+  const sh = { rootX: tv[0], rootZ: tv[2], footXR: tv[0], footXL: tv[0], footZR: tv[2], footZL: -tv[2] };
+  const gap = (a, b, t = 0) => Math.max(...CHANNELS.map(k => Math.abs((a.ch[k] ?? 0) - (b.ch[k] ?? 0) - (t ? sh[k] || 0 : 0))));
+  const h = clip.swap ? gap(poseAt(clip, swapTime(clip) - e), poseAt(clip, swapTime(clip) + e)) < 3 : true;
+  const w = gap(poseAt(clip, T - e), poseAt(clip, 0), 1) < 3;
+  return (clip._seams = { h, w });
 }
 export const period = clip => { prepare(clip); return compile(clip).T * (clip.swap ? 2 : 1); };
 export const swapTime = clip => (clip.swap ? compile(clip).T : 0);   // seconds per side (for the switch fade)

@@ -59,20 +59,25 @@ function onVis() { if (document.visibilityState === 'visible' && timer) requestW
 
 // ---------- stage ----------
 let stageId = null;
-/** Show an exercise on the stage. Flow steps pass their own anim (pauses have no exercise). */
-function setStage(exId, step = null) {
+/**
+ * Show an exercise on the stage. Flow steps pass their own anim (pauses have no exercise); a flow shows its first step
+ * before Start and during the countdown (lead), then each step as it comes, blending from the step before.
+ */
+function setStage(exId, step = null, { lead = false } = {}) {
   const e = step ? step.exercise : (byId[exId] || ALL_BY_ID[exId]);
   const animId = step ? (e?.anim || step.move || step.anim) : (e?.anim || e?.id);
   if (!animId) return;
   const size = 1200; // CSS sizes the hero (full column width, clamp height); this only caps max-width
-  const key = `${exId}|${animId}`;
+  const key = `${exId}|${animId}|${step ? (lead ? 'lead' : step.i) : ''}`;
   const pace = step && step.count ? step.sec / step.count : null;   // flows: the clip keeps to the step's count
+  const fit = step && !step.count ? step.sec : null;                 // (a timed step: whole cycles in its seconds)
   if (player && stageId === key) return;
   const mus = e?.muscles || { primary: [], secondary: [] };
   const breath = e?.mode === 'hold' && getState().settings.animBreath !== false;   // breath guide on holds; no trail mid-workout
   try {
-    if (player && player.setAnim) { player.setPace?.(pace); player.setAnim(animId, mus.primary, mus.secondary); player.setBreath?.(breath); }
-    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath, pace }); }
+    const opts = step ? { flow: true, blend: !lead } : {};   // flow steps: no fades at the ends; blend from the last pose
+    if (player && player.setAnim) { player.setPace?.(pace, fit); player.setAnim(animId, mus.primary, mus.secondary, opts); player.setBreath?.(breath); }
+    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath, pace, fit, flow: !!step }); }
   } catch (err) { console.warn('skeleton failed', err); }
   stageEl.setAttribute('aria-label', `${e?.name || (step ? step.name : '')} demonstration`);
   stageId = key;
@@ -163,13 +168,19 @@ function flowLoggerHTML() {
   const v = running ? holdView() : { lead: 0, left: info.total, done: 0 };
   return `<div class="logger flow">
     <div class="fl-now" data-fl-now>${flowNowHTML(info, running)}</div>
-    ${ring({ progress: running ? v.done / info.total : 0, size: 132, label: `<span data-hold-sec>${v.lead || fmtClock(v.left)}</span>`, sub: `<span data-hold-sub>${v.lead ? 'get ready' : 'left'}</span>`, cls: running ? 'running' : '' })}
+    ${ring({ progress: running ? v.done / info.total : 0, size: 112, label: `<span data-hold-sec>${v.lead || fmtClock(v.left)}</span>`, sub: `<span data-hold-sub>${v.lead ? 'get ready' : 'left'}</span>`, cls: running ? 'running' : '' })}
     <div class="btn-row">${running ? `<button class="btn btn-primary btn-lg" data-act="hold-stop">${icon('check', { size: 20 })} <span data-hold-btn>${v.lead ? 'Cancel' : 'Stop & log'}</span></button>`
       : `<button class="btn btn-primary btn-lg" data-act="hold-start">${icon('play', { size: 20 })} Start</button>
          <button class="btn btn-ghost" data-act="hold-log" aria-label="Log the whole flow without the timer">Log without timer</button>`}</div>
     <p class="small muted center">Kitaeru’s own count. No music.</p></div>`;
 }
 
+/** During a flow the muscle chips follow the current step (a pause shows none). */
+function stepChips(s) {
+  const el = root.querySelector('.pl-muscles'); if (!el) return;
+  const m = s?.exercise?.muscles || { primary: [], secondary: [] };
+  el.innerHTML = `${m.primary.map(x => `<span class="mchip mchip-p">${esc(muscleName(x))}</span>`).join('')}${m.secondary.map(x => `<span class="mchip mchip-s">${esc(muscleName(x))}</span>`).join('')}`;
+}
 /** Per-tick flow update: count, beads, current step and stage; re-renders the step panel when the step changes. */
 function tickFlow() {
   const info = flowInfo();
@@ -186,6 +197,7 @@ function tickFlow() {
     now.innerHTML = flowNowHTML(info, true);
     root.querySelectorAll('[data-fl-step]').forEach(li => { const i = +li.dataset.flStep; li.classList.toggle('cur', i === a.s.i); li.classList.toggle('done', i < a.s.i); });
     setStage(item().exerciseId, a.s);
+    stepChips(a.s);
     if (a.s.i > 0) { beep('tick'); buzz([30]); }
     return;
   }
@@ -214,6 +226,7 @@ function draw() {
   const isFlow = flowNow();
   const running = hold && hold.idx === w.idx;
   if (isFlow && running && Date.now() >= hold.start) setStage(it.exerciseId, flowAt(flowInfo(), flowEl()).s);
+  else if (isFlow) setStage(it.exerciseId, flowInfo().steps[0], { lead: true });   // before Start / countdown: step 1
   else setStage(it.exerciseId);
   const setNo = Math.min(l.sets.length + 1, it.sets);
   // Flows keep their own form: no easier/harder swap (their stance, support and tempo progress instead).
@@ -227,11 +240,15 @@ function draw() {
     fx.support === 'soft_gaze' && 'Soft gaze', fx.tempoScale > 1 && 'Slower tempo', fx.variant === 'short' && 'Short version'].filter(Boolean) : [];
   const unit = isFlow ? 'Round' : 'Set';
   // A flow's muscles are the union of every step: show only its main ones as chips (all of them under "Muscles worked").
-  const chipsP = isFlow ? muscles.primary.slice(0, 5) : muscles.primary, chipsS = isFlow ? [] : muscles.secondary;
-  content.innerHTML = `
+  // (while it runs, the chips follow the current step: stepChips)
+  const cur = isFlow && running && Date.now() >= hold.start ? flowAt(flowInfo(), flowEl()).s : null, cm = cur ? (cur.exercise?.muscles || { primary: [], secondary: [] }) : null;
+  const chipsP = cm ? cm.primary : isFlow ? muscles.primary.slice(0, 5) : muscles.primary, chipsS = cm ? cm.secondary : isFlow ? [] : muscles.secondary;
+  root.classList.toggle('is-flow', isFlow);   // flows: a shorter stage and the count panel right under the name (fits 375×812)
+  const headHTML = `
     <p class="pl-muscles" aria-label="Muscles worked">${chipsP.map(m => `<span class="mchip mchip-p">${esc(muscleName(m))}</span>`).join('')}${chipsS.map(m => `<span class="mchip mchip-s">${esc(muscleName(m))}</span>`).join('')}</p>
     <p class="eyebrow pl-block">${esc(it.blockTitle || it.blockKind)} · ${w.idx + 1} of ${w.items.length}${grp ? ` · <span class="pl-group">${grp.circuit ? 'Circuit' : 'Superset'} ${grp.label}</span>` : ''}</p>
-    ${e.nativeName ? nativeNameHTML(e.nativeName, { cls: 'pl-native' }) : ''}<h1 class="pl-name">${esc(e.name)}</h1>
+    ${e.nativeName ? nativeNameHTML(e.nativeName, { cls: 'pl-native' }) : ''}<h1 class="pl-name">${esc(e.name)}</h1>`;
+  const infoHTML = `
     <p class="pl-target">${esc(fmtTarget(it))}${it.rir != null && RATED.has(it.blockKind) && !isFlow ? ` <span class="muted small">· stop ${it.rir} rep${it.rir === 1 ? '' : 's'} short of failure</span>` : ''}</p>
     ${flowTags.length ? `<p class="badges">${flowTags.map(t => `<span class="badge">${esc(t)}</span>`).join('')}</p>` : ''}
     ${it.notes ? `<p class="small pl-note">${esc(it.notes)}</p>` : ''}
@@ -240,12 +257,13 @@ function draw() {
     <div class="pl-sets" ${isFlow && it.sets === 1 ? 'hidden' : ''} aria-label="${unit} ${setNo} of ${it.sets}">${Array.from({ length: it.sets }, (_, i) => {
       const s = l.sets[i];
       return `<span class="set-pill ${s ? 'done' : i === l.sets.length ? 'cur' : ''}">${s ? (s.sec != null ? (isFlow ? fmtDur(s.sec) : `${s.sec}s`) : s.reps) : `${unit} ${i + 1}`}</span>`;
-    }).join('')}</div>
-    <div class="pl-panel">${w.phase === 'rest' ? restHTML() : w.phase === 'rate' ? rateHTML() : loggerHTML()}</div>
+    }).join('')}</div>`;
+  const panelHTML = `<div class="pl-panel">${w.phase === 'rest' ? restHTML() : w.phase === 'rate' ? rateHTML() : loggerHTML()}</div>`;
+  content.innerHTML = `${headHTML}${isFlow ? panelHTML + infoHTML : infoHTML + panelHTML}
     ${isFlow && w.phase === 'set' ? flowListHTML(flowInfo(), running && Date.now() >= hold.start ? flowAt(flowInfo(), flowEl()).s.i : -1) : ''}
     ${w.phase === 'set' ? `<div class="pl-actions">
-      <button class="btn btn-quiet btn-sm" data-act="easier" ${easier ? '' : 'disabled'} aria-label="${isFlow ? 'Flows keep their own form: no easier swap' : `Swap to an easier variation${easier ? `: ${esc(easier.name)}` : ''}`}">${icon('easier', { size: 18 })} Easier</button>
-      <button class="btn btn-quiet btn-sm" data-act="harder" ${harder ? '' : 'disabled'} aria-label="${isFlow ? 'Flows keep their own form: no harder swap' : `Swap to a harder variation${harder ? `: ${esc(harder.name)}` : ''}`}">${icon('harder', { size: 18 })} Harder</button>
+      ${isFlow ? '' : `<button class="btn btn-quiet btn-sm" data-act="easier" ${easier ? '' : 'disabled'} aria-label="Swap to an easier variation${easier ? `: ${esc(easier.name)}` : ''}">${icon('easier', { size: 18 })} Easier</button>
+      <button class="btn btn-quiet btn-sm" data-act="harder" ${harder ? '' : 'disabled'} aria-label="Swap to a harder variation${harder ? `: ${esc(harder.name)}` : ''}">${icon('harder', { size: 18 })} Harder</button>`}
       ${variety.map(v => `<button class="btn btn-quiet btn-sm" data-act="variety" data-id="${esc(v.id)}" aria-label="Swap to a variety move: ${esc(v.name)}">${esc(v.aka?.[0] || v.name)}</button>`).join('')}
       <button class="btn btn-quiet btn-sm" data-act="skip">${icon('skip', { size: 18 })} Skip</button></div>` : ''}
     <details class="pl-details"><summary>Muscles worked</summary>

@@ -833,6 +833,29 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   ok(!traditionPreview() && EXERCISES.every(isVisible), 'preview switched back off');
 }
 
+// ---- flows: every step ends on a whole clip cycle at the flow player's pace (no cut mid-movement)
+{
+  const K = await import('../js/anim/v2/core.js');
+  const { CLIPS } = await import('../js/anim/v2/clips.js');
+  const V = { radio_taiso_1: [{}, { replace: { rt_two_foot_hops: 'rt_heel_raise' } }], taichi_short_flow: [{}], baduanjin_sequence: [{}, { variant: 'short' }] };
+  for (const [id, opts] of Object.entries(V)) for (const o of opts) for (const st of flowSteps(id, o)) {
+    const anim = st.exercise?.anim || st.move || st.anim, c = CLIPS[anim], T = K.period(c);
+    const count = st.reps ? (st.side === 'both' ? st.reps * 2 : st.reps) : 0;   // as the workout player counts
+    const rate = count && c.counts ? T / (c.counts * (st.sec / count)) : T * Math.max(1, Math.round(st.sec / T)) / st.sec;   // plate.js rateOf
+    const cycles = st.sec * rate / T;
+    ok(Math.abs(cycles - Math.round(cycles)) < 1e-6 && cycles >= 1, `${id}${o.variant ? ' ' + o.variant : ''} ${anim}: ${cycles.toFixed(2)} cycles in the step`);
+  }
+  const tw = ALL_BY_ID.radio_taiso_1.sequence.find(x => x.move === 'rt_trunk_twist');
+  ok(tw.side === 'alternate' && tw.reps === 8, 'Morning Taisō trunk twist alternates every count (its clip goes one way, then the other)');
+  ok(ALL_BY_ID.radio_taiso_1.sequence.find(x => x.move === 'rt_arm_circles').cue === 'Big circles, out, then in', 'arm circles cue: out, then in (as the clip)');
+  // the plan explanation names a one-leg hold only when the golden rooster is planned
+  for (const pp of [mk({ primaryGoal: 'balance', goals: ['balance'], daysPerWeek: 3, minutesPerSession: 30 }), mk({ age: 60, primaryGoal: 'health', daysPerWeek: 3 })]) {
+    const wk = P.generateWeek(pp, P.initialLevels(pp, EXERCISES), EXERCISES, 2);
+    const rooster = wk.sessions.some(s => s.blocks.some(b => b.kind === 'balance' && b.items.some(i => i.exerciseId === 'taichi_golden_rooster')));
+    ok(P.explainPlan(pp, wk).some(b => /one-leg hold/.test(b)) === rooster, `explainPlan mentions a one-leg hold only when planned (${rooster})`);
+  }
+}
+
 // ---- sample
 {
   const p = grid[0 + 13];
