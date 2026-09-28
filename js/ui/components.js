@@ -1,5 +1,5 @@
 // Shared UI helpers: escaping, icons, the seal mark, sheets, toasts, formatting, audio, thumbnails.
-import { MUSCLES, FAMILIES, EXERCISES, byId, createSkeletonPlayer, plannerIsAvailable } from './deps.js';
+import { MUSCLES, FAMILIES, ALL_FAMILIES, EXERCISES, byId, ALL_BY_ID, createSkeletonPlayer, plannerIsAvailable } from './deps.js';
 import { getState } from '../store.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -72,14 +72,14 @@ export function toast(msg, ms = 2600) {
 // ---------- sheet (slide-up modal) ----------
 let sheetStack = [];
 /** openSheet({ title, html, onMount(el, close), onClose, wide }) -> close() */
-export function openSheet({ title = '', html = '', onMount, onClose, cls = '' } = {}) {
+export function openSheet({ title = '', titleHTML = '', html = '', onMount, onClose, cls = '' } = {}) {
   const prevFocus = document.activeElement;
   const wrap = document.createElement('div');
   wrap.className = 'sheet-wrap';
   wrap.innerHTML = `<div class="backdrop" data-close></div>
     <section class="sheet ${cls}" role="dialog" aria-modal="true" aria-label="${esc(title)}" tabindex="-1">
       <div class="sheet-grip" aria-hidden="true"></div>
-      <header class="sheet-head"><h2 class="sheet-title">${esc(title)}</h2>
+      <header class="sheet-head"><h2 class="sheet-title">${titleHTML || esc(title)}</h2>
         <button class="icon-btn" data-close aria-label="Close">${icon('close')}</button></header>
       <div class="sheet-body">${html}</div>
     </section>`;
@@ -132,16 +132,35 @@ export function confirmSheet({ title, body = '', ok = 'Confirm', cancel = 'Cance
 
 // ---------- names & formatting ----------
 export const exercise = id => byId[id];
-export const exName = id => byId[id]?.name || id;
+// ALL_BY_ID: flow steps and items logged in preview still have a name after the gate hides them.
+export const exName = id => byId[id]?.name || ALL_BY_ID[id]?.name || id;
 export const muscleName = id => MUSCLES[id]?.name || id.replace(/_/g, ' ');
-export const familyName = f => FAMILIES[f]?.name || f.replace(/_/g, ' ');
+export const familyName = f => FAMILIES[f]?.name || ALL_FAMILIES[f]?.name || f.replace(/_/g, ' ');
 export const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const DOW_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Monday-first display
 const range = r => (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`);
 
-/** "3 × 6–10 per side", "2 × hold 20–30 s" */
+/** "2:30", "45 s" */
+export const fmtDur = sec => { const s = Math.max(0, Math.round(sec)); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s} s`; };
+/** Is this plan item a whole flow (v1.2 `mode: 'flow'`)? */
+export const isFlowItem = item => !!item && (!!item.flow || ALL_BY_ID[item.exerciseId]?.mode === 'flow');
+
+/** Display name of a resolved flow step (pauses have no exercise). */
+export const stepName = (st, i, n) => st.exercise?.name || st.label || (i === 0 ? 'Starting position' : i === n - 1 ? 'Closing' : 'Pause');
+/** "8 times", "2 each side", "3 alternating", "10 s": Kitaeru's own count. */
+export function stepCount(st) {
+  if (!st.reps) return fmtDur(st.sec);
+  if (st.side === 'both') return `${st.reps} each side`;
+  if (st.side === 'alternate') return `${st.reps} alternating`;
+  return `${st.reps} ${st.reps === 1 ? 'time' : 'times'}`;
+}
+/** "3 × 6–10 per side", "2 × hold 20–30 s", flows: "1 pass · about 3:05" */
 export function fmtTarget(item) {
+  if (isFlowItem(item)) {
+    const sec = item.flow?.estSec ?? item.holdSec?.[1] ?? ALL_BY_ID[item.exerciseId]?.estSec ?? 0;
+    return `${item.sets > 1 ? `${item.sets} rounds` : '1 pass'} · about ${fmtDur(sec)}${item.sets > 1 ? ' each' : ''}`;
+  }
   const sets = item.sets > 1 ? `${item.sets} × ` : '';
   const side = item.perSide ? ' per side' : '';
   const cat = byId[item.exerciseId]?.category;
@@ -200,6 +219,16 @@ export function neighbour(id, dir, profile) {
   return cands[0] || null;
 }
 export const PROGRESSION_EXCLUDE = new Set(['mobility', 'warmup', 'conditioning']);
+/** Is this family a progression ladder? Not mobility/warm-up/conditioning, nor v1.2 families marked `progression: false` (flows, breath). */
+export const isProgression = f => !PROGRESSION_EXCLUDE.has(f) && (ALL_FAMILIES[f] || FAMILIES[f])?.progression !== false;
+
+// ---------- native names (v1.2) ----------
+/** Script-specific font stacks: see .native in app.css. `lang` picks the right fallback and glyph variants. */
+export function nativeNameHTML(nn, { roman = true, cls = '' } = {}) {
+  if (!nn || !nn.text) return '';
+  const rtl = ['ur', 'fa', 'ar'].includes(nn.lang);
+  return `<span class="native-name ${cls}"><span class="native" lang="${esc(nn.lang || 'und')}"${rtl ? ' dir="rtl"' : ''}>${esc(nn.text)}</span>${roman && nn.romanised ? ` <span class="roman">${esc(nn.romanised)}</span>` : ''}</span>`;
+}
 
 // ---------- skeleton thumbnails ----------
 /**
@@ -211,7 +240,7 @@ export function mountAnims(root) {
   const players = [];
   const mount = el => {
     if (el._mounted) return; el._mounted = true;
-    const ex = byId[el.dataset.anim];
+    const ex = byId[el.dataset.anim] || ALL_BY_ID[el.dataset.anim];
     if (!ex) return;
     try {
       const p = createSkeletonPlayer(el, ex.anim || ex.id, {

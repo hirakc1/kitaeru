@@ -1,9 +1,24 @@
 // Today (home) tab.
 import { getState, getActiveWorkout, clearActiveWorkout, getCurrentWeekIndex, todayISO } from '../store.js';
-import { inviteHTML } from './plan.js';
-import { esc, icon, seal, mountAnims, DOW_LONG, plural, confirmSheet, exName, fmtDate } from './components.js';
+import { inviteHTML, optionsHTML, onOptionChange } from './plan.js';
+import { esc, icon, seal, mountAnims, DOW_LONG, plural, confirmSheet, exName, fmtDate, nativeNameHTML } from './components.js';
+import { ALL_BY_ID, MORNING_TAISO_SESSION_ID } from './deps.js';
 import { getWeek, sessionForDow, sessionMinutes, getStreak, weekDays, sessionItems, mobilityFlow, startWorkout,
-  weeklyTarget, sessionsThisWeek, freezesBanked, isFirstTimer } from './model.js';
+  weeklyTarget, sessionsThisWeek, freezesBanked, isFirstTimer, isTrainingLog, withOptions, morningTaiso, flowMinutes } from './model.js';
+
+/** v1.2 Morning Taisō card (Me → Morning Taisō). Absent unless switched on AND its tradition is visible. */
+function taisoCard(todayLogs) {
+  const mt = morningTaiso();
+  if (!mt) return { html: '', session: null };
+  const done = todayLogs.some(l => l.sessionId === MORNING_TAISO_SESSION_ID);
+  const ex = ALL_BY_ID[mt.blocks[0].items[0].exerciseId];
+  return { session: mt, html: `<section class="card taiso-card" aria-label="Morning Taisō">
+    <div class="card-top"><div><p class="eyebrow">Optional · ${done ? 'done today' : 'any morning'}</p>
+      ${ex?.nativeName ? nativeNameHTML(ex.nativeName, { cls: 'taiso-native' }) : ''}<h2 class="card-title">${esc(mt.name)}</h2></div>
+      <span class="badge">${icon('timer', { size: 14 })} ~${flowMinutes(mt.blocks)} min</span></div>
+    <p class="muted small">${mt.blocks[0].items[0].notes ? `${esc(mt.blocks[0].items[0].notes)} ` : ''}Keeps your day streak going; doesn’t count towards your weekly sessions. No music: Kitaeru counts for you.</p>
+    <button class="btn ${done ? 'btn-quiet' : 'btn-ghost'} btn-block" data-taiso>${done ? `${icon('check', { size: 18 })} Done · go again` : `${icon('play', { size: 18 })} Start Morning Taisō`}</button></section>` };
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -61,14 +76,17 @@ function renderLite(root, ctx) {
   const s = getState();
   const [jp, en] = greeting();
   const recent = [...s.logs].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  const taiso = taisoCard(s.logs.filter(l => l.date === todayISO()));
   root.innerHTML = `<div class="screen today">
     <header class="screen-head"><p class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
       <h1 class="title"><span class="jp" lang="ja">${jp}</span> ${en}</h1></header>
     ${quickCard()}
+    ${taiso.html}
     ${s.logs.length ? streakCard(getStreak()) : ''}
     ${recent.length ? `<section class="section"><h2 class="section-title">Recent</h2><ul class="list card card-flush">${recent.map(l => `<li class="list-item"><span><span class="opt-name">${esc(l.name || 'Quick workout')}</span><span class="small muted">${fmtDate(l.date)} · ${l.durationMin} min</span></span><span class="tick" aria-label="Done">${icon('check', { size: 16 })}</span></li>`).join('')}</ul></section>` : ''}
     ${inviteHTML('Ready for a real plan?')}
   </div>`;
+  root.addEventListener('click', e => { if (e.target.closest('[data-taiso]') && taiso.session) startWorkout(taiso.session, { sessionId: MORNING_TAISO_SESSION_ID }); });
 }
 
 export function render(root, ctx) {
@@ -79,12 +97,13 @@ export function render(root, ctx) {
   const now = new Date();
   const planStart = s.plan?.startDate || '';
   const started = todayISO() >= planStart;
-  const session = started ? sessionForDow(week, now.getDay()) : null;
+  const session = started ? withOptions(sessionForDow(week, now.getDay())) : null;
   const first = isFirstTimer();
-  const early = planStart ? s.logs.filter(l => l.sessionId !== 'M' && l.date < planStart && l.date >= (s.plan?.createdOn || '')) : [];
-  const firstSession = first && !session ? week?.sessions?.[0] || null : null;
+  const early = planStart ? s.logs.filter(l => isTrainingLog(l) && l.date < planStart && l.date >= (s.plan?.createdOn || '')) : [];
+  const firstSession = first && !session ? withOptions(week?.sessions?.[0] || null) : null;
   const todayLogs = s.logs.filter(l => l.date === todayISO());
-  const doneMain = todayLogs.find(l => l.sessionId !== 'M');
+  const doneMain = todayLogs.find(isTrainingLog); // Morning Taisō and rest-day mobility are not "the" session
+  const taiso = taisoCard(todayLogs);
   const streak = getStreak();
   const active = getActiveWorkout();
   const [jp, en] = greeting();
@@ -104,6 +123,7 @@ export function render(root, ctx) {
       <h2 class="card-title">${esc(firstSession.name)}</h2>
       <p class="muted small">${started ? 'Today is a planned rest day, but there’s no need to wait for your first session.' : `Your plan’s first week begins ${fmtDate(planStart, { weekday: 'long', day: 'numeric', month: 'short' })}. No need to wait: start your first session today.`}</p>
       ${thumbs(firstSession)}
+      ${optionsHTML(firstSession)}
       <button class="btn btn-primary btn-block" data-first>${icon('play', { size: 18 })} Start your first session</button>
       ${flow.blocks[0].items.length ? `<button class="btn btn-quiet btn-block" data-mobility>Or a gentle ${flow.estMinutes}-minute mobility flow</button>` : ''}</section>`;
   } else if (session) {
@@ -113,6 +133,7 @@ export function render(root, ctx) {
       <h2 class="card-title">${esc(session.name)}</h2>
       ${session.focus?.length ? `<p class="muted small focus">${session.focus.map(esc).join(' · ')}</p>` : ''}
       ${thumbs(session)}
+      ${optionsHTML(session)}
       <button class="btn btn-primary btn-block" data-start>${icon('play', { size: 18 })} ${active && active.sessionId === session.id ? 'Resume' : 'Start'}</button>
       ${week.phase === 'deload' ? '<p class="small muted center">Deload week: lighter on purpose. This is when you adapt.</p>' : ''}</section>`;
   } else {
@@ -132,6 +153,7 @@ export function render(root, ctx) {
     ${active ? `<section class="card resume-card" role="region" aria-label="Workout in progress"><div><p class="opt-name">Workout in progress</p><p class="muted small">${esc(active.session.name)} · exercise ${Math.min(active.idx + 1, active.items.length)} of ${active.items.length}</p></div>
       <div class="btn-row"><button class="btn btn-quiet btn-sm" data-discard>Discard</button><a class="btn btn-primary btn-sm" href="#/workout">Resume</a></div></section>` : ''}
     ${todayCard}
+    ${taiso.html}
     ${quickCard(true)}
     ${streakCard(streak)}
     <section class="section"><h2 class="section-title">${planStart > todayISO() ? 'Your first week' : 'This week'}</h2>${weekStrip(weekDays(now))}
@@ -145,9 +167,11 @@ export function render(root, ctx) {
     if (e.target.closest('[data-start]')) startWorkout(session, { weekIndex: getCurrentWeekIndex() });
     if (e.target.closest('[data-first]')) startWorkout(firstSession, { weekIndex: getCurrentWeekIndex() });
     if (e.target.closest('[data-mobility]')) startWorkout(mobilityFlow(p), { sessionId: 'M' });
+    if (e.target.closest('[data-taiso]') && taiso.session) startWorkout(taiso.session, { sessionId: MORNING_TAISO_SESSION_ID });
     if (e.target.closest('[data-discard]')) {
       if (await confirmSheet({ title: 'Discard workout?', body: 'Sets logged in this workout will be lost.', ok: 'Discard', danger: true })) { clearActiveWorkout(); ctx.rerender(); }
     }
   });
+  root.addEventListener('change', e => { if (onOptionChange(e)) ctx.rerender(); });
   return destroy;
 }

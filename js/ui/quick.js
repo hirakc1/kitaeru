@@ -1,5 +1,5 @@
 // Quick workout picker (#/quick): minutes + goal or body area (chips or tap-the-body-map) → one-off session 'Q'.
-import { EXERCISES, MUSCLES, renderBodyMap, generateQuickSession } from './deps.js';
+import { EXERCISES, FAMILIES, MUSCLES, renderBodyMap, generateQuickSession, availableFlows } from './deps.js';
 import { getState, update, todayISO } from '../store.js';
 import { esc, icon, mountAnims, muscleName, toast } from './components.js';
 import { GOALS, sessionMinutes, startWorkout } from './model.js';
@@ -8,7 +8,19 @@ import { EQUIP } from './onboarding.js';
 
 const MINUTES = [5, 10, 15, 20, 30, 45, 60];
 const QGOALS = GOALS.map(g => ({ ...g, name: g.id === 'flexibility' ? 'Flexibility' : g.id === 'skill' ? 'Skills' : g.id === 'health' ? 'General' : g.name }));
-const FOCUS = [['full', 'Full body'], ['upper', 'Upper'], ['lower', 'Lower'], ['core', 'Core'], ['push', 'Push'], ['pull', 'Pull'], ['legs', 'Legs'], ['mobility', 'Mobility']];
+const BASE_FOCUS = [['full', 'Full body'], ['upper', 'Upper'], ['lower', 'Lower'], ['core', 'Core'], ['push', 'Push'], ['pull', 'Pull'], ['legs', 'Legs'], ['mobility', 'Mobility']];
+/**
+ * v1.2 foci: balance always (generic single-leg work works without any tradition); rotation once its families have
+ * visible (animated) items; flow only when a flow is available to this user (verified, animated, suitable).
+ */
+function focusOptions() {
+  const out = [...BASE_FOCUS, ['balance', 'Balance']];
+  if (FAMILIES.rotation || FAMILIES.anti_rotation) out.push(['rotation', 'Rotation']);
+  let flows = [];
+  try { flows = availableFlows(getState().profile || null, EXERCISES); } catch { flows = []; }
+  if (flows.length) out.push(['flow', 'Flow']);
+  return out;
+}
 const REGIONS = [['upper', 'Upper body'], ['core', 'Core'], ['lower', 'Lower body']];
 const DEFAULTS = { minutes: 20, mode: 'goal', goal: 'strength', focus: 'full', muscles: [], equipment: ['wall'], lowImpact: false };
 
@@ -51,7 +63,7 @@ function formHTML() {
     <div class="seg" role="group" aria-label="Choose by">${chip('mode', 'goal', 'A goal', q.mode === 'goal')}${chip('mode', 'area', 'A body area', q.mode === 'area')}</div>
     ${q.mode === 'goal'
       ? `<div class="chips qgoals" role="group" aria-label="Goal">${QGOALS.map(g => chip('goal', g.id, `<span class="qk" aria-hidden="true">${g.emoji}</span>${g.name}`, q.goal === g.id, `aria-label="${g.name}"`)).join('')}</div>`
-      : `<div class="chips qfocus" role="group" aria-label="Body area">${FOCUS.map(([id, l]) => chip('focus', id, l, !q.muscles.length && q.focus === id)).join('')}</div>${mapHTML()}`}
+      : `<div class="chips qfocus" role="group" aria-label="Body area or focus">${focusOptions().map(([id, l]) => chip('focus', id, l, !q.muscles.length && q.focus === id)).join('')}</div>${mapHTML()}`}
   </section>
   ${p ? '' : `<section class="section"><h2 class="section-title" id="qk">Anything to hand? <span class="tag">optional</span></h2>
     <div class="equip-grid" role="group" aria-labelledby="qk">${EQUIP.map(([id, l, svg]) => `<button type="button" class="equip" data-act="equip" data-val="${id}" ${pressed(q.equipment.includes(id))} aria-label="${esc(l)}">
@@ -76,6 +88,7 @@ function previewHTML() {
 export function render(root, ctx) {
   q = { ...DEFAULTS, ...(getState().settings.quick || {}) };
   q.muscles = [...(q.muscles || [])]; q.equipment = [...(q.equipment || ['wall'])];
+  if (!focusOptions().some(([id]) => id === q.focus)) q.focus = 'full'; // e.g. 'flow' saved while previewing
   session = null; seed = 0;
   const hasProfile = !!getState().profile;
   root.innerHTML = `<div class="screen quick">

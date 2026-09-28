@@ -1943,7 +1943,9 @@ export function flowSteps(flowId, { variant = 'full', skip = [], replace = {}, t
     const move = st.move && replace[st.move] ? replace[st.move] : st.move;
     const s = st.fixedReps ? 1 : scale;
     const one = flowSeconds({ sequence: [{ ...st, move }], variants: ex.variants }, { variant, tempoScale });
-    return { ...st, move, exercise: move ? RAW_BY_ID[move] || null : null, reps: st.reps ? (st.fixedReps ? st.reps : Math.max(2, Math.round(st.reps * s))) : null, sec: Math.round(one) };
+    // Count-based steps (with `sec`) keep their written reps at full length (a single Commencement stays 1).
+    const reps = !st.reps ? null : st.fixedReps || (st.sec && s === 1) ? st.reps : st.sec ? Math.max(1, Math.round(st.reps * s)) : Math.max(2, Math.round(st.reps * s));
+    return { ...st, move, exercise: move ? RAW_BY_ID[move] || null : null, reps, sec: Math.round(one) };
   });
 }
 

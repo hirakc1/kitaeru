@@ -1,9 +1,9 @@
 // Progress tab: streak heatmap, totals, ladders, PBs, history, body weight, weekly volume.
 import { FAMILIES, byId, MUSCLES } from './deps.js';
 import { getState, update, toISO, fromISO, weekStart, addDays, todayISO } from '../store.js';
-import { esc, icon, openSheet, confirmSheet, exName, muscleName, familyName, ladder, isAvailable, PROGRESSION_EXCLUDE,
+import { esc, icon, openSheet, confirmSheet, exName, muscleName, familyName, ladder, isAvailable, isProgression,
   fmtDate, fmtWeight, kgToLb, lbToKg, plural, toast, weightUnit } from './components.js';
-import { getStreak, freezesBanked } from './model.js';
+import { getStreak, freezesBanked, isTrainingLog } from './model.js';
 
 const WEEKS = 16;
 
@@ -43,7 +43,7 @@ function consistency(s) {
   let planned = 0;
   for (; d <= today; d = addDays(d, 1)) if (p.preferredDays.includes(d.getDay())) planned++;
   const from = toISO(addDays(today, -55));
-  const done = new Set(s.logs.filter(l => l.date >= from && l.sessionId !== 'M').map(l => l.date)).size;
+  const done = new Set(s.logs.filter(l => l.date >= from && isTrainingLog(l)).map(l => l.date)).size;
   return planned ? Math.min(100, Math.round((done / planned) * 100)) : null;
 }
 
@@ -64,7 +64,7 @@ function weeklyVolume(logs) {
 }
 
 function ladders(s) {
-  const fams = Object.keys(FAMILIES).filter(f => !PROGRESSION_EXCLUDE.has(f));
+  const fams = Object.keys(FAMILIES).filter(isProgression);
   return `<ul class="ladders">${fams.map(f => {
     const lad = ladder(f);
     if (!lad.length) return '';

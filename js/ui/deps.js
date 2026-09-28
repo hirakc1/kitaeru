@@ -6,6 +6,7 @@ export { EXERCISES, FAMILIES, byId } from '../data/exercises.js';
 export { ALL_EXERCISES, ALL_BY_ID, ALL_FAMILIES, EQUIPMENT, isVisible, flowSteps, flowSeconds } from '../data/exercises.js';
 export { TRADITIONS, traditionVisible, traditionPreview, contentVisible, RADIO_TAISO_ATTRIBUTION } from '../data/traditions.js';
 export { generateMorningTaiso, availableFlows, MORNING_TAISO_SESSION_ID } from '../engine/planner.js';
+export { hasAnimation } from '../data/animated.js';
 export { createSkeletonPlayer } from '../anim/skeleton.js';
 export { renderBodyMap, bodyMapSVG } from '../anim/bodymap.js';
 export { initialLevels, generateWeek, applySessionLog, computeStreak, explainPlan, estimateMinutes, generateQuickSession } from '../engine/planner.js';

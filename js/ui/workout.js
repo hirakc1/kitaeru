@@ -1,9 +1,10 @@
 // Full-screen workout player with per-set logging, rest timer, swaps, ratings, completion & celebration.
-import { EXERCISES, byId, createSkeletonPlayer, renderBodyMap, applySessionLog } from './deps.js';
+// v1.2: flow items (mode 'flow') play step by step with Kitaeru's own visual count. No music, ever.
+import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, applySessionLog, MORNING_TAISO_SESSION_ID } from './deps.js';
 import { getState, update, getActiveWorkout, saveActiveWorkout, clearActiveWorkout } from '../store.js';
 import { esc, icon, seal, fmtTarget, exName, muscleName, familyName, neighbour, stepper, handleStepper, ring, setRing,
-  beep, buzz, unlockAudio, openSheet, reducedMotion, clamp, plural } from './components.js';
-import { getStreak, sessionsThisWeek, weeklyTarget, groupLabel, planOpts } from './model.js';
+  beep, buzz, unlockAudio, openSheet, reducedMotion, clamp, plural, isFlowItem, isProgression, nativeNameHTML, fmtDur, stepName, stepCount } from './components.js';
+import { getStreak, sessionsThisWeek, weeklyTarget, groupLabel, planOpts, isTrainingLog } from './model.js';
 
 const RATED = new Set(['main', 'skill', 'conditioning']);
 const FEEL = [[1, 'Very easy'], [2, 'Easy'], [3, 'Solid'], [4, 'Hard'], [5, 'Max effort']];
@@ -14,11 +15,15 @@ let lastRestSecond = null;
 const save = () => saveActiveWorkout(w);
 const item = () => w.items[w.idx];
 const log = () => w.logs[w.idx];
-const ex = () => byId[item().exerciseId];
+const ex = () => byId[item().exerciseId] || ALL_BY_ID[item().exerciseId];
+const flowNow = () => isFlowItem(item());
+// Flows are rated only when they progress (§4.4: easy twice unlocks the next stage); Morning Taisō has no stages.
+const needsRating = it => RATED.has(it.blockKind) ? true : isFlowItem(it) && !!ALL_BY_ID[it.exerciseId]?.progression?.stages;
 
 export function render(host, ctx) {
   root = host; ctxRef = ctx; celebrate = null; hold = null;
   w = getActiveWorkout();
+  flowCache.clear();
   if (!w) { ctx.go('#/today', { replace: true }); return; }
   if (w.phase === 'rest' && w.restEndsAt && Date.now() >= w.restEndsAt) { w.phase = 'set'; w.restEndsAt = null; save(); }
   root.innerHTML = `<div class="player" role="region" aria-label="Workout player">
@@ -54,18 +59,137 @@ function onVis() { if (document.visibilityState === 'visible' && timer) requestW
 
 // ---------- stage ----------
 let stageId = null;
-function setStage(exId) {
-  const e = byId[exId];
-  if (!e) return;
+/** Show an exercise on the stage. Flow steps pass their own anim (pauses have no exercise). */
+function setStage(exId, step = null) {
+  const e = step ? step.exercise : (byId[exId] || ALL_BY_ID[exId]);
+  const animId = step ? (e?.anim || step.move || step.anim) : (e?.anim || e?.id);
+  if (!animId) return;
   const size = 1200; // CSS sizes the hero (full column width, clamp height); this only caps max-width
-  if (player && stageId === exId) return;
-  const animId = e.anim || e.id;
+  const key = `${exId}|${animId}`;
+  if (player && stageId === key) return;
+  const mus = e?.muscles || { primary: [], secondary: [] };
   try {
-    if (player && player.setAnim) player.setAnim(animId, e.muscles.primary, e.muscles.secondary);
-    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: e.muscles.primary, secondary: e.muscles.secondary, size, playing: !reducedMotion() }); }
+    if (player && player.setAnim) player.setAnim(animId, mus.primary, mus.secondary);
+    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion() }); }
   } catch (err) { console.warn('skeleton failed', err); }
-  stageEl.setAttribute('aria-label', `${e.name} demonstration`);
-  stageId = exId;
+  stageEl.setAttribute('aria-label', `${e?.name || (step ? step.name : '')} demonstration`);
+  stageId = key;
+}
+
+// ---------- flows (v1.2) ----------
+const flowCache = new Map();
+/**
+ * The resolved steps of the current flow item with their time windows, plus display rows that also show the steps
+ * left out for this profile and the ones replaced (e.g. hops -> Kitaeru's heel raises).
+ */
+function flowInfo(idx = w.idx) {
+  const it = w.items[idx];
+  const key = `${idx}|${it.exerciseId}|${JSON.stringify(it.flow || {})}`;
+  if (flowCache.has(key)) return flowCache.get(key);
+  const fx = it.flow || {};
+  const fex = ALL_BY_ID[it.exerciseId];
+  const resolved = flowSteps(it.exerciseId, fx);
+  let t = 0;
+  const steps = resolved.map((st, i) => {
+    const s = { ...st, i, start: t, end: t + st.sec, name: stepName(st, i, resolved.length) };
+    s.count = st.reps ? (st.side === 'both' ? st.reps * 2 : st.reps) : 0;
+    t += st.sec; return s;
+  });
+  const skip = new Set(fx.skip || []);
+  const inj = getState().profile?.injuries || [];
+  const rows = [];
+  let k = 0;
+  for (const st of fex?.sequence || []) {
+    if (st.move && skip.has(st.move)) {
+      const why = (st.stress || []).filter(x => inj.includes(x)).map(x => x.replace('_', ' '));
+      rows.push({ skipped: true, name: ALL_BY_ID[st.move]?.name || st.move, why });
+      continue;
+    }
+    const s = steps[k++];
+    if (!s) continue;
+    if (st.move && s.move !== st.move) { // the step's own cue describes the original move (e.g. "soft hops")
+      s.replacedFrom = ALL_BY_ID[st.move]?.name || st.move;
+      s.cue = s.exercise?.cues?.[0] || '';
+    }
+    rows.push(s);
+  }
+  const info = { fex, steps, rows, total: Math.max(1, Math.round(t)) };
+  flowCache.set(key, info);
+  return info;
+}
+/** Where the flow is at `el` seconds: current step, rep within the step and which side. */
+function flowAt(info, el) {
+  const s = info.steps.find(x => el < x.end) || info.steps[info.steps.length - 1];
+  const local = Math.max(0, el - s.start);
+  if (!s.count) return { s, left: Math.max(0, Math.ceil(s.end - el)), rep: 0 };
+  const rep = Math.min(s.count, Math.floor(local / (s.sec / s.count)) + 1);
+  if (s.side === 'both') return { s, rep: ((rep - 1) % s.reps) + 1, of: s.reps, sideLabel: rep <= s.reps ? 'First side' : 'Second side', bead: rep };
+  return { s, rep, of: s.count, sideLabel: s.side === 'alternate' ? 'Alternate sides' : '', bead: rep };
+}
+const flowEl = () => (hold && hold.idx === w.idx ? Math.max(0, (Date.now() - hold.start) / 1000) : 0);
+
+function flowNowHTML(info, running) {
+  const lead = running && Date.now() < hold.start;
+  if (!running || lead) {
+    const s = info.steps[0];
+    return `<p class="eyebrow">${lead ? 'Get ready' : 'First'}</p><p class="fl-now-name">${esc(s.name)}</p>${s.cue ? `<p class="small muted">${esc(s.cue)}</p>` : ''}`;
+  }
+  const a = flowAt(info, flowEl());
+  const s = a.s;
+  const beads = s.count && s.count <= 24 ? `<span class="fl-beads" aria-hidden="true">${Array.from({ length: s.count }, (_, i) => `<i class="${i + 1 < a.bead ? 'done' : i + 1 === a.bead ? 'cur' : ''}"></i>`).join('')}</span>` : '';
+  return `<p class="eyebrow">Step ${s.i + 1} of ${info.steps.length}${s.exercise?.adaptation ? ' · <span class="fl-adapt">Kitaeru adaptation</span>' : ''}</p>
+    ${s.exercise?.nativeName ? nativeNameHTML(s.exercise.nativeName, { cls: 'fl-native' }) : ''}<p class="fl-now-name">${esc(s.name)}</p>
+    ${s.cue ? `<p class="fl-now-cue">${esc(s.cue)}</p>` : ''}
+    <p class="fl-count" aria-live="off">${s.count ? `<span class="fl-count-n" data-fl-n>${a.rep}</span><span class="fl-count-of">of ${a.of}</span>${a.sideLabel ? `<span class="fl-count-side" data-fl-side>${a.sideLabel}</span>` : ''}`
+      : `<span class="fl-count-n" data-fl-n>${a.left}</span><span class="fl-count-of">s</span>`}</p>${beads}`;
+}
+
+function flowListHTML(info, curStep = -1) {
+  return `<ol class="fl-steps" aria-label="Steps">${info.rows.map(r => r.skipped
+    ? `<li class="fl-step fl-skipped"><span class="fl-n" aria-hidden="true">–</span><span class="fl-body"><span class="fl-name">${esc(r.name)}</span>
+        <span class="small muted">Left out for you${r.why.length ? ` (${esc(r.why.join(', '))})` : ''}</span></span></li>`
+    : `<li class="fl-step ${r.i === curStep ? 'cur' : r.i < curStep ? 'done' : ''}" data-fl-step="${r.i}"><span class="fl-n">${r.i + 1}</span>
+        <span class="fl-body"><span class="fl-name">${esc(r.name)}</span>
+        <span class="small muted">${esc(stepCount(r))}${r.cue ? ` · ${esc(r.cue)}` : ''}</span>
+        ${r.replacedFrom ? `<span class="small">Replaces ${esc(r.replacedFrom)}</span>` : ''}
+        ${r.exercise?.adaptation ? '<span class="badge badge-gold">Kitaeru adaptation</span>' : ''}</span></li>`).join('')}</ol>`;
+}
+
+function flowLoggerHTML() {
+  const info = flowInfo();
+  const running = hold && hold.idx === w.idx;
+  const v = running ? holdView() : { lead: 0, left: info.total, done: 0 };
+  return `<div class="logger flow">
+    <div class="fl-now" data-fl-now>${flowNowHTML(info, running)}</div>
+    ${ring({ progress: running ? v.done / info.total : 0, size: 132, label: `<span data-hold-sec>${v.lead || fmtClock(v.left)}</span>`, sub: `<span data-hold-sub>${v.lead ? 'get ready' : 'left'}</span>`, cls: running ? 'running' : '' })}
+    <div class="btn-row">${running ? `<button class="btn btn-primary btn-lg" data-act="hold-stop">${icon('check', { size: 20 })} <span data-hold-btn>${v.lead ? 'Cancel' : 'Stop & log'}</span></button>`
+      : `<button class="btn btn-primary btn-lg" data-act="hold-start">${icon('play', { size: 20 })} Start</button>
+         <button class="btn btn-ghost" data-act="hold-log" aria-label="Log the whole flow without the timer">Log without timer</button>`}</div>
+    <p class="small muted center">Kitaeru’s own count. No music.</p></div>`;
+}
+
+/** Per-tick flow update: count, beads, current step and stage; re-renders the step panel when the step changes. */
+function tickFlow() {
+  const info = flowInfo();
+  const now = root.querySelector('[data-fl-now]');
+  if (!now) return;
+  const lead = Date.now() < hold.start;
+  const a = lead ? null : flowAt(info, flowEl());
+  const key = lead ? 'lead' : `${a.s.i}|${a.rep}|${a.left ?? ''}`;
+  if (key === hold.flowKey) return;
+  const stepChanged = !lead && (!hold.flowKey || hold.flowKey.split('|')[0] !== String(a.s.i));
+  hold.flowKey = key;
+  if (lead) { now.innerHTML = flowNowHTML(info, true); return; }
+  if (stepChanged) {
+    now.innerHTML = flowNowHTML(info, true);
+    root.querySelectorAll('[data-fl-step]').forEach(li => { const i = +li.dataset.flStep; li.classList.toggle('cur', i === a.s.i); li.classList.toggle('done', i < a.s.i); });
+    setStage(item().exerciseId, a.s);
+    if (a.s.i > 0) { beep('tick'); buzz([30]); }
+    return;
+  }
+  const n = now.querySelector('[data-fl-n]'); if (n) n.textContent = a.s.count ? a.rep : a.left;
+  const sd = now.querySelector('[data-fl-side]'); if (sd && a.sideLabel) sd.textContent = a.sideLabel;
+  now.querySelectorAll('.fl-beads i').forEach((b, i) => { b.className = i + 1 < a.bead ? 'done' : i + 1 === a.bead ? 'cur' : ''; });
 }
 
 // ---------- drawing ----------
@@ -85,39 +209,53 @@ function draw() {
   if (w.phase === 'finish') { stageEl.hidden = true; content.innerHTML = finishHTML(); return; }
   stageEl.hidden = false;
   const it = item(), e = ex(), l = log();
-  setStage(it.exerciseId);
+  const isFlow = flowNow();
+  const running = hold && hold.idx === w.idx;
+  if (isFlow && running && Date.now() >= hold.start) setStage(it.exerciseId, flowAt(flowInfo(), flowEl()).s);
+  else setStage(it.exerciseId);
   const setNo = Math.min(l.sets.length + 1, it.sets);
-  const easier = neighbour(it.exerciseId, -1, getState().profile);
-  const harder = neighbour(it.exerciseId, 1, getState().profile);
+  // Flows keep their own form: no easier/harder swap (their stance, support and tempo progress instead).
+  const easier = isFlow ? null : neighbour(it.exerciseId, -1, getState().profile);
+  const harder = isFlow ? null : neighbour(it.exerciseId, 1, getState().profile);
   const muscles = e.muscles;
   const grp = groupLabel(w.items, w.idx);
+  const fx = it.flow || {};
+  const flowTags = isFlow ? [fx.stance && `${fx.stance[0].toUpperCase()}${fx.stance.slice(1)} stance`, fx.support === 'chair' && 'Chair nearby',
+    fx.support === 'soft_gaze' && 'Soft gaze', fx.tempoScale > 1 && 'Slower tempo', fx.variant === 'short' && 'Short version'].filter(Boolean) : [];
+  const unit = isFlow ? 'Round' : 'Set';
+  // A flow's muscles are the union of every step: show only its main ones as chips (all of them under "Muscles worked").
+  const chipsP = isFlow ? muscles.primary.slice(0, 5) : muscles.primary, chipsS = isFlow ? [] : muscles.secondary;
   content.innerHTML = `
-    <p class="pl-muscles" aria-label="Muscles worked">${muscles.primary.map(m => `<span class="mchip mchip-p">${esc(muscleName(m))}</span>`).join('')}${muscles.secondary.map(m => `<span class="mchip mchip-s">${esc(muscleName(m))}</span>`).join('')}</p>
+    <p class="pl-muscles" aria-label="Muscles worked">${chipsP.map(m => `<span class="mchip mchip-p">${esc(muscleName(m))}</span>`).join('')}${chipsS.map(m => `<span class="mchip mchip-s">${esc(muscleName(m))}</span>`).join('')}</p>
     <p class="eyebrow pl-block">${esc(it.blockTitle || it.blockKind)} · ${w.idx + 1} of ${w.items.length}${grp ? ` · <span class="pl-group">${grp.circuit ? 'Circuit' : 'Superset'} ${grp.label}</span>` : ''}</p>
-    <h1 class="pl-name">${esc(e.name)}</h1>
-    <p class="pl-target">${esc(fmtTarget(it))}${it.rir != null && RATED.has(it.blockKind) ? ` <span class="muted small">· stop ${it.rir} rep${it.rir === 1 ? '' : 's'} short of failure</span>` : ''}</p>
+    ${e.nativeName ? nativeNameHTML(e.nativeName, { cls: 'pl-native' }) : ''}<h1 class="pl-name">${esc(e.name)}</h1>
+    <p class="pl-target">${esc(fmtTarget(it))}${it.rir != null && RATED.has(it.blockKind) && !isFlow ? ` <span class="muted small">· stop ${it.rir} rep${it.rir === 1 ? '' : 's'} short of failure</span>` : ''}</p>
+    ${flowTags.length ? `<p class="badges">${flowTags.map(t => `<span class="badge">${esc(t)}</span>`).join('')}</p>` : ''}
     ${it.notes ? `<p class="small pl-note">${esc(it.notes)}</p>` : ''}
+    ${e.attribution && isFlow ? `<p class="small muted center">Based on ${esc(e.attribution)}</p>` : ''}
     <ul class="pl-cues">${(e.cues || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
-    <div class="pl-sets" aria-label="Set ${setNo} of ${it.sets}">${Array.from({ length: it.sets }, (_, i) => {
+    <div class="pl-sets" ${isFlow && it.sets === 1 ? 'hidden' : ''} aria-label="${unit} ${setNo} of ${it.sets}">${Array.from({ length: it.sets }, (_, i) => {
       const s = l.sets[i];
-      return `<span class="set-pill ${s ? 'done' : i === l.sets.length ? 'cur' : ''}">${s ? (s.sec != null ? `${s.sec}s` : s.reps) : `Set ${i + 1}`}</span>`;
+      return `<span class="set-pill ${s ? 'done' : i === l.sets.length ? 'cur' : ''}">${s ? (s.sec != null ? (isFlow ? fmtDur(s.sec) : `${s.sec}s`) : s.reps) : `${unit} ${i + 1}`}</span>`;
     }).join('')}</div>
     <div class="pl-panel">${w.phase === 'rest' ? restHTML() : w.phase === 'rate' ? rateHTML() : loggerHTML()}</div>
+    ${isFlow && w.phase === 'set' ? flowListHTML(flowInfo(), running && Date.now() >= hold.start ? flowAt(flowInfo(), flowEl()).s.i : -1) : ''}
     ${w.phase === 'set' ? `<div class="pl-actions">
-      <button class="btn btn-quiet btn-sm" data-act="easier" ${easier ? '' : 'disabled'} aria-label="Swap to an easier variation${easier ? `: ${esc(easier.name)}` : ''}">${icon('easier', { size: 18 })} Easier</button>
-      <button class="btn btn-quiet btn-sm" data-act="harder" ${harder ? '' : 'disabled'} aria-label="Swap to a harder variation${harder ? `: ${esc(harder.name)}` : ''}">${icon('harder', { size: 18 })} Harder</button>
+      <button class="btn btn-quiet btn-sm" data-act="easier" ${easier ? '' : 'disabled'} aria-label="${isFlow ? 'Flows keep their own form: no easier swap' : `Swap to an easier variation${easier ? `: ${esc(easier.name)}` : ''}`}">${icon('easier', { size: 18 })} Easier</button>
+      <button class="btn btn-quiet btn-sm" data-act="harder" ${harder ? '' : 'disabled'} aria-label="${isFlow ? 'Flows keep their own form: no harder swap' : `Swap to a harder variation${harder ? `: ${esc(harder.name)}` : ''}`}">${icon('harder', { size: 18 })} Harder</button>
       <button class="btn btn-quiet btn-sm" data-act="skip">${icon('skip', { size: 18 })} Skip</button></div>` : ''}
     <details class="pl-details"><summary>Muscles worked</summary>
       <div class="pl-body"><div class="bodymap" data-bodymap></div>
       <div><p class="small"><span class="key key-p"></span>${muscles.primary.map(muscleName).join(', ')}</p>
       ${muscles.secondary.length ? `<p class="small muted"><span class="key key-s"></span>${muscles.secondary.map(muscleName).join(', ')}</p>` : ''}
-      <p class="small muted">${esc(familyName(e.family))} · level ${e.level}</p></div></div></details>`;
+      <p class="small muted">${esc(familyName(e.family))}${isProgression(e.family) ? ` · level ${e.level}` : ''}</p></div></div></details>`;
   const bm = content.querySelector('[data-bodymap]');
   content.querySelector('.pl-details').addEventListener('toggle', ev => { if (ev.target.open && !bm.childNodes.length) { try { renderBodyMap(bm, { primary: muscles.primary, secondary: muscles.secondary, size: 150 }); } catch (err) { console.warn(err); } } }, { once: false });
 }
 
 function loggerHTML() {
   const it = item(), e = ex(), l = log();
+  if (flowNow()) return flowLoggerHTML();
   if (e.mode === 'hold' || it.holdSec) {
     const target = holdTarget();
     const running = hold && hold.idx === w.idx;
@@ -139,7 +277,8 @@ function restHTML() {
   const next = item();
   const grp = groupLabel(w.items, w.idx);
   const tag = grp ? `${grp.label} · ` : '';
-  const nextLabel = log().sets.length === 0 || grp ? `Up next: ${tag}<strong>${esc(exName(next.exerciseId))}</strong> · set ${log().sets.length + 1} of ${next.sets}` : `Next: set ${log().sets.length + 1} of ${next.sets}`;
+  const unit = isFlowItem(next) ? 'round' : 'set';
+  const nextLabel = log().sets.length === 0 || grp ? `Up next: ${tag}<strong>${esc(exName(next.exerciseId))}</strong> · ${unit} ${log().sets.length + 1} of ${next.sets}` : `Next: ${unit} ${log().sets.length + 1} of ${next.sets}`;
   return `<div class="logger rest" aria-live="off">${ring({ progress: left / (w.restTotal || 1), size: 168, label: `<span data-rest-left>${fmtClock(left)}</span>`, sub: 'rest', cls: 'rest-ring' })}
     <p class="center small">${nextLabel}</p>
     <div class="btn-row"><button class="btn btn-ghost" data-act="rest-add">+15 s</button><button class="btn btn-primary" data-act="rest-skip">Skip rest</button></div></div>`;
@@ -192,6 +331,21 @@ function tick() {
     }
     if (leftMs <= 0) { beep('go'); buzz([180, 80, 180]); endRest(); }
   }
+  if (hold && hold.idx === w.idx && w.phase === 'set' && flowNow()) {
+    const v = holdView(), target = holdTarget();
+    tickFlow();
+    const key = v.lead ? `L${v.lead}` : String(v.left);
+    if (key === hold.shown) return;
+    const was = hold.shown; hold.shown = key;
+    if (v.left <= 0) { beep('done'); buzz([200, 100, 200]); hold = null; logSet({ sec: target, completedSteps: flowInfo().steps.length }); return; }
+    const el = root.querySelector('[data-hold-sec]'); if (el) el.textContent = v.lead || fmtClock(v.left);
+    const sub = root.querySelector('[data-hold-sub]'); if (sub) sub.textContent = v.lead ? 'get ready' : 'left';
+    const b = root.querySelector('[data-hold-btn]'); if (b) b.textContent = v.lead ? 'Cancel' : 'Stop & log';
+    const r = root.querySelector('.ring'); if (r) setRing(r, v.done / target);
+    if (v.lead) beep('tick');
+    else if (was && was[0] === 'L') { beep('go'); buzz([60]); }
+    return;
+  }
   if (hold && hold.idx === w.idx && w.phase === 'set') {
     const v = holdView(), target = holdTarget();
     const key = v.lead ? `L${v.lead}` : String(v.left);
@@ -211,7 +365,8 @@ function tick() {
 
 // Timed holds: a short get-ready countdown, then count down to the target and log automatically at zero.
 const LEAD_IN = 3;
-const holdTarget = () => item().holdSec ? item().holdSec[1] : 30;
+// A flow counts down as a whole: its target is the sum of its (adapted) steps.
+const holdTarget = () => (flowNow() ? flowInfo().total : item().holdSec ? item().holdSec[1] : 30);
 function holdView() {
   const ms = Date.now() - hold.start;
   if (ms < 0) return { lead: Math.ceil(-ms / 1000), done: 0, left: holdTarget() };
@@ -230,7 +385,7 @@ function endRest() { w.phase = 'set'; w.restEndsAt = null; save(); draw(); root.
 function logSet(entry) {
   const it = item(), l = log();
   l.sets.push({ ...entry, done: true });
-  if (l.sets.length >= it.sets && RATED.has(it.blockKind) && !l.rating) { w.phase = 'rate'; save(); draw(); return; }
+  if (l.sets.length >= it.sets && needsRating(it) && !l.rating) { w.phase = 'rate'; save(); draw(); return; }
   if (l.sets.length >= it.sets) l.rating = l.rating || 'good';
   advance(it.restSec);
 }
@@ -262,6 +417,7 @@ function advance(rest) {
 }
 
 function swap(dir) {
+  if (flowNow()) return;
   const target = neighbour(item().exerciseId, dir, getState().profile);
   if (!target) return;
   const it = item();
@@ -285,9 +441,15 @@ async function onClick(e) {
     case 'hold-stop': {
       const ms = Date.now() - hold.start; hold = null;
       if (ms < 1000) { draw(); break; } // cancelled during the get-ready countdown
-      logSet({ sec: Math.min(holdTarget(), Math.floor(ms / 1000)) }); break;
+      const sec = Math.min(holdTarget(), Math.floor(ms / 1000));
+      if (flowNow()) { logSet({ sec, completedSteps: flowInfo().steps.filter(s => s.end <= sec + 0.5).length }); break; }
+      logSet({ sec }); break;
     }
-    case 'hold-log': { const it = item(); logSet({ sec: it.holdSec ? it.holdSec[1] : 30 }); break; }
+    case 'hold-log': {
+      const it = item();
+      if (flowNow()) { logSet({ sec: flowInfo().total, completedSteps: flowInfo().steps.length }); break; }
+      logSet({ sec: it.holdSec ? it.holdSec[1] : 30 }); break;
+    }
     case 'rest-add': w.restEndsAt += 15000; w.restTotal += 15; save(); tick(); break;
     case 'rest-skip': endRest(); break;
     case 'easier': swap(-1); break;
@@ -383,9 +545,14 @@ function drawCelebrate() {
   const sets = L.items.reduce((a, i) => a + i.sets.length, 0);
   const wk = after.weekly?.current ?? 0;
   const isMain = L.sessionId !== 'M';
-  const firstEver = isMain && getState().logs.filter(x => x.sessionId !== 'M').length === 1;
+  const isTaiso = L.sessionId === MORNING_TAISO_SESSION_ID;
+  const firstEver = isMain && !isTaiso && getState().logs.filter(isTrainingLog).length === 1;
   const durLabel = celebrate.shortSec != null ? 'under a minute' : plural(L.durationMin, 'minute');
   const lv = changes.map(c => {
+    if (c.flow) { // flow progression: same flow, next stage (stance, support, tempo or the full version)
+      return `<li class="lv ${c.up ? 'up' : 'down'}"><strong>${esc(exName(c.to))}</strong> <span class="small muted">stage ${(c.fromStage ?? 0) + 1} → ${(c.toStage ?? 0) + 1}</span>
+      <span class="lv-tag">${c.up ? 'next stage' : 'eased back'}</span>${c.reason ? `<span class="small muted lv-why">${esc(c.reason)}</span>` : ''}</li>`;
+    }
     const up = (byId[c.to]?.level ?? 0) > (byId[c.from]?.level ?? 0);
     return `<li class="lv ${up ? 'up' : 'down'}"><span>${esc(exName(c.from))}</span> <span aria-hidden="true">→</span><span class="sr-only">to</span> <strong>${esc(exName(c.to))}</strong>
       <span class="lv-tag">${up ? 'unlocked' : 'eased back'}</span>${c.reason ? `<span class="small muted lv-why">${esc(c.reason)}</span>` : ''}</li>`;
@@ -401,7 +568,8 @@ function drawCelebrate() {
       <div class="cstat up"><span class="cnum">${Math.min(sessionsThisWeek(), weeklyTarget())}<small>/${weeklyTarget()}</small></span><span class="clab">${wk > 0 ? 'this week' : `Week ${Math.max(1, (L.weekIndex ?? 0) + 1)} underway`}</span></div>
       ${isMain ? `<div class="cstat ${dayUp || (after.current ?? 0) === 0 ? 'up' : ''}"><span class="cnum">${Math.max(1, after.current ?? 0)}</span><span class="clab">day streak${dayUp ? ' ↑' : ''}</span></div>` : ''}
     </div>
-    ${lv ? `<section class="card levelups"><h2 class="section-title">Progressions</h2><ul>${lv}</ul></section>` : `<p class="small muted">Keep logging honestly — progressions unlock when you top the rep range.</p>`}
+    ${isTaiso ? '<p class="small muted">Morning Taisō keeps your day streak going. It doesn’t count towards your weekly sessions.</p>' : ''}
+    ${lv ? `<section class="card levelups"><h2 class="section-title">Progressions</h2><ul>${lv}</ul></section>` : isTaiso ? '' : `<p class="small muted">Keep logging honestly — progressions unlock when you top the rep range.</p>`}
     <button class="btn btn-primary btn-lg btn-block" data-act="done">Done</button></div>`;
   root.querySelector('[data-act="done"]').focus({ preventScroll: true });
 }

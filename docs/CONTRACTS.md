@@ -305,6 +305,8 @@ The key is `kitaeru.v1` in localStorage:
 ```
 The current week index is `floor((today - startDate) / 7 days)`.
 
+v1.2 adds optional `settings` keys (older saves load unchanged): `morningTaiso: boolean` (show the Morning Taisō card on Today; logged as `sessionId: 'T'`) and `options: { [SessionOption.id]: boolean }` (the user's chosen warm-up / cool-down swaps). A flow log item's sets may carry `completedSteps`.
+
 ## Design language
 
 The style is Japanese minimal: sumi ink, washi paper and a vermilion seal accent. Use the brand mark 鍛える.
