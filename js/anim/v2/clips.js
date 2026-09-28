@@ -324,7 +324,7 @@ const superman = (() => {
       r.shFlex = solve(150, 200, v => settle({ ...r, shFlex: v }).pt.palmR[1], 2.4);          // hands on the floor
       r.hipFlex = solve(-20, 20, v => settle({ ...r, hipFlex: v }).pt.patellaR[1], 2.4);      // thighs on the floor
       // lift: spine extends through the lumbar and thoracic levels, arms and legs rise ~10-15 cm, neck stays long
-      k.top = { ...r, pitch: r.pitch + 1, lumbar: -8, thoracic: -7, cervical: r.cervical + 5, shFlex: r.shFlex + 5, scapUp: 3, hipFlex: r.hipFlex - 8 };
+      k.top = { ...r, pitch: r.pitch + 1, lumbar: -11, thoracic: -9, cervical: r.cervical + 6, shFlex: r.shFlex + 3, scapUp: 4, hipFlex: r.hipFlex - 10 };
       k.top2 = { ...k.top, lumbar: k.top.lumbar - 1, thoracic: k.top.thoracic - 1, shFlex: k.top.shFlex + 2, hipFlex: k.top.hipFlex - 1.2 };
     },
   };
