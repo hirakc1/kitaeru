@@ -12,6 +12,8 @@ export const V2_GROUPS = {
   // batch 3: core and skill
   abs: ['wall_handstand_push_up', 'dead_bug', 'lying_leg_raise', 'hollow_body_hold', 'hanging_knee_raise', 'hanging_leg_raise', 'l_sit', 'side_plank_hip_dip',
     'bird_dog', 'crow_pose', 'wall_handstand', 'freestanding_handstand'],
+  // batch 4: conditioning
+  cond: ['marching_in_place', 'high_knees', 'jumping_jack', 'squat_jump', 'mountain_climber', 'bear_crawl', 'burpee'],
   strength: ['prone_ytw', 'superman_pull', 'reverse_lunge', 'cossack_squat', 'pistol_squat', 'shrimp_squat', 'single_leg_rdl', 'nordic_curl_negative'],
   // v1.2: rotation / anti-rotation, then the strength traditions
   rot: ['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'bodyweight_woodchop', 'rotational_lunge',

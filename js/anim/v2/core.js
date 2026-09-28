@@ -167,9 +167,10 @@ const SIDED = ['scapElev', 'scapProt', 'scapUp', 'shFlex', 'shAbd', 'elbow', 'wr
 // the hip, .5 behind the knee, 1 behind the ankle), e.g. two hands hold the feet. elbowOut: free / IK arms, 0 = the spec's elbow direction (pole), 1 = the elbow points out to the side (drawing a bow)
 export const HAND_SHAPES = ['relaxed', 'palm', 'fist', 'hook', 'point', 'bazi'];
 // weight: stepping clips, share of body weight on the right foot (0..1) while both feet are down; onBalls: 0 = weight over
-// the mid-foot (heel side), 1 = over the balls (shift it before the heels rise: heel raises, hops)
+// the mid-foot (heel side), 1 = over the balls (shift it before the heels rise: heel raises, hops); noBalance: 1 = the
+// stepping balance is off (the hands bear weight too: a burpee's plank)
 const AXIAL = ['rootX', 'rootY', 'rootZ', 'pitch', 'yaw', 'roll', 'lumbar', 'thoracic', 'cervical', 'head', 'headYaw', 'bend', 'twist',
-  'jaw', 'bodyAngle', 'weight', 'onBalls'];
+  'jaw', 'bodyAngle', 'weight', 'onBalls', 'noBalance'];
 export const CHANNELS = [...AXIAL, ...SIDED.flatMap(k => [k + 'R', k + 'L'])];
 export const expand = pose => {
   const o = {};
@@ -379,7 +380,7 @@ function armIK(S, ch, G, spec, sd, s, T4) {
   let W, hand = null;
   // planted / bar hands: z = thumb side (medial when palm-down or overhand, lateral underhand), as for free hands
   if (spec.grip === 'palm') {                               // flat hand planted on a surface (floor; spec.normal: wall, bench)
-    const c = spec.target(sd, s), n = spec.normal ? nrm(spec.normal(s)) : [0, 1, 0];
+    const c = spec.target(sd, s, ch), n = spec.normal ? nrm(spec.normal(s)) : [0, 1, 0];
     const d = nrm(spec.dir(s)), a = mul(n, -1);
     W = madd(madd(c, d, -5.2), n, 2.4);
     hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'palm' };
@@ -392,11 +393,11 @@ function armIK(S, ch, G, spec, sd, s, T4) {
   } else if (spec.grip === 'world') {                       // free hand at a world point: straight up, sliding down a leg
     W = spec.at(sd, s, ch, S, G);
   } else if (spec.grip === 'forearm') {                     // forearm flat on the floor (forearm plank): elbow + hand planted
-    const E = spec.target(sd, s), d = nrm(spec.dir(s)), a = [0, -1, 0];
+    const E = spec.target(sd, s, ch), d = nrm(spec.dir(s)), a = [0, -1, 0];
     W = madd(E, d, LEN.fore);
     return { E, W, ant: d, herr: Math.abs(len(sub(E, G)) - LEN.humerus), hand: { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'palm' } };
   } else if (spec.grip === 'bar') {                          // hand wrapped around a bar: pivots about the bar axis
-    const B = spec.target(sd, s);
+    const B = spec.target(sd, s, ch);
     let dirv = nrm(sub(G, B));
     for (let i = 0; i < 3; i++) {
       W = madd(B, dirv, 6.6);
@@ -544,9 +545,9 @@ function pose1(clip, ts) {
   let S = settle(clip, ch, ctx);
   if (clip.stepBalance) {                          // weight transfer: centre of mass over the weighted feet (x and z)
     for (let i = 0; i < 4; i++) {
-      const t = supportTarget(S, ch.weight, ch.onBalls);
-      if (!t) break;
-      const ex = t[0] - S.com[0], ez = t[1] - S.com[2];
+      const t = supportTarget(S, ch.weight, ch.onBalls), f = 1 - clamp(ch.noBalance || 0, 0, 1);
+      if (!t || f <= 0) break;
+      const ex = (t[0] - S.com[0]) * f, ez = (t[1] - S.com[2]) * f;
       if (Math.abs(ex) + Math.abs(ez) < .03) break;
       ch.rootX += ex; ch.rootZ += ez;
       S = build(ch, ctx);

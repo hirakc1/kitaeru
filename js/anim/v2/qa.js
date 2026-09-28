@@ -21,7 +21,7 @@ export function qaClip(clip, { n = 240, pins = clip.qaPins || [] } = {}) {
     const S = poseAt(clip, i / n * T);
     r.reach = Math.max(r.reach, S.reach || 0); r.reachLeg = Math.max(r.reachLeg, S.reachLeg || 0);
     r.humerus = Math.max(r.humerus, S.humerusErr || 0);
-    if (S.support?.length) {   // stepping: the centre of mass over the base of support (weight transfer; not in flight)
+    if (S.support?.length && !(S.ch?.noBalance > .5)) {   // stepping: the centre of mass over the feet (not in flight, nor with the hands down)
       const pts = [];
       for (const sd of ['R', 'L']) for (const n of ['heel', 'ball', 'toe']) { const p = S.pt[n + sd]; if (p[1] < 1.6) pts.push([p[0], p[2]]); }
       const d = pts.length ? outside([S.com[0], S.com[2]], pts) : 0;   // (airborne: no support to be over)
