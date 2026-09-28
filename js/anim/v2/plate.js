@@ -116,7 +116,7 @@ function follow(clip, S) {
 }
 
 // ---------- renderer ----------
-export function createPlatePlayer(container, animId, { primary, secondary, size = 320, playing = true, trail = false, breath = false } = {}) {
+export function createPlatePlayer(container, animId, { primary, secondary, size = 320, playing = true, trail = false, breath = false, pace = null } = {}) {
   injectStyle();
   const uid = ++UID;
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -153,7 +153,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   for (const n of GROUPS) G[n] = new Grp(root, n);
   const over = new Grp(svg, 'over');
   const st = { clip: null, cam: null, playing: playing && !reduce, visible: true, t0: 0, elapsed: 0, last: 0, raf: 0, fixedT: null,
-    trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), avg: {}, trailPath: {}, trailPathM: {}, order: '', ms: [],
+    trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), pace, rate: 1, avg: {}, trailPath: {}, trailPathM: {}, order: '', ms: [],
     lod: size < 160 ? 1 : 0, n: 0, slow: false, props: [], props0: [], propsM: [], pnames: [], gnames: GROUPS };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
   if (st.lod) { svg.classList.add('lod'); st.trail = st.breath = false; }   // no overlays on thumbnails
 
@@ -643,9 +643,11 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     svg.setAttribute('viewBox', viewBox(clip, st.cam).join(' '));
     svg.setAttribute('aria-label', `${clip.name} animation`);
     for (const k in G) G[k].reset(); over.reset(); st.order = '';
-    st.elapsed = 0;
+    st.elapsed = 0; st.rate = rateOf(clip);
     draw();
   }
+  // flow pace: one clip cycle lasts clip.counts × pace seconds (the flow step's seconds per count); otherwise natural tempo
+  function rateOf(clip) { return st.pace > 0 && clip.counts ? K.period(clip) / (clip.counts * st.pace) : 1; }
   function trailPaths() {
     st.trailPath = {};
     if (!st.trail) return;
@@ -667,6 +669,19 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   function viewBox(clip, cam) {
     const ck = st.lod ? '_vb1' : '_vb';
     if (clip[ck]) return (st.vb = clip[ck]);
+    // clips chained in a flow (clip.frame, e.g. the Morning Taisō steps) share one view: the union of all of them
+    const grp = clip.frame ? Object.values(CLIPS).filter(c => c.frame === clip.frame) : [clip];
+    const bs = grp.map(c => bounds(c, cam, c === clip ? [...st.props0, ...st.propsM] : []));
+    let [x0, y0, x1, y1] = bs.reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]);
+    const pad = st.lod ? 2 : 8; x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
+    let w = x1 - x0, h = y1 - y0;
+    const ar = clip.aspect || K.clamp(w / h, .85, st.lod ? 1.3 : 1.5);
+    if (w / h < ar) { const nw = h * ar; x0 -= (nw - w) / 2; w = nw; } else { const nh = w / ar; y0 -= (nh - h) * .7; h = nh; }
+    const vb = [f2(x0), f2(y0), f2(w), f2(h)];
+    for (const c of grp) c[ck] = vb;
+    return (st.vb = vb);
+  }
+  function bounds(clip, cam, props) {
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     const inc = (q, r = 0) => { x0 = Math.min(x0, q[0] - r); x1 = Math.max(x1, q[0] + r); y0 = Math.min(y0, q[1] - r); y1 = Math.max(y1, q[1] + r); };
     const T = K.period(clip);
@@ -678,20 +693,16 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     // the bar frames the view; floor-standing uprights and their feet may run out of the picture (figure stays large)
     if (b) for (const z of [-b.w * .7, b.w * .7]) inc(cam.pr([b.x || 0, b.y, z]), 3);
     if (b && b.posts !== 'down') for (const z of [-b.w - 5, b.w + 5]) inc(cam.pr([b.x || 0, b.y + 16, z]), 2);
-    for (const p of [...st.props0, ...st.propsM]) if (!p.nv) for (const q of propPts(p)) inc(cam.pr(q), 1);   // nv: may run out of frame
+    for (const p of props) if (!p.nv) for (const q of propPts(p)) inc(cam.pr(q), 1);   // nv: may run out of frame
     if (clip.floor && !clip.travel) inc(cam.pr([0, 0, 0]), st.lod ? 2 : 5);
-    const pad = st.lod ? 2 : 8; x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
-    let w = x1 - x0, h = y1 - y0;
-    const ar = clip.aspect || K.clamp(w / h, .85, st.lod ? 1.3 : 1.5);
-    if (w / h < ar) { const nw = h * ar; x0 -= (nw - w) / 2; w = nw; } else { const nh = w / ar; y0 -= (nh - h) * .7; h = nh; }
-    return (st.vb = clip[ck] = [f2(x0), f2(y0), f2(w), f2(h)]);
+    return [x0, y0, x1, y1];
   }
 
   function loop(ts) {
     st.raf = 0;
     if (!st.playing || !st.visible) return;
     const dt = st.last ? Math.min(100, ts - st.last) : 16;
-    st.last = ts; st.elapsed += dt;
+    st.last = ts; st.elapsed += dt * st.rate;
     // thumbnails, and any player whose median frame costs > 8 ms (slow phones), redraw at half rate
     if (!(st.lod || st.slow) || (st.odd = !st.odd)) draw();
     if (++st.n % 30 === 0 && st.ms.length >= 40) st.slow = api.stats().median > 8;
@@ -710,6 +721,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     seek(t) { st.fixedT = t; draw(); },
     setTrail(on) { on = !!on && !st.lod; if (on !== st.trail) { st.trail = on; trailPaths(); draw(); } },
     setBreath(on) { on = !!on && !st.lod; if (on !== st.breath) { st.breath = on; draw(); } },
+    setPace(sec) { st.pace = sec > 0 ? sec : null; st.rate = rateOf(st.clip); },   // (elapsed is clip time: no jump)
     setContacts(on) { st.contacts = !!on; draw(); },   // compare page: show which foot points bear weight
     stats() { const a = st.ms.slice().sort((x, y) => x - y); return { median: a[a.length >> 1] || 0, p95: a[Math.floor(a.length * .95)] || 0, n: a.length }; },
     get skeleton() { return st.S; }, get cam() { return st.cam; },

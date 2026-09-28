@@ -66,12 +66,13 @@ function setStage(exId, step = null) {
   if (!animId) return;
   const size = 1200; // CSS sizes the hero (full column width, clamp height); this only caps max-width
   const key = `${exId}|${animId}`;
+  const pace = step && step.count ? step.sec / step.count : null;   // flows: the clip keeps to the step's count
   if (player && stageId === key) return;
   const mus = e?.muscles || { primary: [], secondary: [] };
   const breath = e?.mode === 'hold' && getState().settings.animBreath !== false;   // breath guide on holds; no trail mid-workout
   try {
-    if (player && player.setAnim) { player.setAnim(animId, mus.primary, mus.secondary); player.setBreath?.(breath); }
-    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath }); }
+    if (player && player.setAnim) { player.setPace?.(pace); player.setAnim(animId, mus.primary, mus.secondary); player.setBreath?.(breath); }
+    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath, pace }); }
   } catch (err) { console.warn('skeleton failed', err); }
   stageEl.setAttribute('aria-label', `${e?.name || (step ? step.name : '')} demonstration`);
   stageId = key;

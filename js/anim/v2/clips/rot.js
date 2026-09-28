@@ -4,23 +4,14 @@
 // side bending, + to the right. Free hands (grip 'free') are placed in the upper-chest (T4) frame: handX forward,
 // handY up the spine, handZ out to that hand's side. Every clip follows the fact-checked cues in js/data/exercises.js.
 import { P } from '../core.js';
-import { CLIPS, R, solve, dist, hold, repUp, box, rod, feet, mix, swing, stepLegs, floorPlank, straighten, palmsUnder, sidePlank } from './lib.js';
+import { CLIPS, R, solve, dist, hold, repUp, box, rod, feet, mix, swing, stepLegs, floorPlank, straighten, palmsUnder, sidePlank, HANG, stand } from './lib.js';
 
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
 const palms = S => mid(S.pt.palmR, S.pt.palmL);
 // a band anchored to a post at (x, y, z): the post stands on the floor, the band runs to both hands
 const bandPost = (x, y, z) => [rod([[x, 0, z], [x, Math.max(160, y + 25), z]], 2.4), rod([[x - 14, 1.3, z], [x + 14, 1.3, z]], 1.4),
   { t: 'band', a: [x, y, z + Math.sign(-z || 1) * 2.4], b: palms }];
-const HANG = { handX: 3, handY: -42, handZ: 21, palm: 90, fingers: 25, wrist: 4 };   // arms hanging loose by the thighs
 
-// ---------------------------------------------------------------------------------------------------------------
-// standing: two planted feet (stepping legs, constant), weight shared by the keyed 'weight'; free hands
-const stand = (feetAt, over) => ({
-  floor: true, lag: .2, headLag: .4, shift: 0, shiftRoll: 0, stepBalance: true, legs: stepLegs,
-  arms: { both: { mode: 'ik', grip: 'free', pole: [-.3, -1, .5] } },
-  ...over,
-  base: { rootY: 88, pitch: 2, weight: .5, ...HANG, ...feet(feetAt), ...(over.base || {}) },
-});
 
 // Pallof press: side-on to a band at chest height (anchored on the left); press straight out, pause 2 s, return
 // without turning. Sides alternate (the band moves to the other side).
@@ -193,18 +184,6 @@ const seated_trunk_rotation = (() => {
 // ---------------------------------------------------------------------------------------------------------------
 // trunk twist (Radio Taisō): feet planted apart, loose arms swing around the body one way then the other, then two
 // bigger twists with the eyes following the hands. Brisk (about one count a second).
-const TW = { R: [-5, 26, 10], L: [-5, -26, 10] };
-const twistKey = (yaw, twist, big) => ({ yaw, twist, headYaw: big ? Math.sign(yaw) * 32 : Math.sign(yaw) * 8, weight: .5 - Math.sign(yaw) * .12,
-  // turning left: the right arm wraps across the front, the left behind the back (and the mirror image turning right)
-  ...(yaw > 0 ? { handXR: 26, handYR: -20, handZR: -24, handXL: -18, handYL: -24, handZL: 24 } : { handXL: 26, handYL: -20, handZL: -24, handXR: -18, handYR: -24, handZR: 24 }),
-  palm: 90, fingers: 30, elbow: 20 });
-const rt_trunk_twist = stand(TW, {
-  name: 'Trunk twist', cam: { az: 72, el: 8 }, still: .15, trail: ['palmR'],
-  keys: { c: {}, l1: twistKey(16, 32), r1: twistKey(-16, -32), l2: twistKey(26, 56, 1), r2: twistKey(-26, -56, 1) },
-  timeline: [{ from: 'c', to: 'l1', dur: .7, r1: .3, r2: .3 }, { from: 'l1', to: 'r1', dur: 1, r1: .3, r2: .3 },
-    { from: 'r1', to: 'l2', dur: 1.1, r1: .3, r2: .3 }, { from: 'l2', to: 'r2', dur: 1.3, r1: .3, r2: .3 }, { from: 'r2', to: 'c', dur: .9, r1: .3, r2: .4 }],
-});
-
 // woodchop: hands together high over the right shoulder, chop diagonally down towards the left knee; the hips lead and
 // the back (right) foot pivots on its ball. Sides alternate. band_woodchop: the same against a band anchored high on
 // the right, arms long.
@@ -301,6 +280,6 @@ const side_plank_reach_through = sidePlank(() => ({
 }));
 
 Object.assign(CLIPS, {
-  open_book, thread_the_needle, seated_trunk_rotation, rt_trunk_twist, bodyweight_woodchop, rotational_lunge, band_woodchop,
+  open_book, thread_the_needle, seated_trunk_rotation, bodyweight_woodchop, rotational_lunge, band_woodchop,
   standing_windmill, bird_dog_row, half_kneeling_pallof_hold, plank_shoulder_tap, pallof_press, pallof_press_overhead, side_plank_reach_through,
 });

@@ -237,6 +237,15 @@ export const stepLegs = { both: { mode: 'ik', foot: 'step', pole: (s, ch) => { c
 // (yaw -90, roll = bodyAngle - 90). Feet stacked (left foot on its outer edge); the elbow under the shoulder is solved
 // in prep. The right arm is the clip's (FK by default).
 // ---------------------------------------------------------------------------------------------------------------
+// standing: two planted feet (stepping legs, constant), weight shared by the keyed 'weight'; free hands
+export const HANG = { handX: 3, handY: -42, handZ: 21, palm: 90, fingers: 25, wrist: 4 };   // arms hanging loose by the thighs
+export const stand = (feetAt, over) => ({
+  floor: true, lag: .2, headLag: .4, shift: 0, shiftRoll: 0, stepBalance: true, legs: stepLegs,
+  arms: { both: { mode: 'ik', grip: 'free', pole: [-.3, -1, .5] } },
+  ...over,
+  base: { rootY: 88, pitch: 2, weight: .5, ...HANG, ...feet(feetAt), ...(over.base || {}) },
+});
+
 export function sidePlank(f) {
   const c = {
     cam: { az: 14, el: 13 }, floor: true, floorZ: 42, lag: .2, headLag: .2, shift: 0, shiftRoll: 0, L: 85.3, _ex: 100, _ez: 0,

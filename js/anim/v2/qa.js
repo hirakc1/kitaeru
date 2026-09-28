@@ -21,10 +21,10 @@ export function qaClip(clip, { n = 240, pins = clip.qaPins || [] } = {}) {
     const S = poseAt(clip, i / n * T);
     r.reach = Math.max(r.reach, S.reach || 0); r.reachLeg = Math.max(r.reachLeg, S.reachLeg || 0);
     r.humerus = Math.max(r.humerus, S.humerusErr || 0);
-    if (S.support) {   // stepping: the centre of mass over the base of support (weight transfer)
+    if (S.support?.length) {   // stepping: the centre of mass over the base of support (weight transfer; not in flight)
       const pts = [];
       for (const sd of ['R', 'L']) for (const n of ['heel', 'ball', 'toe']) { const p = S.pt[n + sd]; if (p[1] < 1.6) pts.push([p[0], p[2]]); }
-      const d = outside([S.com[0], S.com[2]], pts);
+      const d = pts.length ? outside([S.com[0], S.com[2]], pts) : 0;   // (airborne: no support to be over)
       if (d > r.com) { r.com = d; r.comAt = Math.round(i / n * 100) / 100; }
     }
     for (const k in S.pt) {

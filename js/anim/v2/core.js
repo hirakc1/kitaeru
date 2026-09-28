@@ -164,9 +164,10 @@ const SIDED = ['scapElev', 'scapProt', 'scapUp', 'shFlex', 'shAbd', 'elbow', 'wr
 // release: a planted palm (grip 'palm') lifts off towards the free target handX/Y/Z (0 = planted, 1 = at the target)
 // footPivot: 1 = footX / footZ locate the ball and the foot turns on it (0 = heel). handShape: rounded to HAND_SHAPES
 export const HAND_SHAPES = ['relaxed', 'palm', 'fist', 'hook', 'point', 'bazi'];
-// weight: stepping clips, share of body weight on the right foot (0..1) while both feet are down
+// weight: stepping clips, share of body weight on the right foot (0..1) while both feet are down; onBalls: 0 = weight over
+// the mid-foot (heel side), 1 = over the balls (shift it before the heels rise: heel raises, hops)
 const AXIAL = ['rootX', 'rootY', 'rootZ', 'pitch', 'yaw', 'roll', 'lumbar', 'thoracic', 'cervical', 'head', 'headYaw', 'bend', 'twist',
-  'jaw', 'bodyAngle', 'weight'];
+  'jaw', 'bodyAngle', 'weight', 'onBalls'];
 export const CHANNELS = [...AXIAL, ...SIDED.flatMap(k => [k + 'R', k + 'L'])];
 export const expand = pose => {
   const o = {};
@@ -531,7 +532,7 @@ function pose1(clip, ts) {
   let S = settle(clip, ch, ctx);
   if (clip.stepBalance) {                          // weight transfer: centre of mass over the weighted feet (x and z)
     for (let i = 0; i < 4; i++) {
-      const t = supportTarget(S, ch.weight);
+      const t = supportTarget(S, ch.weight, ch.onBalls);
       if (!t) break;
       const ex = t[0] - S.com[0], ez = t[1] - S.com[2];
       if (Math.abs(ex) + Math.abs(ez) < .03) break;
@@ -550,12 +551,14 @@ function pose1(clip, ts) {
   return S;
 }
 // where the centre of mass should sit: over the one flat foot, or between both by the keyed weight (share on the right)
-function supportTarget(S, w) {
-  const c = sd => [S.pt['heel' + sd][0] * .6 + S.pt['ball' + sd][0] * .4, S.pt['heel' + sd][2] * .6 + S.pt['ball' + sd][2] * .4];   // mid-foot, heel side
+function supportTarget(S, w, onBalls = 0) {
+  // mid-foot, heel side; moving onto the ball as the heel lifts (heel raises, toe-off)
+  const c = sd => { const h = .6 * clamp(1 - (S.pt['heel' + sd][1] - HEEL_Y) / 3, 0, 1) * clamp(1 - onBalls, 0, 1), b = 1 - h;
+    return [S.pt['heel' + sd][0] * h + S.pt['ball' + sd][0] * b, S.pt['heel' + sd][2] * h + S.pt['ball' + sd][2] * b]; };
   const sup = S.support || [];
   if (sup.length === 1) return c(sup[0]);
-  if (sup.length === 2) { const r = c('R'), l = c('L'), u = clamp(w, 0, 1); return [l[0] + (r[0] - l[0]) * u, l[1] + (r[1] - l[1]) * u]; }
-  return null;
+  // both feet down, or both in the air (a hop: stay over where they will land)
+  const r = c('R'), l = c('L'), u = clamp(w, 0, 1); return [l[0] + (r[0] - l[0]) * u, l[1] + (r[1] - l[1]) * u];
 }
 export const period = clip => { prepare(clip); return compile(clip).T * (clip.swap ? 2 : 1); };
 export const swapTime = clip => (clip.swap ? compile(clip).T : 0);   // seconds per side (for the switch fade)

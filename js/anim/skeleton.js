@@ -783,7 +783,7 @@ function placeholder(container, size) {
 }
 // opts.breath / opts.trail (default off): v2 breath ring and motion trail; v1 ignores both
 export function createSkeletonPlayer(container, animId, opts = {}) {
-  const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, ...opts };
+  const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, pace: null, ...opts };
   let p = null, kind = null, cur = null, gen = 0, dead = false, fixedT = null;
   function mount(k) {
     const old = p;
@@ -813,6 +813,8 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
     seek(t) { fixedT = t; p.seek(t); },
     setBreath(on) { o.breath = !!on; p.setBreath?.(o.breath); },
     setTrail(on) { o.trail = !!on; p.setTrail?.(o.trail); },
+    // flows: seconds per count of the current step (v2 clips with `counts` fit their cycle to it); null = natural tempo
+    setPace(sec) { o.pace = sec > 0 ? sec : null; p.setPace?.(o.pace); },
     get svg() { return p.svg; },
     get renderer() { return kind; },   // 'v2' | 'v1' | 'ph' (v2 still loading)
     get ready() { return kind !== 'ph'; },

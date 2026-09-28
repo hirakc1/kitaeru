@@ -585,7 +585,7 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     ok(r.levels.push_horizontal === 'push_up' && !r.changes.length, 'a swapped-in daṇḍ log never moves the push ladder');
   }
   ok(Object.values(visibleById).every(isVisible) && ALL_EXERCISES.every(e => !!visibleById[e.id] === isVisible(e)) && !visibleById.taichi_short_flow, 'byId hides them too (library deep links, swaps)');
-  ok(!FAMILIES.flow_taichi && !FAMILIES.flow_sequence && Object.keys(FAMILIES).every(f => EXERCISES.some(e => e.family === f)), 'FAMILIES lists only families with visible items');
+  ok(!FAMILIES.flow_taichi && !!FAMILIES.flow_sequence === !!visibleById.radio_taiso_1 && Object.keys(FAMILIES).every(f => EXERCISES.some(e => e.family === f)), 'FAMILIES lists only families with visible items');
   ok(['open_book', 'thread_the_needle', 'pallof_press', 'plank_shoulder_tap'].every(id => contentVisible(ALL_BY_ID[id])), 'generic rotation / anti-rotation need no fact-check (the animation gate still applies)');
 
   // ---- animation gate: nothing is listed, planned, offered in Quick or swapped without an animation
@@ -768,7 +768,10 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
       if (focus === 'flow') {
         ok(!main.length, `${T}: flow focus has strength work`);
         if (lib === LIB && minutes >= 5 && !(prof && prof.injuries.length > 1 && minutes < 10)) ok(q.blocks.some(b => b.kind === 'flow'), `${T}: no flow block in preview`);
-        if (lib === EXERCISES) ok(!q.blocks.some(b => b.kind === 'flow') && q.focus.join() === 'mobility', `${T}: gated flow focus falls back to mobility`);
+        // gated: a flow block once a flow is animated and verified (Morning Taisō), otherwise the focus falls back to mobility
+        const fl = lib === EXERCISES ? P.availableFlows(prof, EXERCISES).length : 0;
+        if (lib === EXERCISES && !fl) ok(!q.blocks.some(b => b.kind === 'flow') && q.focus.join() === 'mobility', `${T}: gated flow focus falls back to mobility`);
+        if (lib === EXERCISES && fl && minutes >= 10 && !(prof && prof.injuries.length > 1 && minutes < 10)) ok(q.blocks.some(b => b.kind === 'flow'), `${T}: gated flow focus offers the animated, verified flow`);
       }
       ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, lib) : null, lib)), `${T}: deterministic`);
     }

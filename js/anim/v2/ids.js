@@ -10,10 +10,13 @@ export const V2_GROUPS = {
     'glute_bridge', 'single_leg_glute_bridge', 'hip_thrust'],
   trunk: ['plank', 'side_plank', 'superman'],
   // v1.2: rotation / anti-rotation, then the strength traditions
-  rot: ['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'rt_trunk_twist', 'bodyweight_woodchop', 'rotational_lunge',
+  rot: ['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'bodyweight_woodchop', 'rotational_lunge',
     'band_woodchop', 'standing_windmill', 'bird_dog_row', 'half_kneeling_pallof_hold', 'plank_shoulder_tap', 'pallof_press',
     'pallof_press_overhead', 'side_plank_reach_through'],
   trad: ['dand', 'baithak', 'horse_stance'],
+  // Morning Taisō: the 13 steps of radio_taiso_1 (stretch up, side bend and trunk twist are also standalone) + heel raise
+  taiso: ['rt_stretch_up', 'rt_arm_swing_knee_bend', 'rt_arm_circles', 'rt_chest_opener', 'rt_side_bend', 'rt_forward_back_bend',
+    'rt_trunk_twist', 'rt_arms_up_down', 'rt_diagonal_bend', 'rt_trunk_circle', 'rt_two_foot_hops', 'rt_heel_raise', 'rt_deep_breath'],
   flow: ['taichi_cloud_hands', 'taichi_brush_knee'],
 };
 // clips that exist (compare page) but are not yet cue-checked for the app: kept out of the animation gate
