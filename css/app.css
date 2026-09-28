@@ -213,6 +213,18 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .step-val { min-width: 76px; text-align: center; font: 700 1.6rem/1 var(--serif); font-variant-numeric: tabular-nums; }
 .step-val small { font: 500 .8rem var(--sans); color: var(--muted); margin-left: 4px; }
 
+/* ---------- splash ---------- */
+.splash { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  padding: calc(24px + var(--safe-t)) 32px calc(24px + var(--safe-b)); background-color: var(--bg); background-image: var(--paper); cursor: pointer;
+  transition: opacity .7s var(--ease); }
+.splash.out { opacity: 0; pointer-events: none; }
+.splash > * { animation: fadeUp .9s var(--ease) both; }
+.splash-seal { filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--accent) 35%, transparent)); animation: stampIn .9s var(--ease) both; margin-bottom: 24px; }
+.splash-name { font-family: var(--serif); font-size: 2.6rem; font-weight: 700; letter-spacing: .14em; margin: 0; animation-delay: .45s; }
+.splash-jp { font-family: var(--serif); color: var(--accent); letter-spacing: .18em; margin: 4px 0 0; animation-delay: .75s; }
+.splash-rule { width: 56px; height: 2px; background: var(--ink); opacity: .7; margin: 22px auto; border-radius: 2px; animation-delay: 1.05s; }
+.splash-line { font-family: var(--serif); color: var(--muted); max-width: 28ch; line-height: 1.6; margin: 0; animation-delay: 1.3s; animation-duration: 1.2s; }
+
 /* ---------- welcome ---------- */
 .welcome { min-height: calc(100dvh - 60px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 32px 0; }
 .welcome-mark { margin-bottom: 26px; }
