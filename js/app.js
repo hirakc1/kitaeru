@@ -93,7 +93,7 @@ function splash() {
   el.innerHTML = `${seal('鍛える', { size: 108, cls: 'splash-seal' })}
     <p class="splash-name">Kitaeru</p><p class="splash-jp">鍛える · to forge</p>
     <div class="splash-rule"></div>
-    <p class="splash-line">The world’s answers to bodyweight movement, brought together to strengthen body and mind.</p>`;
+    <p class="splash-line">The world’s movement traditions, brought together to strengthen body and mind.</p>`;
   document.body.append(el);
   let gone = false;
   const out = () => { if (gone) return; gone = true; el.classList.add('out'); setTimeout(() => el.remove(), reducedMotion() ? 0 : 700); };

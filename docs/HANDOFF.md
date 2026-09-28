@@ -19,7 +19,7 @@ This is the current state for a new Claude session picking up the project. Claud
 - **v1.0:** onboarding, plan engine (research-based), 82 exercises with a 2D skeletal animation and muscle highlight, workout player, weekly-primary streaks with freezes, progress, library.
 - **v1.1** (2026-09-28): Quick workout with no setup. You pick a time plus a goal or a body area; body-map muscle tapping uses `generateQuickSession`. Also fixed from founder feedback: day chips sync with days/week, the weight format is st&lb | kg | lb, plank baseline is entered in min+sec, and preferences have an edit hub.
 
-- **Opening screen** (deployed as v2026.09.28-1037): the seal, the name, 鍛える, and the founder's line "The world's answers to bodyweight movement, brought together to strengthen body and mind." It runs 3.6 s (the founder found 2.8 s too fast) and can be tapped to skip. The same line appears in the Me → About section.
+- **Opening screen** (deployed as v2026.09.28-1037): the seal, the name, 鍛える, and the founder's line "The world's movement traditions, brought together to strengthen body and mind." It runs 3.6 s (the founder found 2.8 s too fast) and can be tapped to skip. The same line appears in the Me → About section.
 - **Timed holds** (deployed as v2026.09.28-0949): Start runs a 3-2-1 get-ready, then counts down to the target (the top of the `holdSec` range). It auto-logs at 0, and "Stop & log" still logs early.
 
 ## In progress / next
