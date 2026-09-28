@@ -134,7 +134,7 @@ const diamond_push_up = floorPlank(c => ({
 
 // very wide hands, fingers turned out; lower towards one hand while the other arm stays long. Sides alternate.
 const archer_push_up = floorPlank(c => ({
-  name: 'Archer push-up', cam: { az: 18, el: 16 }, swap: true, still: .22, floorZ: 60,
+  name: 'Archer push-up', cam: { az: 18, el: 16 }, swap: true, still: .22, floorZ: 64,
   muscles: { primary: ['chest', 'triceps'], secondary: ['front_delts', 'abs', 'obliques'] },
   arms: { both: { mode: 'ik', grip: 'palm', pole: [-.6, -1, .7], dir: s => [.35, 0, .94 * s], target: (sd, s) => [c._hx, 0, c._hz * s] } },
   keys: { top: { bodyAngle: 17, scapProt: 10 }, bottom: { bodyAngle: 9, rootZ: 16, roll: -6, scapProtR: -8, scapProtL: 12, cervical: -4, head: -12 } },
@@ -152,7 +152,7 @@ const archer_push_up = floorPlank(c => ({
 
 // hands by the hips, fingers turned out and back; shoulders lean well past the hands all the way down
 const pseudo_planche_push_up = floorPlank(c => ({
-  name: 'Pseudo planche push-up', cam: { az: 22, el: 8 },
+  name: 'Pseudo planche push-up', cam: { az: 22, el: 8 }, floorZ: 38,
   muscles: { primary: ['chest', 'front_delts'], secondary: ['triceps', 'abs', 'biceps'] },
   arms: { both: { mode: 'ik', grip: 'palm', pole: [-1, -.5, .35], dir: s => [-.4, 0, .92 * s], target: (sd, s) => [c._hx, 0, c._hz * s] } },
   base: { cervical: 4, head: -10, thoracic: -1, lumbar: 1, wrist: 0 },

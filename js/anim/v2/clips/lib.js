@@ -239,7 +239,7 @@ export const stepLegs = { both: { mode: 'ik', foot: 'step', pole: (s, ch) => { c
 // ---------------------------------------------------------------------------------------------------------------
 export function sidePlank(f) {
   const c = {
-    cam: { az: 14, el: 13 }, floor: true, lag: .2, headLag: .2, shift: 0, shiftRoll: 0, L: 85.3, _ex: 100, _ez: 0,
+    cam: { az: 14, el: 13 }, floor: true, floorZ: 42, lag: .2, headLag: .2, shift: 0, shiftRoll: 0, L: 85.3, _ex: 100, _ez: 0,
     // left ankle 4.3 cm up (foot on its outer edge), right ankle stacked 8.6 cm above it along the body's right
     legs: { both: { mode: 'ik', foot: 'fixed', pole: () => [0, 0, 1],
       ankle: (sd, s, ch) => { const r = ch.bodyAngle * R, k = s > 0 ? 8.6 : 0; return [-k * Math.sin(r), 4.3 + k * Math.cos(r), 0]; },

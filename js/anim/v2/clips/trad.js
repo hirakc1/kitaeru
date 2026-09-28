@@ -7,7 +7,7 @@ import { CLIPS, dist, solve, hold, pike } from './lib.js';
 // and the balls of the feet stay planted.
 const dand = (() => {
   const c = pike(() => ({
-    name: 'Daṇḍ (Hindu push-up)', cam: { az: 20, el: 7 }, pitch0: 132, trail: ['sternum'], still: .45,
+    name: 'Daṇḍ (Hindu push-up)', cam: { az: 20, el: 7 }, floorZ: 38, pitch0: 132, trail: ['sternum'], still: .45,
     timeline: [{ hold: 'top', dur: .3, b: .1 }, { from: 'top', to: 'dive', dur: 1.1, r1: .3, r2: .2, breath: 'in' },
       { from: 'dive', to: 'arch', dur: .8, r1: .2, r2: .4, breath: 'out', effort: 1 }, { hold: 'arch', dur: .2, b: .3 },
       { from: 'arch', to: 'top', dur: 1.2, r1: .3, r2: .4, breath: 'in' }],

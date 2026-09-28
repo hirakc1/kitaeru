@@ -164,6 +164,7 @@ const open_book = (() => {
     prep({ settle }) {
       const S = settle(c.keys.start, true), g = S.pt.glenoidL;
       c._lx = g[0] + 2; c._lz = g[2] + Math.sqrt(Math.max(0, (.96 * 55) ** 2 - (g[1] - 2.4) ** 2 - 4)) + 5.2; c._hx = S.pt.headTop[0] - 8;   // lower arm straight along the floor
+      c.floorZ = Math.ceil(c._lz + 14);   // the mat reaches past the lower hand (it rests on the floor, not off the edge)
     },
   };
   return c;
@@ -264,7 +265,7 @@ const rotational_lunge = (() => {
 // the eyes stay on the top hand; up slowly. The top arm points at the ceiling throughout (world target); the lower hand
 // is placed on the leg (release = how far down the leg). Sides alternate.
 const standing_windmill = stand({ R: [-4, 30, 4], L: [-4, -30, 40] }, {
-  name: 'Windmill', cam: { az: 64, el: 8 }, swap: true, still: .4, trail: ['palmL'],
+  name: 'Windmill', cam: { az: 64, el: 8 }, floorZ: 50, swap: true, still: .4, trail: ['palmL'],
   arms: {
     R: { mode: 'ik', grip: 'world', pole: [-.3, -1, .4], at: (sd, s, ch, S, G) => [G[0], G[1] + 53.5, G[2]] },
     L: { mode: 'ik', grip: 'world', pole: [-.3, -1, .4], at: (sd, s, ch, S, G) => {   // (skeleton points: mirror correctly)

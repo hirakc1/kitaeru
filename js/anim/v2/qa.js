@@ -5,12 +5,15 @@
 //                     height it landed at), or of a pinned point
 //   floor             lowest skeleton point (should be >= -0.3; contacts sit at 0..2.4)
 //   humerus           worst upper-arm stretch in forearm-plank contacts (cm)
+//   offMat            cm any point near the floor (y < 6) lies beyond the drawn floor's edge: lying poses (a limb resting
+//                     past the mat reads as dropping through the floor)
 import { poseAt, period, swapTime } from './core.js';
 
 // pins: points that must not move at all (contacts off the floor: palms on a bench, knees); default clip.qaPins
 export function qaClip(clip, { n = 240, pins = clip.qaPins || [] } = {}) {
   const T = period(clip), anc = {};
-  const r = { reach: 0, reachLeg: 0, slide: 0, slideAt: '', floor: 1e9, floorAt: '', humerus: 0, ms: 0, com: 0, comAt: 0 };
+  const r = { reach: 0, reachLeg: 0, slide: 0, slideAt: '', floor: 1e9, floorAt: '', offMat: 0, offMatAt: '', humerus: 0, ms: 0, com: 0, comAt: 0 };
+  const zN = clip.floor && !clip.travel ? Math.max(34, clip.floorZ || 0, (clip.bar?.w ?? 0) + 12) : 1e9;   // plate.js drawFloor
   const t0 = performance.now();
   const h = swapTime(clip);
   for (let i = 0; i < n; i++) {   // (one cycle, not the wrap: travelling clips end where they started + travel)
@@ -27,6 +30,7 @@ export function qaClip(clip, { n = 240, pins = clip.qaPins || [] } = {}) {
     for (const k in S.pt) {
       const p = S.pt[k];
       if (p[1] < r.floor) { r.floor = p[1]; r.floorAt = k; }
+      if (p[1] < 6 && Math.abs(p[2]) - zN > r.offMat) { r.offMat = Math.abs(p[2]) - zN; r.offMatAt = k; }
       // contact: anchored where it lands; re-anchored while it is still rising or settling (height change >= 3 mm)
       const pin = pins.includes(k), a = anc[k], side = k.slice(-1), foot = /^(heel|ball|toe)[RL]$/.test(k);
       // stepping clips: a foot is a contact only while it is down (lift < 0.5 mm), whatever its height
@@ -39,9 +43,9 @@ export function qaClip(clip, { n = 240, pins = clip.qaPins || [] } = {}) {
     }
   }
   r.ms = (performance.now() - t0) / (n + 1);
-  for (const k of ['reach', 'reachLeg', 'slide', 'floor', 'humerus', 'ms', 'com']) r[k] = Math.round(r[k] * 1000) / 1000;
+  for (const k of ['reach', 'reachLeg', 'slide', 'floor', 'offMat', 'humerus', 'ms', 'com']) r[k] = Math.round(r[k] * 1000) / 1000;
   // com: cm the centre of mass strays outside the support hull (feet are drawn as lines, so allow ~half a foot width)
-  r.ok = r.reach <= 1 && r.reachLeg <= 1 && r.slide < .05 && r.floor > -.3 && r.humerus < .6 && r.com < 4;
+  r.ok = r.reach <= 1 && r.reachLeg <= 1 && r.slide < .05 && r.floor > -.3 && r.offMat < 1 && r.humerus < .6 && r.com < 4;
   return r;
 }
 // distance from p to the convex hull of pts (0 inside); 2D

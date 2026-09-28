@@ -107,7 +107,7 @@
     if (three) { const pb = three.createThreePlayer(sec.querySelector('[data-v=b]'), id, { primary: m.primary, secondary: m.secondary, size }); threes.push(pb); players.push(pb); }
     const q = qaClip(c), f = (v, bad) => `<b class="${bad ? 'bad' : ''}">${v}</b>`;
     sec.querySelector('.qa').innerHTML = `QA ${f(q.ok ? 'pass' : 'FAIL', !q.ok)} · arm reach ${f(q.reach, q.reach > 1)} · leg reach ${f(q.reachLeg, q.reachLeg > 1)}`
-      + ` · contact slide ${f(q.slide + ' cm', q.slide >= .05)}${q.slide ? ` (${q.slideAt})` : ''} · floor ${f(q.floor + ' cm', q.floor <= -.3)} (${q.floorAt})`
+      + ` · contact slide ${f(q.slide + ' cm', q.slide >= .05)}${q.slide ? ` (${q.slideAt})` : ''} · floor ${f(q.floor + ' cm', q.floor <= -.3)} (${q.floorAt})${q.offMat ? ` · off the mat ${f(q.offMat + ' cm', q.offMat >= 1)} (${q.offMatAt})` : ''}`
       + `${q.humerus ? ` · humerus stretch ${f(q.humerus + ' cm', q.humerus >= .6)}` : ''}`
       + `${c.stepBalance ? ` · stepping: COM outside support ${f(q.com + ' cm', q.com >= 4)}${c.travel ? ` · travel ${Math.hypot(...c.travel)} cm/cycle` : ''}` : ''}`
       + ` · ${q.ms} ms/pose · cycle ${(c._c?.T ?? 0).toFixed(2)} s`;
