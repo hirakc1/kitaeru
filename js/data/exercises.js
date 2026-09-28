@@ -54,7 +54,7 @@ const SRC = {
   bdA: { label: 'General Administration of Sport, Health Qigong Management Center: 健身气功·八段锦的中医解读', url: 'https://www.sport.gov.cn/qgzx/n5407/c840284/content.html', kind: 'official' },
   bdB: { label: 'Heshan Municipal Health Bureau: 八段锦 guide (movements and repetitions)', url: 'https://www.heshan.gov.cn/jmhswjj/gkmlpt/content/3/3043/post_3043430.html', kind: 'official' },
   bdC: { label: 'Wikipedia: Baduanjin qigong', url: 'https://en.wikipedia.org/wiki/Baduanjin_qigong', kind: 'reference' },
-  bdOfficial2: { label: 'General Administration of Sport, Health Qigong Management Center: 攒拳怒目增气力', url: 'https://www.sport.gov.cn/qgzx/n5407/c843016/content.html', kind: 'official' },
+  bdOfficial2: { label: 'General Administration of Sport, Health Qigong Management Center: 健身气功•八段锦习惯性错误及纠正方法', url: 'https://www.sport.gov.cn/qgzx/n5407/c843016/content.html', kind: 'official' },
   zou: { label: 'Zou et al. 2017, eCAM (Baduanjin meta-analysis)', url: 'https://pubmed.ncbi.nlm.nih.gov/28367223/', kind: 'research' },
   // Pehlwani
   alter: { label: 'Alter, The Wrestler’s Body (UC Press, 1992)', url: 'https://publishing.cdlib.org/ucpressebooks/view?docId=ft6n39p104&brand=ucpress', kind: 'reference' },
@@ -69,13 +69,13 @@ const SRC = {
   horseGzgs: { label: 'Guangzhou College of Technology and Business: university wushu course plan, basic stances (马步)', url: 'https://www.gzgs.edu.cn/__local/7/D6/39/AB29C045F11DC31F11D99E4EC9C_E7669F1F_27A40B.pdf', kind: 'reference' },
 };
 const RT = { tradition: 'radio_taiso', origin: { region: 'East Asia', countries: ['JP'] }, attribution: RADIO_TAISO_ATTRIBUTION, cultural: 'attributed',
-  evidence: 'B', sources: [SRC.rtA, SRC.rtC], verified: null };
+  evidence: 'B', sources: [SRC.rtA, SRC.nhk, SRC.rtC], verified: { date: '2026-09-28', notes: 'Order and reps checked against Kampo guide and NHK sheet; cues corrected per NHK (deep breath, arm circles, reps 4); card hedged to grade B (Osuka 2024, with nutrition co-intervention); no native name; heel raise disclosed as Kitaeru adaptation; music never used.' } };
 const TC = { tradition: 'tai_chi', origin: { region: 'East Asia', countries: ['CN'] }, attribution: 'Simplified 24-form (1956), Yang style', cultural: 'attributed',
-  evidence: 'A', sources: [SRC.tcA, SRC.tcB], verified: null };
+  evidence: 'A', sources: [SRC.tcA, SRC.tcB, SRC.tcGz], verified: { date: '2026-09-28', notes: 'Names, pinyin and form numbers checked against en/zh Wikipedia and Guizhou University of Commerce 24-form guide; poses match; short flow labelled as an excerpt (forms 1–4, 10, 24); knee-OA claim hedged.' } };
 const BDJ = { tradition: 'baduanjin', origin: { region: 'East Asia', countries: ['CN'] }, attribution: 'Health Qigong Baduanjin (Chinese Health Qigong Association, 2003)',
-  cultural: 'attributed', evidence: 'B', sources: [SRC.bdA, SRC.bdB, SRC.bdC], verified: null };
+  cultural: 'attributed', evidence: 'B', sources: [SRC.bdA, SRC.bdB, SRC.bdC], verified: { date: '2026-09-28', notes: 'Order, couplet names, characters, tones (攒 cuán) and reps checked against sport.gov.cn c843016/c840284 and Heshan health bureau; finger direction corrected; softened knees and short version disclosed as Kitaeru’s.' } };
 const PW = { tradition: 'pehlwani', origin: { region: 'South Asia', countries: ['IN', 'PK'] }, attribution: 'Pehlwani wrestling conditioning', cultural: 'attributed',
-  evidence: 'C', sources: [SRC.alter, SRC.pwWiki], verified: null };
+  evidence: 'C', sources: [SRC.alter, SRC.pwWiki], verified: { date: '2026-09-28', notes: 'दंड/दण्ड daṇḍ and बैठक baiṭhak checked against Wikipedia, Alter 1992 and Yog Sandesh; Urdu corrected to پہلوانی; no rep counts; Gama “undefeated” per Wikipedia and NWHOF; evidence claim limited to the push-up (Kotarsky 2018).' } };
 const ja = (text, romanised) => ({ text, romanised, lang: 'ja' });
 const zh = (text, romanised, hant) => ({ text, romanised, lang: 'zh-Hans', ...(hant ? { alt: [{ text: hant, lang: 'zh-Hant' }] } : {}) });
 const BASE = { unilateral: false, equipment: [], space: 'small', impact: 'low', stress: [] };
@@ -192,7 +192,7 @@ const V12 = [
     family: 'warmup', level: 13, category: 'mobility', mode: 'reps', unilateral: true, muscles: { primary: ['hamstrings', 'obliques'], secondary: ['chest'] }, stress: ['lower_back'], difficulty: 2,
     planes: ['sagittal', 'transverse'], tempo: { secPerRep: 4 },
     cues: ['Bend down diagonally towards one foot, with small bounces', 'Rise, face forward, open your arms wide and arch your chest', 'Switch sides'],
-    description: 'A diagonal fold towards one foot, then an open-chested reach up.' },
+    description: 'A diagonal fold towards one foot, then a rise that opens the arms and chest.' },
   { ...BASE, ...RT, id: 'rt_trunk_circle', flowOnly: true, name: 'Trunk circle', nativeName: ja('体を回す運動', 'karada o mawasu undō'), family: 'warmup', level: 14, category: 'mobility', mode: 'reps',
     unilateral: true, muscles: { primary: ['obliques', 'lower_back'], secondary: ['abs'] }, space: 'medium', stress: ['lower_back'], difficulty: 2, planes: ['sagittal', 'frontal', 'transverse'],
     tempo: { secPerRep: 4 },
@@ -375,12 +375,12 @@ const V12 = [
     description: 'A rhythmic squat from Pehlwani wrestling training, done on the balls of the feet for long, steady sets.' },
 
   // ---- Horse stance, a Chinese martial-arts foundation stance (card: TRADITIONS.horse_stance)
-  { ...BASE, id: 'horse_stance', tradition: 'horse_stance', origin: { region: 'East Asia', countries: ['CN'] }, cultural: 'attributed', evidence: 'C', verified: null,
+  { ...BASE, id: 'horse_stance', tradition: 'horse_stance', origin: { region: 'East Asia', countries: ['CN'] }, cultural: 'attributed', evidence: 'C', verified: { date: '2026-09-28', notes: '马步 mǎbù / 騎馬立ち kiba-dachi checked against Wikipedia and Guangzhou College of Technology and Business wushu course; stance description matches; grade C indirect (Edwards 2023 BJSM, wall squat); knee and breath-holding cautions present.' },
     name: 'Horse stance', nativeName: { text: '马步', romanised: 'mǎbù', lang: 'zh-Hans', alt: [{ text: '馬步', lang: 'zh-Hant' }, { text: '騎馬立ち', romanised: 'kiba-dachi', lang: 'ja' }] },
     attribution: 'Foundation stance of Chinese martial arts (mǎbù); karate’s kiba-dachi is a close relative', family: 'stance', level: 1, category: 'strength', mode: 'hold',
     muscles: { primary: ['quads', 'adductors'], secondary: ['glutes', 'calves', 'lower_back'] }, stress: ['knee'], difficulty: 3, planes: ['frontal'],
     breath: { pattern: 'slow' }, stanceLevels: ['high', 'medium', 'low'], sources: [SRC.horseWiki, SRC.horseGzgs, SRC.karateWiki, SRC.wushuWiki],
-    cues: ['Feet about two shoulder-widths apart, toes forward', 'Sink as if sitting on a horse; knees over your toes', 'Trunk upright, fists at your waist, breathe slowly'],
+    cues: ['Feet parallel, about two shoulder-widths (three foot-lengths) apart', 'Sink as if sitting on a horse; knees over your toes', 'Trunk upright, fists at your waist, breathe slowly'],
     description: 'A still, wide squat hold. Start high and go lower over weeks, never holding your breath.' },
 ];
 

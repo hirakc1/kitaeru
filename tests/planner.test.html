@@ -525,7 +525,7 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     ok(!('review' in e) && !('reviewedBy' in e), `${T}: uses the retired review field`);
     const k = e.family + ':' + e.level; ok(!famLv[k], `${T}: level ${e.level} not unique in ${e.family}`); famLv[k] = 1;
     if (isTrad(e)) {
-      ok(e.verified === null, `${T}: tradition item must not be self-verified`);
+      ok(e.verified === null || !!(e.verified?.date && e.verified?.notes), `${T}: verified is null or a fact-check record {date, notes}`);
       ok(Array.isArray(e.sources) && e.sources.length >= (e.adaptation ? 0 : 2), `${T}: needs 2+ sources (${(e.sources || []).length})`);
       ok((e.sources || []).every(s => s.label && /^https:\/\//.test(s.url) && ['official', 'reference', 'research'].includes(s.kind)), `${T}: malformed source`);
       if (['radio_taiso', 'baduanjin'].includes(e.tradition) && !e.adaptation) ok(e.sources.some(s => s.kind === 'official'), `${T}: needs an official source`);
@@ -541,7 +541,7 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   }
   for (const id of TRAD_IDS) {
     const t = TRADITIONS[id];
-    ok(t.verified === null && !('reviewedBy' in t), `tradition ${id}: verified must be null until the fact-check, no reviewedBy`);
+    ok((t.verified === null || !!(t.verified?.date && t.verified?.notes)) && !('reviewedBy' in t), `tradition ${id}: verified is null or a fact-check record, no reviewedBy`);
     ok(Array.isArray(t.sources) && t.sources.length >= 2 && t.sources.every(s => /^https:\/\//.test(s.url)), `tradition ${id}: 2+ sources`);
     ok(!/reviewed by/i.test(JSON.stringify(t)), `tradition ${id}: card copy must never say "Reviewed by"`);
   }
@@ -577,8 +577,8 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   const genericNew = ALL_EXERCISES.filter(e => !e.tradition && ['rotation', 'anti_rotation'].includes(e.family) && !hasAnimation(animOf(e)));
   ok(genericNew.length > 0 && genericNew.every(e => !visibleById[e.id]), 'unanimated generic rotation / anti-rotation items are hidden from the library');
   ok(genericNew.every(e => !P.isAvailable(e, mk({ equipment: ALL_EQ }))), 'isAvailable (swaps) refuses unanimated items');
-  ok(!traditionVisible('tai_chi') && !traditionVisible('unknown_tradition') && traditionVisible(null) && traditionVisible('rotation'), 'traditionVisible: unverified and unknown hidden; generic and explainer shown');
-  ok(!contentVisible({ tradition: 'tai_chi', verified: { date: '2027-01-01' } }), 'a verified item of an unverified tradition stays hidden');
+  ok(Object.keys(TRADITIONS).filter(id => id !== 'rotation').every(id => traditionVisible(id) === !!TRADITIONS[id].verified) && !traditionVisible('unknown_tradition') && traditionVisible(null) && traditionVisible('rotation'), 'traditionVisible: follows verified; unknown hidden; generic and explainer shown');
+  ok(!contentVisible({ tradition: 'unknown_tradition', verified: { date: '2027-01-01' } }), 'a verified item of an unverified tradition stays hidden');
   const gateProfiles = [...grid, mk({ age: 60, primaryGoal: 'health', daysPerWeek: 3 }), mk({ primaryGoal: 'balance', goals: ['balance'], daysPerWeek: 3, minutesPerSession: 30 }),
     mk({ primaryGoal: 'flexibility', goals: ['flexibility', 'health'], age: 62, daysPerWeek: 4, minutesPerSession: 45 })];
   let rotSeen = 0, antiSeen = 0;
@@ -623,7 +623,9 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   registerAnimationIds(rtSteps);
   ok(!exerciseAnimated(rt, ALL_BY_ID), 'a flow whose low-impact replacement is unanimated is not animated');
   registerAnimationIds(['rt_heel_raise']);
+  const rtVerified = TRADITIONS.radio_taiso.verified; TRADITIONS.radio_taiso.verified = null;
   ok(exerciseAnimated(rt, ALL_BY_ID) && !P.isAvailable(rt, mk({})) && P.generateMorningTaiso(null, null, ALL_EXERCISES) === null, 'a fully animated flow still waits for its fact-check');
+  TRADITIONS.radio_taiso.verified = rtVerified;
   clearRegisteredAnimationIds();
   ok(!hasAnimation('open_book') && hasAnimation('push_up'), 'clearRegisteredAnimationIds restores the v1-only list');
 
