@@ -14,7 +14,7 @@
  * The only place the Radio Taisō name appears in user-facing data. The music is copyrighted and never ships;
  * the name's trademark status is unconfirmed. To remove the name everywhere, blank this one string.
  */
-export const RADIO_TAISO_ATTRIBUTION = 'The Radio Taisō No. 1 movements (NHK / Japan Post Insurance). Kitaeru is not affiliated with them.';
+export const RADIO_TAISO_ATTRIBUTION = 'the Radio Taisō No. 1 movements (NHK / Japan Post Insurance). Kitaeru is not affiliated with them.';
 
 const S = (label, url, kind) => ({ label, url, kind });
 
