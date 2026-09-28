@@ -522,7 +522,7 @@ function mirrored(c) {
   if (c._mir) return c._mir;
   const m = { ...c, swap: false, prep: null, _prepped: true, _c: null, _an: null, _mir: null, shift: -(c.shift ?? .5), shiftRoll: -(c.shiftRoll ?? .6),
     base: mirrorPose(expand(c.base || {})), keys: Object.fromEntries(Object.entries(c.keys).map(([k, v]) => [k, mirrorPose(expand(v))])),
-    legs: mirrorLimbs(c.legs), arms: mirrorLimbs(c.arms) };
+    legs: mirrorLimbs(c.legs), arms: c.keepArms ? c.arms : mirrorLimbs(c.arms) };   // keepArms: a support hand stays put
   if (c.derive) m.derive = (ch, lag, sm) => { const x = mirrorPose(ch); c.derive(x, mirrorPose(lag), sm); Object.assign(ch, mirrorPose(x)); };
   if (c.balance) m.balance = S => c.balance(swapPt(S));
   if (c.pin) m.pin = { ...c.pin, pt: S => fz(c.pin.pt(swapPt(S))) };

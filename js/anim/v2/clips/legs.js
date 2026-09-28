@@ -97,24 +97,30 @@ function calfRaise(f) {
   return Object.assign(c, f(c));
 }
 const calf_raise = calfRaise(() => ({ name: 'Calf raise', muscles: { primary: ['calves'], secondary: [] } }));
-// on the right foot, left foot tucked behind; hips over the standing foot; fingertips on a wall. Sides alternate.
+// on one foot, the other tucked behind; hips over the standing foot. The left hand rests on a wall edge beside the
+// body (kept on the left when sides alternate: the hips just shift towards it). Camera from behind: calves first.
+const WALL_Y = 112;
 const single_leg_calf_raise = calfRaise(c => ({
-  name: 'Single-leg calf raise', swap: true, still: .22, cam: { az: -32, el: 6 },   // from behind: calves and the wall face _wx: 62,
+  name: 'Single-leg calf raise', swap: true, keepArms: true, still: .22, cam: { az: -28, el: 7 }, _wz: -48, _hx: 4,
   muscles: { primary: ['calves'], secondary: [] },
   legs: { R: { mode: 'ik', foot: 'toes', toeOut: 6, knee: 3, ball: () => [0, 0, 10], pole: () => [1, 0, .15] } },
-  arms: { L: { mode: 'ik', grip: 'palm', normal: () => [-1, 0, 0], pole: [-.3, -1, .6], dir: () => [0, 1, .1], target: () => [c._wx, 118, -16] } },
-  base: { rootY: 90, pitch: 1, elbowR: 12, palmR: 90, wristR: 4, fingersR: 22, shAbdR: 5, fingersL: 20,
+  arms: { L: { mode: 'ik', grip: 'palm', normal: () => [0, 0, 1], pole: [-.4, -1, -.2], dir: () => [.2, 1, 0], target: () => [c._hx, WALL_Y, c._wz] } },
+  base: { rootY: 90, pitch: 1, elbowR: 12, palmR: 90, wristR: 4, fingersR: 22, shAbdR: 5, fingersL: 15,
     hipFlexL: 14, kneeL: 78, ankleL: 25, hipAbdL: -2, rootZ: 7, roll: -2 },
   keys: { down: { rootY: 90 }, up: { rootY: 99, head: -1, thoracic: -1 } },
   timeline: repUp('down', 'up', { p0: .35, con: .9, p1: .6, ecc: 2.4 }),
-  props: c => [box([c._wx, 0, -70], [c._wx + 8, 200, 60], -1e4)],
+  props: c => [box([c._hx - 22, 0, c._wz - 7], [c._hx + 16, 150, c._wz], -1e4)],   // a short wall return, beside and behind
   prep({ settle }) {
     const k = c.keys, S0 = settle({ ...k.down, rootY: 70 }, true);
     c._h0 = S0.pt.heelR[1];
     const y = solve(70, 105, y => settle({ ...k.down, rootY: y }, true).pt.heelR[1], c._h0 + .05);
     k.down.rootY = y - .6; k.up.rootY = y + 9;
-    const g = settle(k.up, true).pt.glenoidL;   // wall where the fingertips rest (90% reach at the top)
-    c._wx = g[0] + 2.4 + Math.sqrt(Math.max(0, (.9 * 55) ** 2 - (118 - 5.2 - g[1]) ** 2 - (-16 - g[2]) ** 2));
+    // wall face where the palm rests at <= 88% reach at the top, whether the hips sit over the right foot or (mirrored)
+    // over the left one, i.e. solved for the shoulder farthest from the wall
+    c._wz = Math.max(...[7, -7].map(z => {
+      const g = settle({ ...k.up, rootZ: z }, true).pt.glenoidL, dy = WALL_Y - 5.1 - g[1], dx = c._hx - 1 - g[0];
+      return g[2] - Math.sqrt(Math.max(0, (.88 * 55) ** 2 - dy * dy - dx * dx)) - 2.4;
+    }));
   },
 }));
 
