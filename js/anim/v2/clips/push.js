@@ -185,7 +185,7 @@ const elevated_pike_push_up = pike(c => ({
 const BENCH_H = 45;
 const bench_dip = (() => {
   const c = {
-    name: 'Bench dip', cam: { az: 36, el: 8 }, floor: true, qaPins: ['palmR', 'palmL'], trail: ['acromionR'], still: .45,
+    name: 'Bench dip', cam: { az: 50, el: 9 }, floor: true, qaPins: ['palmR', 'palmL'], trail: ['acromionR'], still: .45,
     muscles: { primary: ['triceps'], secondary: ['chest', 'front_delts'] },
     lag: .14, headLag: .35, shift: .15, shiftRoll: .3,
     legs: { both: { mode: 'ik', foot: 'flat', toeOut: 6, ankle: (sd, s) => [64, 7.5, 12 * s], pole: s => [1, .5, .1 * s] } },
@@ -193,7 +193,8 @@ const bench_dip = (() => {
     base: { pitch: 6, thoracic: 2, cervical: 2, head: -3, wrist: 0, fingers: 45 },
     keys: { top: { rootX: 12, rootY: 50, scapElev: -.4 }, bottom: { rootX: 13, rootY: 28, pitch: 12, scapElev: 1.2, scapProt: 6, head: -6 } },
     timeline: rep('top', 'bottom', { ecc: 1.8, con: 1 }),
-    props: [box([-38, 0, -62], [0, BENCH_H, 62])],
+    // a short bench, just wider than the hands, painted behind the body (which sits wholly in front of it)
+    props: [box([-38, 0, -31], [0, BENCH_H, 31], -1e4)],
     prep({ settle }) {
       const k = c.keys;
       k.top.rootY = solve(30, 80, y => settle({ ...k.top, rootY: y }).reach, .975);
