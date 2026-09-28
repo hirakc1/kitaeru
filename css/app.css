@@ -295,7 +295,7 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .quick-card { display: flex; align-items: center; gap: 14px; text-decoration: none; color: var(--ink); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 .quick-card:hover { border-color: var(--accent); }
 .quick-card.compact { padding: 12px 16px; }
-.quick-mark { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--btn-bg); color: var(--on-accent); font: 700 1.3rem/1 var(--serif); transform: rotate(-4deg); }
+.quick-mark { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--btn-bg); color: var(--on-accent); font: 700 1.3rem/1 var(--serif); }
 .quick-text { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .quick-card > .ico { color: var(--muted); }
 .invite-top { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 12px; }
@@ -354,10 +354,10 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .btn .seal-inline .seal-bg { fill: var(--on-accent); }
 .btn .seal-inline .seal-ink { fill: var(--btn-bg); }
 .stamp { animation: stampIn .75s cubic-bezier(.3, 1.4, .5, 1) both; transform-origin: 50% 60%; }
-@keyframes stampIn { 0% { opacity: 0; transform: scale(1.9) rotate(-14deg); filter: blur(3px); } 60% { opacity: 1; transform: scale(.94) rotate(-3deg); filter: none; } 100% { transform: scale(1) rotate(-4deg); } }
-/* The logo seal settles straight; only earned stamps (workout done) land at a hand-pressed tilt. */
+@keyframes stampIn { 0% { opacity: 0; transform: scale(1.9); filter: blur(3px); } 60% { opacity: 1; transform: scale(.94); filter: none; } 100% { transform: scale(1); } }
+/* Seals and stamps all land straight (founder: no tilt anywhere); stamps keep the pressed-down bounce. */
 @keyframes sealIn { 0% { opacity: 0; transform: scale(1.35); filter: blur(3px); } 60% { opacity: 1; transform: scale(.97); filter: none; } 100% { transform: scale(1); } }
-.stamp-static { transform: rotate(-5deg); }
+.stamp-static { transform: none; }
 
 /* ---------- toast & sheet ---------- */
 #toasts { position: fixed; left: 50%; bottom: calc(var(--tabh) + var(--safe-b) + 20px); transform: translateX(-50%); z-index: 120; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: max-content; max-width: calc(100vw - 32px); }
@@ -407,7 +407,7 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 
 .streak-card { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .streak-main { display: flex; gap: 14px; align-items: center; }
-.streak-seal { width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; border: 1.5px solid var(--line-strong); color: var(--ink-muted); transform: rotate(-4deg); flex: none; }
+.streak-seal { width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center; border: 1.5px solid var(--line-strong); color: var(--ink-muted); flex: none; }
 .streak-seal.lit { background: var(--btn-bg); border-color: var(--btn-bg); color: var(--on-accent); box-shadow: 0 6px 16px -8px var(--accent); }
 .streak-num { font-family: var(--serif); font-weight: 700; font-size: 1.05rem; }
 .streak-num .big { font-size: 1.9rem; line-height: 1; }
@@ -427,7 +427,7 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .ws-dow { font-size: .72rem; color: var(--muted); font-weight: 600; }
 .ws-date { font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ws-mark { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; }
-.ws-done .ws-mark { background: var(--btn-bg); color: var(--on-accent); transform: rotate(-4deg); }
+.ws-done .ws-mark { background: var(--btn-bg); color: var(--on-accent); }
 .ws-planned .ws-mark { border: 1.5px solid var(--accent); }
 .ws-missed .ws-mark { border: 1.5px dashed var(--line-strong); }
 .ws-pre { opacity: .45; }
@@ -457,7 +457,7 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .pd-main { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; border: 0; background: none; padding: 10px 0; min-height: 56px; justify-content: center; }
 .pd-name { font-weight: 650; }
 .pd-status { color: var(--muted); flex: none; }
-.tick { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--btn-bg); color: var(--on-accent); transform: rotate(-4deg); }
+.tick { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--btn-bg); color: var(--on-accent); }
 .why-list { margin: 0; padding-left: 0; list-style: none; }
 .why-list li { position: relative; padding: 8px 0 8px 22px; border-bottom: 1px solid var(--line); font-size: .94rem; }
 .why-list li:last-child { border-bottom: 0; }
