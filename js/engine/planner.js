@@ -1197,7 +1197,8 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const bdj = ctx.byId.baduanjin_sequence;
   if (tpl.kind === 'hard' && bdj && !used.has(bdj.id) && ctx.isAvail(bdj)) {
     const it = flowItem(bdj, ctx, { variant: 'short' });
-    const calm = ['health', 'flexibility', 'balance'].includes(D.primary) || D.age >= 55;
+    // (a Quick session aimed at chosen areas keeps its targeted stretches; Baduanjin is then only offered)
+    const calm = (['health', 'flexibility', 'balance'].includes(D.primary) || D.age >= 55) && !(Q && Q.mobOrder);
     if (calm && blockSec({ items: [it] }, info) <= T - others() + 15) { cool.items.push(it); used.add(bdj.id); cool.title = 'Cool-down: Baduanjin'; }
     else options.push({ id: 'baduanjin_cooldown', replaces: 'cooldown', title: 'Baduanjin cool-down', block: { kind: 'cooldown', title: 'Baduanjin', items: [it] } });
   }

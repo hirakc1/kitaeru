@@ -636,7 +636,8 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   function setAnim(id, prim = primary, sec = secondary) {
     const clip = CLIPS[id];
     if (!clip) throw new Error(`anim v2: clip '${id}' not loaded`);
-    if (st.clip && st.clip !== clip && st.playing && !(clip.frame && clip.frame === st.clip.frame)) st.dip = performance.now();
+    // (clip.joins false: it does not start in its frame's shared stance, e.g. the Baduanjin horse-stance pieces)
+    if (st.clip && st.clip !== clip && st.playing && !(clip.frame && clip.frame === st.clip.frame && clip.joins !== false && st.clip.joins !== false)) st.dip = performance.now();
     st.clip = clip; st.id = id;
     st.prim = new Set(prim ?? clip.muscles.primary); st.sec = new Set(sec ?? clip.muscles.secondary);
     st.groups = new Set([...st.prim, ...st.sec]);

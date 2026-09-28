@@ -14,6 +14,7 @@ const SHELL_FILES = [
   './js/anim/v2/ids.js', './js/anim/v2/core.js', './js/anim/v2/anatomy.js', './js/anim/v2/plate.js', './js/anim/v2/clips/lib.js',
   './js/anim/v2/clips/push.js', './js/anim/v2/clips/pull.js', './js/anim/v2/clips/legs.js', './js/anim/v2/clips/trunk.js',
   './js/anim/v2/clips/rot.js', './js/anim/v2/clips/trad.js', './js/anim/v2/clips/taiso.js', './js/anim/v2/clips/taichi.js',
+  './js/anim/v2/clips/baduanjin.js',
   './js/engine/planner.js',
   './icons/favicon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
 ];

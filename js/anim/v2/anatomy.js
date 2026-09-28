@@ -73,7 +73,7 @@ const SHAPES = {
   fist: { curl: [235, 245, 245, 235], fan: .6, thumb: [.78, .45, -.25], tc: 42 },
   hook: { curl: [95, 100, 100, 95], fan: -1.4, thumb: [.85, .5, -.12], tc: 30 },
   point: { curl: [0, 235, 245, 235], fan: .8, thumb: [.78, .45, -.25], tc: 42 },
-  bazi: { curl: [0, 235, 245, 235], fan: .8, thumb: [-.05, .5, .86], tc: 0 },
+  bazi: { curl: [0, 235, 245, 235], fan: .8, thumb: [-.12, .12, .98], tc: 0 },
 };
 export function handBones(fingers = 0, grip = 'free', shape = 'relaxed') {
   const out = [], gap = .18, sh = [.42, .33, .25], S = SHAPES[shape];

@@ -160,9 +160,10 @@ function gauss(A, b) {
 // footLift = heel height above the floor, footTurn = toe-out (deg), footPitch = + toes up about the heel (heel strike),
 // - heel up about the ball (toe-off)
 const SIDED = ['scapElev', 'scapProt', 'scapUp', 'shFlex', 'shAbd', 'elbow', 'wrist', 'palm', 'fingers', 'handX', 'handY', 'handZ',
-  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch', 'footPivot', 'handShape', 'release'];
+  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch', 'footPivot', 'handShape', 'release', 'elbowOut'];
 // release: a planted palm (grip 'palm') lifts off towards the free target handX/Y/Z (0 = planted, 1 = at the target)
 // footPivot: 1 = footX / footZ locate the ball and the foot turns on it (0 = heel). handShape: rounded to HAND_SHAPES
+// elbowOut: free / IK arms, 0 = the spec's elbow direction (pole), 1 = the elbow points out to the side (drawing a bow)
 export const HAND_SHAPES = ['relaxed', 'palm', 'fist', 'hook', 'point', 'bazi'];
 // weight: stepping clips, share of body weight on the right foot (0..1) while both feet are down; onBalls: 0 = weight over
 // the mid-foot (heel side), 1 = over the balls (shift it before the heels rise: heel raises, hops)
@@ -369,7 +370,9 @@ function armFK(ch, G, sd, s, T4) {
 }
 
 function armIK(S, ch, G, spec, sd, s, T4) {
-  const pl = spec.pole || [0, -1, 0];
+  let pl = spec.pole || [0, -1, 0];
+  const eo = ch['elbowOut' + sd] || 0;
+  if (eo) pl = [pl[0] + (-.25 - pl[0]) * eo, pl[1] + (.05 - pl[1]) * eo, pl[2] + (1 - pl[2]) * eo];
   const pole = nrm(add(add(mul(T4.x, pl[0]), mul(T4.y, pl[1])), mul(T4.z, pl[2] * s)));
   let W, hand = null;
   // planted / bar hands: z = thumb side (medial when palm-down or overhand, lateral underhand), as for free hands

@@ -20,6 +20,9 @@ export const V2_GROUPS = {
   // Tai Chi: the six forms of taichi_short_flow (Simplified 24-form) plus the golden rooster
   taichi: ['taichi_commencement', 'taichi_part_horse_mane', 'taichi_white_crane', 'taichi_brush_knee', 'taichi_cloud_hands',
     'taichi_golden_rooster', 'taichi_closing'],
+  // Baduanjin: the eight pieces plus the ready and closing stances of baduanjin_sequence (step anims)
+  baduanjin: ['baduanjin_ready', 'baduanjin_hold_up_sky', 'baduanjin_draw_bow', 'baduanjin_separate_heaven_earth', 'baduanjin_look_back',
+    'baduanjin_sway_head_tail', 'baduanjin_touch_toes', 'baduanjin_clench_fists', 'baduanjin_heel_bounce', 'baduanjin_close'],
 };
 // clips that exist (compare page) but are not yet cue-checked for the app: kept out of the animation gate
 export const V2_DRAFT = new Set([]);

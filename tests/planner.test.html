@@ -462,7 +462,7 @@ let quickChecked = 0;
   const noKit = P.generateQuickSession({ minutes: 30, focus: 'upper', date: '2026-09-28' }, null, null, EXERCISES);
   ok(allItems(noKit).every(i => byId[i.exerciseId].equipment.every(e => e === 'wall')), 'no profile: floor + wall only');
   const inj = P.generateQuickSession({ minutes: 30, focus: 'full', date: '2026-09-28' }, injured, null, EXERCISES);
-  ok(!allItems(inj).some(i => byId[i.exerciseId].stress.includes('knee') && i.exerciseId !== 'split_squat'), 'profile injuries honoured');
+  ok(!allItems(inj).some(i => !i.flow && byId[i.exerciseId].stress.includes('knee') && i.exerciseId !== 'split_squat'), 'profile injuries honoured (flows adapt their own steps)');
   const dates = new Set(['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']
     .map(d => JSON.stringify(P.generateQuickSession({ minutes: 30, focus: 'full', date: d }, null, null, EXERCISES).blocks)));
   ok(dates.size >= 2, `variety across dates (${dates.size} distinct of 7)`);
