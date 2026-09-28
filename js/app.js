@@ -1,6 +1,6 @@
 // Kitaeru app shell: theme, hash router, tab bar, service worker.
 import { getState, subscribe, getActiveWorkout } from './store.js';
-import { icon, seal, $, $$, closeAllSheets, reducedMotion } from './ui/components.js';
+import { icon, seal, wordmark, $, $$, closeAllSheets, reducedMotion } from './ui/components.js';
 import * as welcome from './ui/welcome.js';
 import * as onboarding from './ui/onboarding.js';
 import * as today from './ui/today.js';
@@ -93,10 +93,10 @@ function splash() {
   if (!s.profile && !s.settings.quickUser && !s.logs.length) return;
   const el = document.createElement('div');
   el.className = 'splash'; el.setAttribute('aria-hidden', 'true');
-  el.innerHTML = `${seal('鍛える', { size: 108, cls: 'splash-seal' })}
-    <p class="splash-name">Kitaeru</p><p class="splash-jp">鍛える · to forge</p>
+  el.innerHTML = `${seal('鍛える', { size: 176, cls: 'splash-seal' })}
+    ${wordmark({ height: 30, cls: 'splash-name' })}<p class="splash-jp">鍛える · to forge</p>
     <div class="splash-rule"></div>
-    <p class="splash-line">The world’s movement traditions, brought together to strengthen body and mind.</p>`;
+    <p class="splash-line">Movement disciplines from around the world, brought together to strengthen body and mind.</p>`;
   document.body.append(el);
   let gone = false;
   const out = () => { if (gone) return; gone = true; el.classList.add('out'); setTimeout(() => el.remove(), reducedMotion() ? 0 : 700); };

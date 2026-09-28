@@ -1,6 +1,7 @@
 // Shared UI helpers: escaping, icons, the seal mark, sheets, toasts, formatting, audio, thumbnails.
 import { MUSCLES, FAMILIES, ALL_FAMILIES, EXERCISES, byId, varietyFor, ALL_BY_ID, createSkeletonPlayer, plannerIsAvailable } from './deps.js';
 import { getState } from '../store.js';
+import { SEALS, WORDMARK } from './seal-paths.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -46,17 +47,36 @@ export function icon(name, { size = 24, label = '' } = {}) {
 }
 
 // ---------- hanko seal ----------
-/** Vermilion seal with vertical text. `text` is 1-3 CJK characters. */
+// The carved seal (docs/brand, direction B): vector paths only, so the mark never waits for a web font.
+// Parts carry .seal-bg / .seal-ink classes (fills default to --accent / --on-accent) for CSS recolouring.
+const SMALL = 32; // below this the clean small-size cut replaces the textured carving
+
+/** Vermilion seal. Known texts: '鍛' and '済' (square) and '鍛える' (vertical; `size` is its height). */
 export function seal(text = '鍛', { size = 56, cls = '' } = {}) {
+  const s = SEALS[text];
+  if (!s) return textSeal(text, size, cls);
+  const [, , vw, vh] = s.vb.split(' ').map(Number);
+  const h = size, w = Math.round(size * vw / vh * 10) / 10;
+  const body = (size < SMALL && s.sm) || s.lg;
+  return `<svg class="seal ${cls}" width="${w}" height="${h}" viewBox="${s.vb}" aria-hidden="true" focusable="false">${body}</svg>`;
+}
+
+/** The KITAERU wordmark as paths, in currentColor. `height` in px. */
+export function wordmark({ height = 26, cls = '' } = {}) {
+  const w = Math.round(height * WORDMARK.w / WORDMARK.h * 10) / 10;
+  return `<svg class="wordmark ${cls}" width="${w}" height="${height}" viewBox="0 0 ${WORDMARK.w} ${WORDMARK.h}" role="img" aria-label="Kitaeru">${WORDMARK.body}</svg>`;
+}
+
+// Fallback for any other text: the plain seal with live text (not used by the app today).
+function textSeal(text, size, cls) {
   const chars = [...text];
   const fs = chars.length === 1 ? 58 : chars.length === 2 ? 36 : 26;
   const step = fs * 0.98;
   const y0 = 50 - (step * (chars.length - 1)) / 2 + fs * 0.35;
   const t = chars.map((c, i) => `<text x="50" y="${(y0 + i * step).toFixed(1)}" text-anchor="middle" font-size="${fs}">${esc(c)}</text>`).join('');
   return `<svg class="seal ${cls}" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">
-    <rect x="5" y="5" width="90" height="90" rx="14" fill="var(--accent)"/>
-    <rect x="11" y="11" width="78" height="78" rx="9" fill="none" stroke="var(--on-accent)" stroke-width="2.2" opacity=".9"/>
-    <g fill="var(--on-accent)" font-family="'Noto Serif JP','Yu Mincho','Hiragino Mincho ProN',serif" font-weight="700">${t}</g></svg>`;
+    <rect class="seal-bg" x="5" y="5" width="90" height="90" rx="6" fill="var(--accent)"/>
+    <g class="seal-ink" fill="var(--on-accent)" font-family="'Noto Serif JP','Yu Mincho','Hiragino Mincho ProN',serif" font-weight="700">${t}</g></svg>`;
 }
 
 // ---------- toast ----------
