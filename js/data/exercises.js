@@ -2,8 +2,11 @@
 // `level` orders exercises easiest -> hardest within a family (progression ladder).
 // `difficulty` is a global 1-10 scale (wall push-up 1, pistol 8, freestanding handstand 9).
 // `anim` is omitted: the animation id defaults to the exercise id.
+// v1.2 adds optional world-movement fields (tradition, nativeName, planes, sequence, sources, verified...): see
+// docs/CONTRACTS.md. Tradition items stay hidden until verified (js/data/traditions.js).
+import { RADIO_TAISO_ATTRIBUTION, contentVisible } from './traditions.js';
 
-export const FAMILIES = {
+const FAMILY_DEFS = {
   push_horizontal: { name: 'Horizontal push', pattern: 'push', description: 'Push-up ladder from wall to pseudo planche: chest, triceps and front shoulders.' },
   push_vertical: { name: 'Vertical push', pattern: 'push', description: 'Overhead pressing with your bodyweight, building towards the handstand push-up.' },
   dip: { name: 'Dip', pattern: 'push', description: 'Deep pressing for triceps and lower chest, from a chair to rings.' },
@@ -20,9 +23,365 @@ export const FAMILIES = {
   skill_balance: { name: 'Balance skills', pattern: 'skill', description: 'Arm-balancing skills: crow to freestanding handstand.' },
   mobility: { name: 'Mobility', pattern: 'mobility', description: 'Stretches and mobility drills to move better and cool down.' },
   warmup: { name: 'Warm-up', pattern: 'warmup', description: 'Short dynamic drills to prepare joints and muscles.' },
+  // v1.2
+  anti_rotation: { name: 'Core: anti-rotation', pattern: 'core', description: 'Holding your trunk steady against a twist, from the bird dog reach-through to the Pallof press.' },
+  rotation: { name: 'Rotation', pattern: 'core', description: 'Turning your trunk smoothly and powerfully, from floor-supported openers to loaded chops.' },
+  stance: { name: 'Stances', pattern: 'legs', description: 'Still, rooted leg holds from martial arts traditions.' },
+  flow_taichi: { name: 'Tai Chi forms', pattern: 'flow', progression: false, description: 'Single forms from the Simplified 24-form.' },
+  flow_qigong: { name: 'Baduanjin movements', pattern: 'flow', progression: false, description: 'The eight standing movements of Baduanjin.' },
+  flow_sequence: { name: 'Flows', pattern: 'flow', progression: false, description: 'Whole sequences, done start to finish at their own pace.' },
+  breath: { name: 'Breath', pattern: 'breath', progression: false, description: 'Slow, paced breathing. No breath holds.' },
 };
 
-export const EXERCISES = [
+// ---- v1.2 "First steps abroad" (docs/world-movement.md §7). Cues and descriptions are drafts for the fact-check pass.
+// Tradition items carry `sources` and `verified: null`; they stay hidden until a separate fact-check sets `verified`.
+// `flowOnly: true` = a step used inside a flow, not shown or planned on its own (promoted in v1.3).
+const SRC = {
+  // Radio Taisō No. 1 (each page names every step; order per rtA)
+  rtA: { label: 'Japan Post Insurance (Kampo): No. 1 standing, illustrated guide', url: 'https://www.jp-life.japanpost.jp/radio/instruction/radio_first.html', kind: 'official' },
+  rtB: { label: 'Japan Post Insurance (Kampo): No. 1 seated, illustrated guide', url: 'https://www.jp-life.japanpost.jp/radio/instruction/radio_first_zai.html', kind: 'official' },
+  rtC: { label: 'Wikipedia (ja): ラジオ体操', url: 'https://ja.wikipedia.org/wiki/ラジオ体操', kind: 'reference' },
+  rtD: { label: 'Foundation for Promotion of Longevity Science: health effects of the morning exercises', url: 'https://www.tyojyu.or.jp/net/kenkou-tyoju/shintai-kenkou/radio.html', kind: 'reference' },
+  rtE: { label: 'National Radio Taiso Federation: practice FAQ', url: 'https://www.radio-exercises.org/archives/category/faq/faq-cate02', kind: 'official' },
+  osuka: { label: 'Osuka et al. 2024, J Epidemiol (RCT in frail older adults)', url: 'https://www.jstage.jst.go.jp/article/jea/34/10/34_JE20230317/_article/-char/en', kind: 'research' },
+  // Tai Chi, Simplified 24-form (no official name list found online; both encyclopaedias list the 24 forms in order)
+  tcA: { label: 'Wikipedia: 24-form tai chi', url: 'https://en.wikipedia.org/wiki/24-form_tai_chi', kind: 'reference' },
+  tcB: { label: 'Wikipedia (zh): 二十四式太极拳', url: 'https://zh.wikipedia.org/wiki/二十四式太极拳', kind: 'reference' },
+  tcC: { label: 'NCCIH: Tai Chi, what you need to know', url: 'https://www.nccih.nih.gov/health/tai-chi-what-you-need-to-know', kind: 'reference' },
+  // Baduanjin (Health Qigong, 2003)
+  bdA: { label: 'General Administration of Sport, Health Qigong Management Center: 健身气功·八段锦的中医解读', url: 'https://www.sport.gov.cn/qgzx/n5407/c840284/content.html', kind: 'official' },
+  bdB: { label: 'Heshan Municipal Health Bureau: 八段锦 guide (movements and repetitions)', url: 'https://www.heshan.gov.cn/jmhswjj/gkmlpt/content/3/3043/post_3043430.html', kind: 'official' },
+  bdC: { label: 'Wikipedia: Baduanjin qigong', url: 'https://en.wikipedia.org/wiki/Baduanjin_qigong', kind: 'reference' },
+  bdD: { label: 'Wikipedia (zh): 八段錦', url: 'https://zh.wikipedia.org/wiki/八段錦', kind: 'reference' },
+  zou: { label: 'Zou et al. 2017, eCAM (Baduanjin meta-analysis)', url: 'https://onlinelibrary.wiley.com/doi/10.1155/2017/4548706', kind: 'research' },
+  // Pehlwani
+  alter: { label: 'Alter, The Wrestler’s Body (UC Press, 1992)', url: 'https://publishing.cdlib.org/ucpressebooks/view?docId=ft6n39p104&brand=ucpress', kind: 'reference' },
+  pwWiki: { label: 'Wikipedia: Pehlwani', url: 'https://en.wikipedia.org/wiki/Pehlwani', kind: 'reference' },
+  pwYog: { label: 'Yog Sandesh: 12 dand and 8 baithak (Hindi)', url: 'https://www.patanjaliyogsandesh.com/article/1766/dainik-jivan-me-kiye-jane-wale-paramparik-12-dand-aur-8-baithak', kind: 'reference' },
+  dandWiki: { label: 'Wikipedia: Hindu push-up', url: 'https://en.wikipedia.org/wiki/Hindu_push-up', kind: 'reference' },
+  baithakWiki: { label: 'Wikipedia: Hindu squat', url: 'https://en.wikipedia.org/wiki/Hindu_squat', kind: 'reference' },
+  // Horse stance (reference-grade only; no official source found)
+  horseWiki: { label: 'Wikipedia: Horse stance', url: 'https://en.wikipedia.org/wiki/Horse_stance', kind: 'reference' },
+  karateWiki: { label: 'Wikipedia: Karate stances (kiba-dachi)', url: 'https://en.wikipedia.org/wiki/Karate_stances', kind: 'reference' },
+  wushuWiki: { label: 'Wikipedia: Wushu stances (mǎbù)', url: 'https://en.wikipedia.org/wiki/Wushu_stances', kind: 'reference' },
+};
+const RT = { tradition: 'radio_taiso', origin: { region: 'East Asia', countries: ['JP'] }, attribution: RADIO_TAISO_ATTRIBUTION, cultural: 'attributed',
+  evidence: 'B', sources: [SRC.rtA, SRC.rtC], verified: null };
+const TC = { tradition: 'tai_chi', origin: { region: 'East Asia', countries: ['CN'] }, attribution: 'Simplified 24-form (1956), Yang style', cultural: 'attributed',
+  evidence: 'A', sources: [SRC.tcA, SRC.tcB], verified: null };
+const BDJ = { tradition: 'baduanjin', origin: { region: 'East Asia', countries: ['CN'] }, attribution: 'Health Qigong Baduanjin (Chinese Health Qigong Association, 2003)',
+  cultural: 'attributed', evidence: 'B', sources: [SRC.bdA, SRC.bdB, SRC.bdC], verified: null };
+const PW = { tradition: 'pehlwani', origin: { region: 'South Asia', countries: ['IN', 'PK'] }, attribution: 'Pehlwani wrestling conditioning', cultural: 'attributed',
+  evidence: 'C', sources: [SRC.alter, SRC.pwWiki], verified: null };
+const ja = (text, romanised) => ({ text, romanised, lang: 'ja' });
+const zh = (text, romanised, hant) => ({ text, romanised, lang: 'zh-Hans', ...(hant ? { alt: [{ text: hant, lang: 'zh-Hant' }] } : {}) });
+const BASE = { unilateral: false, equipment: [], space: 'small', impact: 'low', stress: [] };
+
+const V12 = [
+  // ---- rotation (generic: no tradition, no review needed). Levels follow world-movement.md §3.3.
+  { ...BASE, id: 'open_book', name: 'Open book', family: 'rotation', level: 1, category: 'mobility', mode: 'reps', unilateral: true,
+    muscles: { primary: ['upper_back'], secondary: ['chest', 'obliques'] }, space: 'medium', stress: ['shoulder'], difficulty: 1,
+    planes: ['transverse'], breath: { out: 'as the chest opens' }, tempo: { secPerRep: 5 }, evidence: 'C', aka: ['Side-lying thoracic rotation'],
+    cues: ['Lie on your side, knees stacked and bent to 90°', 'Sweep the top arm over and let your chest turn to the ceiling', 'Eyes follow the hand; knees stay together'],
+    description: 'A side-lying upper-back rotation. The floor keeps your hips still, so the turn comes from the ribcage.' },
+  { ...BASE, id: 'thread_the_needle', name: 'Thread the needle', family: 'rotation', level: 2, category: 'mobility', mode: 'reps', unilateral: true,
+    muscles: { primary: ['upper_back'], secondary: ['rear_delts', 'obliques'] }, stress: ['wrist', 'shoulder'], difficulty: 1,
+    planes: ['transverse'], breath: { out: 'as the arm threads under' }, tempo: { secPerRep: 5 }, evidence: 'C',
+    cues: ['On all fours, hands under shoulders', 'Reach one arm under your body, shoulder towards the floor', 'Sweep it up to the ceiling and follow it with your eyes'],
+    description: 'An all-fours rotation that opens the upper back and the backs of the shoulders.' },
+  { ...BASE, id: 'seated_trunk_rotation', name: 'Seated trunk rotation', family: 'rotation', level: 3, category: 'mobility', mode: 'reps', unilateral: true,
+    muscles: { primary: ['obliques'], secondary: ['upper_back'] }, equipment: ['bench'], stress: ['lower_back'], difficulty: 1,
+    planes: ['transverse'], breath: { out: 'as you turn' }, tempo: { secPerRep: 4 }, evidence: 'C',
+    cues: ['Sit tall on a chair, feet flat, arms crossed', 'Turn your ribcage to one side; hips and knees keep facing forward', 'Breathe out as you turn, come back slowly'],
+    description: 'A chair holds the pelvis still, so the rotation comes from the upper back.' },
+  { ...BASE, id: 'bodyweight_woodchop', name: 'Woodchop', family: 'rotation', level: 5, category: 'conditioning', mode: 'reps', unilateral: true,
+    muscles: { primary: ['obliques'], secondary: ['glutes', 'quads', 'front_delts'] }, space: 'medium', stress: ['lower_back'], difficulty: 2,
+    planes: ['transverse', 'frontal'], tempo: { secPerRep: 2 }, evidence: 'C',
+    cues: ['Hands together, high over one shoulder', 'Chop diagonally down towards the opposite knee', 'Your hips lead and the back foot pivots'],
+    description: 'A standing diagonal chop that teaches your hips and trunk to turn together.' },
+  { ...BASE, id: 'rotational_lunge', name: 'Reverse lunge with rotation', family: 'rotation', level: 6, category: 'strength', mode: 'reps', unilateral: true,
+    muscles: { primary: ['quads', 'glutes'], secondary: ['obliques'] }, space: 'medium', stress: ['knee'], difficulty: 3,
+    planes: ['sagittal', 'transverse'], tempo: { secPerRep: 4 }, evidence: 'C',
+    cues: ['Step back into a reverse lunge', 'Turn your chest over the front leg, arms reaching forward', 'Turn back to the centre, then push up through the front foot'],
+    description: 'A reverse lunge with a controlled turn over the front leg: leg strength and trunk rotation together.' },
+  { ...BASE, id: 'band_woodchop', name: 'Band woodchop', family: 'rotation', level: 7, category: 'strength', mode: 'reps', unilateral: true,
+    muscles: { primary: ['obliques', 'abs'], secondary: ['glutes', 'front_delts'] }, equipment: ['resistance_band'], space: 'medium', stress: ['lower_back'], difficulty: 3,
+    planes: ['transverse', 'frontal'], tempo: { secPerRep: 3 }, evidence: 'C',
+    cues: ['Band anchored high, to one side', 'Pull diagonally down across your body, arms long', 'Turn through your hips and pivot the back foot'],
+    description: 'Loaded rotation: the band resists as you chop across your body.' },
+  { ...BASE, id: 'standing_windmill', name: 'Windmill', family: 'rotation', level: 8, category: 'mobility', mode: 'reps', unilateral: true,
+    muscles: { primary: ['obliques', 'hamstrings'], secondary: ['side_delts', 'glutes'] }, space: 'medium', stress: ['lower_back', 'shoulder'], difficulty: 3,
+    planes: ['frontal', 'transverse'], tempo: { secPerRep: 5 }, evidence: 'C',
+    cues: ['Feet wide, one arm straight up', 'Hinge sideways at the hip, sliding the other hand down your leg', 'Eyes stay on the top hand; come up slowly'],
+    description: 'A slow sideways hinge with a reach to the ceiling for the trunk, hips and hamstrings.' },
+
+  // ---- anti_rotation (generic)
+  { ...BASE, id: 'bird_dog_row', name: 'Bird dog reach-through', family: 'anti_rotation', level: 1, category: 'core', mode: 'reps', unilateral: true,
+    muscles: { primary: ['abs', 'lower_back'], secondary: ['glutes', 'rear_delts'] }, stress: ['wrist'], difficulty: 2,
+    planes: ['sagittal', 'transverse'], tempo: { secPerRep: 4 }, evidence: 'C',
+    cues: ['On all fours, reach one arm forward and the opposite leg back', 'Draw elbow and knee together under your body', 'Reach long again; keep your hips level'],
+    description: 'A slower bird dog that challenges your trunk to stay square as you move. The no-kit start of anti-rotation.' },
+  { ...BASE, id: 'half_kneeling_pallof_hold', name: 'Half-kneeling Pallof hold', family: 'anti_rotation', level: 2, category: 'core', mode: 'hold', unilateral: true,
+    muscles: { primary: ['obliques', 'abs'], secondary: ['glutes'] }, equipment: ['resistance_band'], stress: ['knee'], difficulty: 2,
+    planes: ['transverse'], evidence: 'B',
+    cues: ['Kneel side-on to a band anchored at chest height', 'Press your hands straight out from your chest', 'Hold still: don’t let the band turn you'],
+    description: 'An isometric hold against a sideways pull. Kneeling keeps the hips honest.' },
+  { ...BASE, id: 'plank_shoulder_tap', name: 'Plank shoulder tap', family: 'anti_rotation', level: 3, category: 'core', mode: 'reps', unilateral: true,
+    muscles: { primary: ['abs', 'obliques'], secondary: ['front_delts', 'triceps'] }, stress: ['wrist', 'shoulder'], difficulty: 3,
+    planes: ['transverse'], tempo: { secPerRep: 2 }, evidence: 'C',
+    cues: ['High plank, feet a little wider than your hips', 'Lift one hand to tap the opposite shoulder', 'Keep your hips still: no rocking'],
+    description: 'A plank that tries to twist you. The no-band way to train anti-rotation.' },
+  { ...BASE, id: 'pallof_press', name: 'Pallof press', family: 'anti_rotation', level: 4, category: 'core', mode: 'reps', unilateral: true,
+    muscles: { primary: ['obliques', 'abs'], secondary: ['glutes', 'front_delts'] }, equipment: ['resistance_band'], difficulty: 3,
+    planes: ['transverse'], tempo: { secPerRep: 4 }, evidence: 'B',
+    cues: ['Stand side-on to a band anchored at chest height', 'Press your hands straight out and pause for 2 seconds', 'Bring them back to your chest without turning'],
+    description: 'Press a band away from your chest while it tries to rotate you. Simple, and harder than it looks.' },
+  { ...BASE, id: 'pallof_press_overhead', name: 'Pallof press with overhead reach', family: 'anti_rotation', level: 5, category: 'core', mode: 'reps', unilateral: true,
+    muscles: { primary: ['obliques', 'abs'], secondary: ['side_delts', 'lats'] }, equipment: ['resistance_band'], stress: ['shoulder'], difficulty: 4,
+    planes: ['transverse'], tempo: { secPerRep: 5 }, evidence: 'C',
+    cues: ['Press out as in the Pallof press', 'Raise your straight arms overhead, then lower them', 'Resist the pull the whole time'],
+    description: 'The Pallof press with a long overhead reach, which makes the band’s pull harder to resist.' },
+  { ...BASE, id: 'side_plank_reach_through', name: 'Side plank reach-through', family: 'anti_rotation', level: 6, category: 'core', mode: 'reps', unilateral: true,
+    muscles: { primary: ['obliques'], secondary: ['abs', 'upper_back', 'side_delts'] }, stress: ['shoulder', 'wrist'], difficulty: 5,
+    planes: ['frontal', 'transverse'], tempo: { secPerRep: 4 }, evidence: 'C',
+    cues: ['Side plank, top arm up', 'Thread the top arm under your body with a slow, controlled turn', 'Open back to the ceiling; hips stay high'],
+    description: 'A side plank with a slow turn under and back, bridging to the hardest side-core work.' },
+
+  // ---- Morning Taisō steps (tradition radio_taiso). Standalone in v1.2: stretch up, side bend, trunk twist.
+  { ...BASE, ...RT, id: 'rt_stretch_up', sources: [SRC.rtA, SRC.rtC, SRC.rtD], name: 'Stretch up', nativeName: ja('伸びの運動', 'nobi no undō'), family: 'warmup', level: 6, category: 'warmup', mode: 'reps',
+    muscles: { primary: ['side_delts'], secondary: ['calves', 'upper_back'] }, difficulty: 1, anim: 'rt_stretch_up',
+    planes: ['sagittal'], breath: { in: 'arms rise', out: 'arms lower' }, tempo: { secPerRep: 5 },
+    cues: ['Swing your arms forward and up overhead', 'Stretch tall; your heels may lift a little', 'Lower your arms out to the sides'],
+    description: 'The opening movement of the Japanese morning exercises: an easy, full stretch upwards.' },
+  { ...BASE, ...RT, id: 'rt_side_bend', name: 'Side bend', nativeName: ja('体を横に曲げる運動', 'karada o yoko ni mageru undō'), family: 'warmup', level: 7, category: 'mobility', mode: 'reps',
+    unilateral: true, muscles: { primary: ['obliques'], secondary: ['lats'] }, difficulty: 1,
+    planes: ['frontal'], tempo: { secPerRep: 4 },
+    cues: ['Feet apart; one arm sweeps up overhead', 'Bend sideways with a small, easy bounce', 'Come back up and switch sides'],
+    description: 'A rhythmic side bend from the Japanese morning exercises that stretches the side of the trunk.' },
+  { ...BASE, ...RT, id: 'rt_trunk_twist', name: 'Trunk twist', nativeName: ja('体をねじる運動', 'karada o nejiru undō'), family: 'rotation', level: 4, category: 'mobility', mode: 'reps',
+    unilateral: true, muscles: { primary: ['obliques'], secondary: ['upper_back'] }, space: 'medium', stress: ['lower_back'], difficulty: 1,
+    planes: ['transverse'], tempo: { secPerRep: 3 },
+    cues: ['Feet planted apart, arms loose', 'Swing your arms around your body, one way then the other', 'Then two bigger twists, eyes following your hands'],
+    description: 'A standing twist from the Japanese morning exercises: loose arms swing around the body as the trunk turns.' },
+  // flow-only steps (animated for the flow; promoted to the library in v1.3)
+  { ...BASE, ...RT, id: 'rt_arm_swing_knee_bend', flowOnly: true, sources: [SRC.rtA, SRC.rtC, SRC.rtE], name: 'Arm swing and knee bend', nativeName: ja('腕を振って脚を曲げ伸ばす運動', 'ude o futte ashi o magenobasu undō'),
+    family: 'warmup', level: 8, category: 'warmup', mode: 'reps', muscles: { primary: ['quads', 'calves'], secondary: ['front_delts'] }, stress: ['knee'], difficulty: 1,
+    planes: ['sagittal', 'frontal'], tempo: { secPerRep: 2 },
+    cues: ['Arms cross in front, then swing out to the sides', 'Bend and straighten your knees in time', 'Stay light and springy'],
+    description: 'Arms swing as the knees bend and straighten, on the count.' },
+  { ...BASE, ...RT, id: 'rt_arm_circles', flowOnly: true, name: 'Arm circles', nativeName: ja('腕を回す運動', 'ude o mawasu undō'), family: 'warmup', level: 9, category: 'warmup', mode: 'reps',
+    muscles: { primary: ['front_delts', 'side_delts'], secondary: [] }, stress: ['shoulder'], difficulty: 1, planes: ['frontal'], tempo: { secPerRep: 3 },
+    cues: ['Let your arms hang loose', 'Big circles in front of you: inwards, then outwards', 'Keep your shoulders relaxed'],
+    description: 'Big, loose arm circles in both directions.' },
+  { ...BASE, ...RT, id: 'rt_chest_opener', flowOnly: true, name: 'Chest opener', nativeName: ja('胸を反らす運動', 'mune o sorasu undō'), family: 'warmup', level: 10, category: 'warmup', mode: 'reps',
+    muscles: { primary: ['chest', 'upper_back'], secondary: ['front_delts'] }, stress: ['lower_back'], difficulty: 1, planes: ['sagittal', 'frontal'], tempo: { secPerRep: 3 },
+    cues: ['Feet apart', 'Swing your arms out and up, opening your chest', 'Look up a little; keep your lower back easy'],
+    description: 'The arms swing wide and up as the chest lifts and opens.' },
+  { ...BASE, ...RT, id: 'rt_forward_back_bend', flowOnly: true, name: 'Forward and back bend', nativeName: ja('体を前後に曲げる運動', 'karada o zengo ni mageru undō'), family: 'warmup', level: 11,
+    category: 'mobility', mode: 'reps', muscles: { primary: ['hamstrings', 'lower_back'], secondary: ['abs'] }, stress: ['lower_back'], difficulty: 2, planes: ['sagittal'], tempo: { secPerRep: 4 },
+    cues: ['Light bounces forward, hands towards the floor', 'Hands on your hips, lean back gently', 'Knees soft; stay in a comfortable range'],
+    description: 'Easy forward bounces, then a gentle lean back with hands on the hips.' },
+  { ...BASE, ...RT, id: 'rt_arms_up_down', flowOnly: true, name: 'Arms up and down', nativeName: ja('腕を上下に伸ばす運動', 'ude o jōge ni nobasu undō'), family: 'warmup', level: 12, category: 'warmup', mode: 'reps',
+    muscles: { primary: ['side_delts', 'traps'], secondary: ['triceps'] }, stress: ['shoulder'], difficulty: 1, planes: ['frontal'], tempo: { secPerRep: 3 },
+    cues: ['Hands to your shoulders', 'Stretch your arms straight up, then back to your shoulders', 'Then stretch them down to your sides'],
+    description: 'Crisp arm extensions from the shoulders, on the count.' },
+  { ...BASE, ...RT, id: 'rt_diagonal_bend', flowOnly: true, name: 'Diagonal bend and chest opener', nativeName: ja('体を斜め下に曲げ胸を反らす運動', 'karada o naname shita ni mage mune o sorasu undō'),
+    family: 'warmup', level: 13, category: 'mobility', mode: 'reps', unilateral: true, muscles: { primary: ['hamstrings', 'obliques'], secondary: ['chest'] }, stress: ['lower_back'], difficulty: 2,
+    planes: ['sagittal', 'transverse'], tempo: { secPerRep: 4 },
+    cues: ['Bend down diagonally towards one foot, with small bounces', 'Rise with your arms up and chest open', 'Switch sides'],
+    description: 'A diagonal fold towards one foot, then an open-chested reach up.' },
+  { ...BASE, ...RT, id: 'rt_trunk_circle', flowOnly: true, name: 'Trunk circle', nativeName: ja('体を回す運動', 'karada o mawasu undō'), family: 'warmup', level: 14, category: 'mobility', mode: 'reps',
+    unilateral: true, muscles: { primary: ['obliques', 'lower_back'], secondary: ['abs'] }, space: 'medium', stress: ['lower_back'], difficulty: 2, planes: ['sagittal', 'frontal', 'transverse'],
+    tempo: { secPerRep: 4 },
+    cues: ['Arms overhead, feet apart', 'Draw a big, slow circle with your upper body from the hips', 'Then circle the other way'],
+    description: 'A large circle of the upper body from the hips, in both directions.' },
+  { ...BASE, ...RT, id: 'rt_two_foot_hops', flowOnly: true, sources: [SRC.rtA, SRC.rtB, SRC.rtC], name: 'Two-foot hops', nativeName: ja('両脚で跳ぶ運動', 'ryōashi de tobu undō'), family: 'conditioning', level: 8, category: 'conditioning',
+    mode: 'reps', muscles: { primary: ['calves'], secondary: ['quads'] }, space: 'medium', impact: 'high', stress: ['ankle', 'knee'], difficulty: 2, planes: ['sagittal', 'frontal'],
+    tempo: { secPerRep: 1 },
+    cues: ['Small, springy hops on both feet', 'Then hop your feet apart and together', 'Land softly'],
+    description: 'Light hops on both feet, then open-and-close hops.' },
+  { ...BASE, ...RT, id: 'rt_heel_raise', flowOnly: true, adaptation: true, sources: [SRC.rtE], name: 'Heel raises (no-hop option)', family: 'warmup', level: 15, category: 'warmup', mode: 'reps',
+    muscles: { primary: ['calves'], secondary: [] }, difficulty: 1, planes: ['sagittal'], tempo: { secPerRep: 1 },
+    cues: ['Rise onto the balls of your feet', 'Lower with control, in time with the count'],
+    description: 'Kitaeru’s own low-impact swap for the hops. It is not an official variant of the sequence.' },
+  { ...BASE, ...RT, id: 'rt_deep_breath', flowOnly: true, name: 'Deep breath', nativeName: ja('深呼吸', 'shinkokyū'), family: 'breath', level: 1, category: 'breath', mode: 'reps',
+    muscles: { primary: [], secondary: ['side_delts'] }, difficulty: 1, planes: ['frontal'], breath: { in: 'arms rise', out: 'arms lower' }, tempo: { secPerRep: 5 },
+    cues: ['Arms rise out to the sides and overhead as you breathe in', 'Lower them slowly as you breathe out'],
+    description: 'A slow, full breath to finish. No breath holding.' },
+  { ...RT, id: 'radio_taiso_1', sources: [SRC.rtA, SRC.rtB, SRC.rtC, SRC.osuka], name: 'Morning Taisō', nativeName: ja('朝の体操', 'asa no taisō'), aka: ['Morning exercises'], family: 'flow_sequence', level: 1, category: 'flow', mode: 'flow',
+    unilateral: false, equipment: [], space: 'medium', difficulty: 2, anim: 'rt_stretch_up', planes: ['sagittal', 'frontal', 'transverse'], breath: { pattern: 'natural' },
+    tempo: { countsPerSec: 2 },
+    cues: ['Brisk and on the count', 'Big, relaxed movements', 'Skip or shrink anything that pinches'],
+    description: 'Thirteen brisk movements in about three minutes that take every joint through its range. Kitaeru uses its own count; there is no music.',
+    // Order per the official illustrated guide (SRC.kampo). Seconds are Kitaeru's own count at about 2 counts per second.
+    sequence: [
+      { move: 'rt_stretch_up', reps: 2, sec: 10, cue: 'Stretch up tall', breath: 'in-out' },
+      { move: 'rt_arm_swing_knee_bend', reps: 8, sec: 12, cue: 'Swing and bend, light on your feet' },
+      { move: 'rt_arm_circles', reps: 4, sec: 10, cue: 'Big circles, in then out' },
+      { move: 'rt_chest_opener', reps: 4, sec: 12, cue: 'Open the chest' },
+      { move: 'rt_side_bend', reps: 2, side: 'both', sec: 16, cue: 'Bend to the side' },
+      { move: 'rt_forward_back_bend', reps: 2, sec: 16, cue: 'Forward, then back, gently' },
+      { move: 'rt_trunk_twist', reps: 4, side: 'both', sec: 16, cue: 'Twist; eyes follow your hands' },
+      { move: 'rt_arms_up_down', reps: 4, sec: 16, cue: 'Up, and down' },
+      { move: 'rt_diagonal_bend', reps: 2, side: 'both', sec: 16, cue: 'Down diagonally, then open up' },
+      { move: 'rt_trunk_circle', reps: 2, side: 'both', sec: 16, cue: 'Big slow circles' },
+      { move: 'rt_two_foot_hops', reps: 16, sec: 14, cue: 'Small, soft hops' },
+      { move: 'rt_arm_swing_knee_bend', reps: 8, sec: 12, cue: 'Swing and bend again' },
+      { move: 'rt_deep_breath', reps: 3, sec: 16, cue: 'Breathe in as the arms rise', breath: 'in-out' },
+    ],
+    variants: { lowImpact: { replace: { rt_two_foot_hops: 'rt_heel_raise' } } },
+    progression: null },
+
+  // ---- Tai Chi (Simplified 24-form)
+  { ...BASE, ...TC, id: 'taichi_commencement', name: 'Commencement', nativeName: zh('起势', 'qǐ shì', '起勢'), aka: ['Opening', 'Beginning form'], family: 'flow_taichi', level: 1,
+    category: 'mobility', mode: 'reps', muscles: { primary: ['quads'], secondary: ['front_delts', 'calves'] }, difficulty: 1,
+    planes: ['sagittal'], breath: { in: 'arms float up', out: 'palms press down' }, tempo: { secPerRep: 8 }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Feet shoulder-width apart, knees soft', 'Breathe in as your arms float up to shoulder height', 'Breathe out as you sink a little and press your palms down'],
+    description: 'The opening form of the 24-form: the arms rise and settle as the knees soften.' },
+  { ...BASE, ...TC, id: 'taichi_closing', flowOnly: true, name: 'Closing', nativeName: zh('收势', 'shōu shì', '收勢'), family: 'flow_taichi', level: 2, category: 'mobility', mode: 'reps',
+    muscles: { primary: [], secondary: ['front_delts'] }, difficulty: 1, planes: ['sagittal'], breath: { out: 'hands lower' }, tempo: { secPerRep: 10 },
+    cues: ['Hands cross, then open to shoulder width', 'Lower them slowly to your sides as you breathe out', 'Bring your feet together and stand quietly'],
+    description: 'The closing form: the hands settle and the feet come together.' },
+  { ...BASE, ...TC, id: 'taichi_cloud_hands', name: 'Cloud hands', nativeName: zh('云手', 'yún shǒu', '雲手'), aka: ['Wave hands like clouds'], family: 'flow_taichi', level: 3,
+    category: 'mobility', mode: 'reps', muscles: { primary: ['obliques', 'quads'], secondary: ['adductors', 'side_delts'] }, space: 'medium', difficulty: 2,
+    planes: ['frontal', 'transverse'], breath: { pattern: 'natural' }, tempo: { secPerRep: 8 }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Hands circle in turn, one at face height, one at the belly', 'Turn your waist to follow the upper hand', 'Step sideways with feet parallel as your weight shifts'],
+    description: 'The hands circle past each other as the waist turns and the feet step sideways.' },
+  { ...BASE, ...TC, id: 'taichi_white_crane', flowOnly: true, name: 'White crane spreads its wings', nativeName: zh('白鹤亮翅', 'bái hè liàng chì', '白鶴亮翅'), family: 'flow_taichi',
+    level: 4, category: 'mobility', mode: 'reps', muscles: { primary: ['quads'], secondary: ['side_delts', 'calves'] }, stress: ['knee'], difficulty: 2,
+    planes: ['frontal', 'transverse'], tempo: { secPerRep: 8 }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Weight on the back leg; front toes touch lightly', 'One hand rises beside your temple', 'The other presses down beside your hip'],
+    description: 'Weight settles on the back leg as one hand rises and the other presses down.' },
+  { ...BASE, ...TC, id: 'taichi_part_horse_mane', name: 'Part the wild horse’s mane', nativeName: zh('左右野马分鬃', 'zuǒ yòu yě mǎ fēn zōng', '左右野馬分鬃'), family: 'flow_taichi', level: 5,
+    category: 'mobility', mode: 'reps', unilateral: true, muscles: { primary: ['quads', 'glutes'], secondary: ['obliques', 'adductors', 'side_delts'] }, space: 'medium',
+    stress: ['knee'], difficulty: 3, planes: ['sagittal', 'transverse'], tempo: { secPerRep: 10 }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Hold an imaginary ball at your chest', 'Step out heel first into a bow stance', 'Turn your waist and let your hands part diagonally'],
+    description: 'A step into a bow stance while the hands part, one rising, one lowering.' },
+  { ...BASE, ...TC, id: 'taichi_brush_knee', name: 'Brush knee and push', nativeName: zh('左右搂膝拗步', 'zuǒ yòu lōu xī ào bù', '左右摟膝拗步'), family: 'flow_taichi', level: 6,
+    category: 'mobility', mode: 'reps', unilateral: true, muscles: { primary: ['quads', 'glutes'], secondary: ['obliques', 'triceps', 'front_delts'] }, space: 'medium',
+    stress: ['knee'], difficulty: 3, planes: ['sagittal', 'transverse'], tempo: { secPerRep: 10 }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Turn your waist; one hand circles back beside your ear', 'Step forward into a bow stance', 'The lower hand brushes past your knee as the other palm pushes forward'],
+    description: 'A step forward as one hand sweeps past the knee and the other pushes.' },
+  { ...BASE, ...TC, id: 'taichi_golden_rooster', name: 'Golden rooster stands on one leg', nativeName: zh('金鸡独立', 'jīn jī dú lì', '金雞獨立'), aka: ['Stand on one leg'],
+    attribution: 'The one-leg part of 下势独立 (forms 16–17) of the Simplified 24-form; 金鸡独立 is its traditional Yang-style name',
+    sources: [SRC.tcA, SRC.tcB, { label: 'Modern Wushu Wiki: Lower body and stand on one leg', url: 'https://modern-wushu.fandom.com/wiki/Lower_Body_and_Stand_on_One_Leg_(Taijiquan_Movement)', kind: 'reference' }], family: 'flow_taichi', level: 7,
+    category: 'balance', mode: 'hold', unilateral: true, muscles: { primary: ['glutes', 'quads'], secondary: ['hip_flexors', 'calves', 'abs'] }, stress: ['knee', 'ankle'], difficulty: 4,
+    planes: ['sagittal'], breath: { pattern: 'natural' }, stanceLevels: ['high', 'medium'],
+    cues: ['Stand near a wall or chair', 'Lift one knee towards hip height as the same-side hand rises', 'The other hand presses down; breathe slowly'],
+    description: 'A one-leg balance: the standing half of “lower body and stand on one leg” in the 24-form, traditionally called golden rooster. Hold for a few calm breaths, then change legs.' },
+  { ...TC, id: 'taichi_short_flow', name: 'Tai Chi short flow', nativeName: zh('太极拳', 'tàijíquán', '太極拳'), aka: ['Tai Chi excerpt'], sources: [SRC.tcA, SRC.tcB, SRC.tcC], family: 'flow_sequence', level: 2,
+    category: 'flow', mode: 'flow', unilateral: false, equipment: [], space: 'medium', difficulty: 3, anim: 'taichi_commencement',
+    planes: ['sagittal', 'frontal', 'transverse'], breath: { pattern: 'natural' }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Slow and continuous: no pauses', 'Shift your weight fully from leg to leg', 'Turn from the waist; knees follow your toes'],
+    description: 'Six forms from the Simplified 24-form (1–4, 10 and 24), linked into one slow flow of about two and a half minutes. The full form has 24.',
+    sequence: [
+      { move: 'taichi_commencement', reps: 1, sec: 20, cue: 'Arms float up, then settle', breath: 'in-out' },
+      { move: 'taichi_part_horse_mane', reps: 3, side: 'alternate', sec: 33, cue: 'Step, turn, part the hands' },
+      { move: 'taichi_white_crane', reps: 1, sec: 12, cue: 'Settle back; one hand rises' },
+      { move: 'taichi_brush_knee', reps: 3, side: 'alternate', sec: 33, cue: 'Brush past the knee and push' },
+      { move: 'taichi_cloud_hands', reps: 3, sec: 33, cue: 'Hands circle; the waist leads' },
+      { move: 'taichi_closing', reps: 1, sec: 19, cue: 'Lower the hands and stand quietly', breath: 'out' },
+    ],
+    // §4.4: flows progress by stance height, support and tempo, never by reps.
+    progression: { stages: [
+      { stance: 'high', support: 'chair', tempoScale: 1 },
+      { stance: 'high', support: 'free', tempoScale: 1 },
+      { stance: 'medium', support: 'free', tempoScale: 1.25 },
+      { stance: 'medium', support: 'free', tempoScale: 1.5 },
+      { stance: 'low', support: 'free', tempoScale: 1.5 },
+      { stance: 'low', support: 'soft_gaze', tempoScale: 1.5 },
+    ] } },
+
+  // ---- Baduanjin (Health Qigong standard, 2003). Names are the traditional couplets; the English is a short gloss.
+  { ...BASE, ...BDJ, id: 'baduanjin_hold_up_sky', sources: [SRC.bdA, SRC.bdB, SRC.bdC, SRC.bdD], name: 'Holding up the sky', nativeName: zh('两手托天理三焦', 'liǎng shǒu tuō tiān lǐ sān jiāo', '兩手托天理三焦'), family: 'flow_qigong',
+    level: 1, category: 'mobility', mode: 'reps', muscles: { primary: ['side_delts', 'upper_back'], secondary: ['calves', 'abs'] }, stress: ['shoulder'], difficulty: 1,
+    planes: ['sagittal'], breath: { in: 'palms lift', out: 'arms lower' }, tempo: { secPerRep: 14 },
+    cues: ['Interlace your fingers in front of your belly', 'Breathe in as you lift them, turning the palms up overhead', 'Breathe out as your arms float down to the sides'],
+    description: 'The first of the eight pieces: a long stretch up through the palms. In Qigong it is traditionally said to regulate the sānjiāo, the "triple burner".' },
+  { ...BASE, ...BDJ, id: 'baduanjin_draw_bow', name: 'Drawing the bow to shoot the eagle', nativeName: zh('左右开弓似射雕', 'zuǒ yòu kāi gōng sì shè diāo', '左右開弓似射鵰'), family: 'flow_qigong',
+    level: 6, category: 'strength', mode: 'reps', unilateral: true, muscles: { primary: ['quads', 'upper_back'], secondary: ['adductors', 'rear_delts', 'traps'] }, space: 'medium',
+    stress: ['knee'], difficulty: 3, planes: ['frontal', 'transverse'], breath: { in: 'draw the bow', out: 'return' }, tempo: { secPerRep: 18 }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Step wide and sink into a horse stance', 'One arm draws the string to your chest; the other pushes out, index finger up', 'Turn your head to look past the raised finger'],
+    description: 'An archer’s pose in a horse stance: the chest opens as one arm draws and the other extends.' },
+  { ...BASE, ...BDJ, id: 'baduanjin_look_back', name: 'Wise owl looks back', nativeName: zh('五劳七伤往后瞧', 'wǔ láo qī shāng wǎng hòu qiáo', '五勞七傷往後瞧'), family: 'flow_qigong',
+    level: 3, category: 'mobility', mode: 'reps', unilateral: true, muscles: { primary: ['traps', 'upper_back'], secondary: ['obliques'] }, stress: ['neck'], difficulty: 1,
+    planes: ['transverse'], breath: { in: 'turn', out: 'return' }, tempo: { secPerRep: 11 },
+    cues: ['Arms by your sides; turn the palms outwards', 'Slowly turn your head and upper chest to look behind', 'Return to the centre; keep the turn small and easy'],
+    description: 'A slow look over the shoulder that turns the neck and upper back together.' },
+  { ...BASE, ...BDJ, id: 'baduanjin_separate_heaven_earth', flowOnly: true, name: 'Separating heaven and earth', nativeName: zh('调理脾胃须单举', 'tiáo lǐ pí wèi xū dān jǔ', '調理脾胃須單舉'),
+    family: 'flow_qigong', level: 2, category: 'mobility', mode: 'reps', unilateral: true, muscles: { primary: ['side_delts', 'lats'], secondary: ['obliques', 'triceps'] }, stress: ['shoulder'],
+    difficulty: 1, planes: ['frontal'], tempo: { secPerRep: 12 },
+    cues: ['One palm presses up overhead, the other down beside your hip', 'Fingers of both hands point inwards', 'Swap slowly with your breath'],
+    description: 'One hand presses up and one presses down, lengthening each side in turn.' },
+  { ...BASE, ...BDJ, id: 'baduanjin_heel_bounce', flowOnly: true, name: 'Bouncing on the toes', nativeName: zh('背后七颠百病消', 'bèi hòu qī diān bǎi bìng xiāo', '背後七顛百病消'),
+    family: 'flow_qigong', level: 4, category: 'warmup', mode: 'reps', muscles: { primary: ['calves'], secondary: ['abs'] }, stress: ['ankle'], difficulty: 1, planes: ['sagittal'],
+    tempo: { secPerRep: 4 },
+    cues: ['Rise onto the balls of your feet and pause', 'Drop gently onto your heels'],
+    description: 'The closing piece: rise onto the toes, then drop softly onto the heels.' },
+  { ...BASE, ...BDJ, id: 'baduanjin_touch_toes', flowOnly: true, name: 'Two hands hold the feet', nativeName: zh('两手攀足固肾腰', 'liǎng shǒu pān zú gù shèn yāo', '兩手攀足固腎腰'),
+    family: 'flow_qigong', level: 5, category: 'mobility', mode: 'reps', muscles: { primary: ['hamstrings', 'lower_back'], secondary: ['calves'] }, stress: ['lower_back'], difficulty: 2,
+    planes: ['sagittal'], tempo: { secPerRep: 14 },
+    cues: ['Slide your hands down your back and legs', 'Fold towards your feet with soft knees', 'Rise slowly, leading with your arms'],
+    description: 'A slow forward fold with the hands tracing down the back of the legs.' },
+  { ...BASE, ...BDJ, id: 'baduanjin_clench_fists', flowOnly: true, name: 'Punching with angry eyes', nativeName: zh('攒拳怒目增气力', 'zǎn quán nù mù zēng qì lì', '攢拳怒目增氣力'),
+    family: 'flow_qigong', level: 7, category: 'strength', mode: 'reps', unilateral: true, muscles: { primary: ['quads', 'adductors'], secondary: ['triceps', 'forearms', 'front_delts'] },
+    stress: ['knee'], difficulty: 3, planes: ['sagittal'], tempo: { secPerRep: 12 }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Horse stance, fists at your waist', 'Punch slowly forward, turning the fist', 'Open the hand, grasp, and draw it back'],
+    description: 'A slow punch from a horse stance, with a firm grip and a focused gaze.' },
+  { ...BASE, ...BDJ, id: 'baduanjin_sway_head_tail', flowOnly: true, name: 'Swaying the head and tail', nativeName: zh('摇头摆尾去心火', 'yáo tóu bǎi wěi qù xīn huǒ', '搖頭擺尾去心火'),
+    family: 'flow_qigong', level: 8, category: 'mobility', mode: 'reps', unilateral: true, muscles: { primary: ['quads', 'adductors'], secondary: ['obliques', 'lower_back'] },
+    stress: ['neck', 'knee', 'lower_back'], difficulty: 4, planes: ['frontal', 'transverse'], tempo: { secPerRep: 14 }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Horse stance, hands on your thighs', 'Lean your trunk to one side, then circle down and across', 'Keep your neck relaxed and the range small'],
+    description: 'From a horse stance, the trunk circles low from side to side.' },
+  { ...BDJ, id: 'baduanjin_sequence', sources: [SRC.bdA, SRC.bdB, SRC.bdC, SRC.zou], name: 'Baduanjin', nativeName: zh('八段锦', 'bāduànjǐn', '八段錦'), aka: ['Eight Pieces of Brocade', 'Eight Silken Movements'], family: 'flow_sequence',
+    level: 3, category: 'flow', mode: 'flow', unilateral: false, equipment: [], space: 'medium', difficulty: 3, anim: 'baduanjin_hold_up_sky',
+    planes: ['sagittal', 'frontal', 'transverse'], breath: { pattern: 'slow' }, stanceLevels: ['high', 'medium', 'low'],
+    cues: ['Slow, even breathing', 'Pause softly at the end of each stretch', 'Knees soft, spine long'],
+    description: 'The eight standing movements in their standard order, each repeated slowly with the breath: about 12 minutes in full, or 4 repetitions each in the short version.',
+    sequence: [
+      { move: null, anim: 'baduanjin_ready', sec: 10, cue: 'Stand with feet shoulder-width apart, knees soft', breath: 'natural' },
+      { move: 'baduanjin_hold_up_sky', reps: 6, cue: 'Lift through the palms' },
+      { move: 'baduanjin_draw_bow', reps: 6, side: 'alternate', cue: 'Look past your index finger' },
+      { move: 'baduanjin_separate_heaven_earth', reps: 6, side: 'alternate', cue: 'One hand up, one hand down' },
+      { move: 'baduanjin_look_back', reps: 6, side: 'alternate', cue: 'Turn slowly; small and easy' },
+      { move: 'baduanjin_sway_head_tail', reps: 6, side: 'alternate', cue: 'Low and slow' },
+      { move: 'baduanjin_touch_toes', reps: 6, cue: 'Knees soft as you fold' },
+      { move: 'baduanjin_clench_fists', reps: 6, side: 'alternate', cue: 'Slow punch, firm grip' },
+      { move: 'baduanjin_heel_bounce', reps: 7, fixedReps: true, cue: 'Rise, then drop softly' },
+      { move: null, anim: 'baduanjin_close', sec: 12, cue: 'Hands rest on your belly; breathe quietly', breath: 'natural' },
+    ],
+    variants: { short: { repsScale: 4 / 6 } },
+    progression: { stages: [
+      { variant: 'short', stance: 'high', tempoScale: 1 },
+      { variant: 'short', stance: 'medium', tempoScale: 1 },
+      { variant: 'full', stance: 'medium', tempoScale: 1 },
+      { variant: 'full', stance: 'low', tempoScale: 1 },
+    ] } },
+
+  // ---- Pehlwani (India and Pakistan)
+  { ...BASE, ...PW, id: 'dand', name: 'Daṇḍ (Hindu push-up)', nativeName: { text: 'दण्ड', romanised: 'daṇḍ', lang: 'hi', alt: [{ text: 'दंड', lang: 'hi' }] }, aka: ['Hindu push-up', 'Dand'], family: 'push_horizontal',
+    level: 4.5, category: 'strength', mode: 'reps', muscles: { primary: ['chest', 'triceps', 'front_delts'], secondary: ['lower_back', 'abs', 'upper_back'] },
+    stress: ['wrist', 'shoulder', 'lower_back'], difficulty: 5, planes: ['sagittal'], tempo: { secPerRep: 3 }, sources: [SRC.dandWiki, SRC.alter, SRC.pwWiki, SRC.pwYog],
+    cues: ['Start in a pike: hips high, hands shoulder-width', 'Dip your chest low between your hands and sweep forward', 'Straighten your arms into a gentle arch, then push your hips back to the pike'],
+    description: 'A flowing push-up from Pehlwani wrestling training: pike, dive and arch in one smooth arc.' },
+  { ...BASE, ...PW, id: 'baithak', name: 'Baiṭhak (Hindu squat)', nativeName: { text: 'बैठक', romanised: 'baiṭhak', lang: 'hi' }, aka: ['Hindu squat', 'Baithak'], family: 'conditioning',
+    level: 3.5, category: 'conditioning', mode: 'reps', muscles: { primary: ['quads'], secondary: ['calves', 'glutes', 'front_delts'] }, stress: ['knee'], difficulty: 3,
+    planes: ['sagittal'], tempo: { secPerRep: 2 }, sources: [SRC.baithakWiki, SRC.alter, SRC.pwWiki, SRC.pwYog],
+    cues: ['Feet shoulder-width, arms forward', 'Swing your arms back as your heels rise and you sink into a deep squat', 'Swing them forward and up as you stand; keep a steady rhythm'],
+    description: 'A rhythmic squat from Pehlwani wrestling training, done on the balls of the feet for long, steady sets.' },
+
+  // ---- Chinese martial-arts stance. Its tradition has no card yet, so it fails closed (hidden) until one exists.
+  { ...BASE, id: 'horse_stance', tradition: 'chinese_martial_arts', origin: { region: 'East Asia', countries: ['CN'] }, cultural: 'attributed', evidence: 'C', verified: null,
+    name: 'Horse stance', nativeName: { text: '马步', romanised: 'mǎbù', lang: 'zh-Hans', alt: [{ text: '馬步', lang: 'zh-Hant' }, { text: '騎馬立ち', romanised: 'kiba-dachi', lang: 'ja' }] },
+    attribution: 'Foundation stance of Chinese martial arts (mǎbù); karate’s kiba-dachi is a close relative', family: 'stance', level: 1, category: 'strength', mode: 'hold',
+    muscles: { primary: ['quads', 'adductors'], secondary: ['glutes', 'calves', 'lower_back'] }, stress: ['knee'], difficulty: 3, planes: ['frontal'],
+    breath: { pattern: 'slow' }, stanceLevels: ['high', 'medium', 'low'], sources: [SRC.horseWiki, SRC.karateWiki, SRC.wushuWiki],
+    cues: ['Feet about two shoulder-widths apart, toes forward', 'Sink as if sitting on a horse; knees over your toes', 'Trunk upright, fists at your waist, breathe slowly'],
+    description: 'A still, wide squat hold. Start high and go lower over weeks, never holding your breath.' },
+];
+
+
+const RAW = [
   // ---- push_horizontal
   {
     id: 'wall_push_up',
@@ -1502,11 +1861,95 @@ export const EXERCISES = [
     cues: ['Fold forward, hands to floor', 'Walk hands out to a plank', 'Walk feet towards hands'],
     description: 'A full-body warm-up that stretches the hamstrings and wakes up the shoulders.',
   },
+  ...V12,
 ];
 
+// ---- flows: a flow's muscles, stress and impact are the union of its steps (world-movement.md §6.2)
+const RAW_BY_ID = Object.fromEntries(RAW.map(e => [e.id, e]));
+for (const ex of RAW) {
+  if (ex.mode !== 'flow') continue;
+  const prim = new Set(), sec = new Set(), stress = new Set();
+  let high = false;
+  for (const st of ex.sequence) {
+    const m = st.move && RAW_BY_ID[st.move];
+    if (!m) continue;
+    m.muscles.primary.forEach(x => prim.add(x));
+    m.muscles.secondary.forEach(x => sec.add(x));
+    (m.stress || []).forEach(x => stress.add(x));
+    if (m.impact === 'high') high = true;
+    st.stress = [...(m.stress || [])]; // copied onto the step so the planner can adapt a flow step by step
+    st.impact = m.impact;
+  }
+  if (!ex.muscles) ex.muscles = { primary: [...prim], secondary: [...sec].filter(x => !prim.has(x)) };
+  ex.stress = [...stress];
+  ex.impact = high ? 'high' : 'low';
+  if (!ex.estSec) ex.estSec = Math.round(flowSeconds(ex));
+}
+
+/** Every exercise, including hidden ones (unverified traditions, flow-only steps). For flow players and data tools. */
+export const ALL_EXERCISES = RAW;
+export const ALL_BY_ID = RAW_BY_ID;
+
+/**
+ * Can a user see this exercise on its own (library, plans, Quick, swaps)? Flow-only steps never; tradition items only
+ * once their tradition and the item are verified (or with ?preview=traditions). See js/data/traditions.js.
+ */
+export function isVisible(ex) { return !!ex && !ex.flowOnly && contentVisible(ex); }
+
+/** What users see. Gated at load: add ?preview=traditions to the URL to include unverified tradition items. */
+export const EXERCISES = RAW.filter(isVisible);
 export const byId = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
+/** Families with at least one visible exercise (drives filters and ladders). ALL_FAMILIES has every family. */
+export const ALL_FAMILIES = FAMILY_DEFS;
+export const FAMILIES = Object.fromEntries(Object.entries(FAMILY_DEFS).filter(([f]) => EXERCISES.some(e => e.family === f)));
 
 /** Exercises of one family, easiest first. */
 export function familyLadder(family) {
   return EXERCISES.filter(e => e.family === family).sort((a, b) => a.level - b.level);
 }
+
+/**
+ * Seconds for one pass of a flow. opts: { variant: 'full' | 'short' | ..., skip: [moveId], replace: { moveId: moveId },
+ * tempoScale }. A step lasts `sec` if given, else reps × secPerRep (× 2 when side: 'both'). Short variants scale reps
+ * (and explicit seconds) by `repsScale`, except steps with fixedReps.
+ */
+export function flowSeconds(ex, { variant = 'full', skip = [], tempoScale = 1 } = {}) {
+  if (!ex || !ex.sequence) return 0;
+  const scale = (ex.variants && ex.variants[variant] && ex.variants[variant].repsScale) || 1;
+  let t = 0;
+  for (const st of ex.sequence) {
+    if (st.move && skip.includes(st.move)) continue;
+    const s = st.fixedReps ? 1 : scale;
+    const tempo = st.move ? tempoScale : 1; // ready / closing pauses keep their length
+    if (st.sec) { t += st.sec * s * tempo; continue; }
+    const reps = st.fixedReps ? st.reps : Math.max(2, Math.round((st.reps || 1) * s));
+    const per = st.secPerRep || RAW_BY_ID[st.move]?.tempo?.secPerRep || 4;
+    t += reps * per * (st.side === 'both' ? 2 : 1) * tempo;
+  }
+  return t;
+}
+
+/**
+ * The steps of a flow resolved for a player: [{ ...step, exercise, reps, sec }]. Applies a flow item's adaptations
+ * (item.flow from the planner: { variant, skip, replace, tempoScale }).
+ */
+export function flowSteps(flowId, { variant = 'full', skip = [], replace = {}, tempoScale = 1 } = {}) {
+  const ex = RAW_BY_ID[flowId];
+  if (!ex || !ex.sequence) return [];
+  const scale = (ex.variants && ex.variants[variant] && ex.variants[variant].repsScale) || 1;
+  return ex.sequence.filter(st => !(st.move && skip.includes(st.move))).map(st => {
+    const move = st.move && replace[st.move] ? replace[st.move] : st.move;
+    const s = st.fixedReps ? 1 : scale;
+    const one = flowSeconds({ sequence: [{ ...st, move }], variants: ex.variants }, { variant, tempoScale });
+    return { ...st, move, exercise: move ? RAW_BY_ID[move] || null : null, reps: st.reps ? (st.fixedReps ? st.reps : Math.max(2, Math.round(st.reps * s))) : null, sec: Math.round(one) };
+  });
+}
+
+/** Equipment ids (docs/CONTRACTS.md), with a household substitute where one works. */
+export const EQUIPMENT = {
+  pullup_bar: { name: 'Pull-up bar' }, dip_bars: { name: 'Dip bars' }, rings: { name: 'Rings' }, parallettes: { name: 'Parallettes' },
+  resistance_band: { name: 'Resistance band' }, bench: { name: 'Sturdy chair / bench' }, table: { name: 'Sturdy table' }, wall: { name: 'Wall' },
+  club: { name: 'Club', substitute: 'A 0.5–1 L water bottle held by the neck' },
+  stick: { name: 'Stick', substitute: 'A broom handle, rolled towel or wooden spoon' },
+  hand_weights: { name: 'Hand weights', substitute: 'Two water bottles' },
+};
