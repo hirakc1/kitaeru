@@ -310,7 +310,7 @@ function rateHTML() {
   const l = log();
   const pain = l.pain;
   return `<div class="logger rate"><p class="label center" id="ratel">How did ${esc(ex().name)} feel?</p>
-    <div class="rate-row" role="group" aria-labelledby="ratel">${[['easy', 'Easy', '軽'], ['good', 'Good', '良'], ['hard', 'Hard', '重']].map(([v, t, k]) =>
+    <div class="rate-row" role="group" aria-labelledby="ratel">${[['easy', 'Easy', '軽'], ['good', 'Good', '中'], ['hard', 'Hard', '重']].map(([v, t, k]) =>
       `<button class="rate-btn" data-act="rate" data-val="${v}" aria-pressed="${l.rating === v}"><span class="rate-k" aria-hidden="true">${k}</span>${t}</button>`).join('')}</div>
     <div class="pain"><label for="pain" class="small">Any pain? <span class="muted">(optional)</span> <output data-pain-out>${pain == null ? 'none' : `${pain}/10`}</output></label>
       <input type="range" id="pain" min="0" max="10" step="1" value="${pain ?? 0}" data-pain aria-valuetext="${pain ?? 0} out of 10">

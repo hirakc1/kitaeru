@@ -13,7 +13,7 @@ export function render(root, ctx) {
     const s = getState(), p = s.profile, st = s.settings;
     root.innerHTML = `
     <div class="screen me">
-      <header class="screen-head"><p class="eyebrow">私 · Me</p><h1 class="title">${p?.name ? esc(p.name) : 'You'}</h1></header>
+      <header class="screen-head"><p class="eyebrow">自分 · Me</p><h1 class="title">${p?.name ? esc(p.name) : 'You'}</h1></header>
       ${p ? `<section class="card profile-card">
         <dl class="kv">
           <div><dt>Goals</dt><dd>${p.goals.map(g => (g === p.primaryGoal ? `<strong>${goalName(g)}</strong>` : goalName(g))).join(', ')}</dd></div>

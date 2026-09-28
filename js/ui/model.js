@@ -211,7 +211,7 @@ export function levelsFor(profile, oldLevels = {}, reset = false) {
 export const GOALS = [
   { id: 'strength', name: 'Strength', emoji: '力', desc: 'Get stronger in the big movement patterns.' },
   { id: 'muscle', name: 'Build muscle', emoji: '筋', desc: 'More volume for visible muscle growth.' },
-  { id: 'endurance', name: 'Endurance', emoji: '持', desc: 'Last longer, recover faster between efforts.' },
+  { id: 'endurance', name: 'Endurance', emoji: '耐', desc: 'Last longer, recover faster between efforts.' },
   { id: 'flexibility', name: 'Flexibility & mobility', emoji: '柔', desc: 'Move freely; deeper, pain-free ranges.' },
   { id: 'skill', name: 'Skills', emoji: '技', desc: 'Handstand, crow and other arm balances.' },
   { id: 'health', name: 'General health', emoji: '健', desc: 'Feel good, move daily, stay consistent.' },
