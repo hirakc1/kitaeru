@@ -219,11 +219,11 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
   transition: opacity .7s var(--ease); }
 .splash.out { opacity: 0; pointer-events: none; }
 .splash > * { animation: fadeUp .9s var(--ease) both; }
-.splash-seal { filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--accent) 35%, transparent)); animation: stampIn .8s var(--ease) both; margin-bottom: 24px; }
-.splash-name { font-family: var(--serif); font-size: 2.6rem; font-weight: 700; letter-spacing: .14em; margin: 0; animation-delay: .3s; }
-.splash-jp { font-family: var(--serif); color: var(--accent); letter-spacing: .18em; margin: 4px 0 0; animation-delay: .5s; }
-.splash-rule { width: 56px; height: 2px; background: var(--ink); opacity: .7; margin: 22px auto; border-radius: 2px; animation-delay: .7s; }
-.splash-line { font-family: var(--serif); color: var(--muted); max-width: 28ch; line-height: 1.6; margin: 0; animation-delay: .9s; animation-duration: 1s; }
+.splash-seal { filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--accent) 35%, transparent)); animation: stampIn .9s var(--ease) both; margin-bottom: 24px; }
+.splash-name { font-family: var(--serif); font-size: 2.6rem; font-weight: 700; letter-spacing: .14em; margin: 0; animation-delay: .45s; }
+.splash-jp { font-family: var(--serif); color: var(--accent); letter-spacing: .18em; margin: 4px 0 0; animation-delay: .75s; }
+.splash-rule { width: 56px; height: 2px; background: var(--ink); opacity: .7; margin: 22px auto; border-radius: 2px; animation-delay: 1.05s; }
+.splash-line { font-family: var(--serif); color: var(--muted); max-width: 28ch; line-height: 1.6; margin: 0; animation-delay: 1.3s; animation-duration: 1.2s; }
 
 /* ---------- welcome ---------- */
 .welcome { min-height: calc(100dvh - 60px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 32px 0; }
@@ -342,7 +342,7 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .forge-lines { list-style: none; padding: 0; margin: 28px 0 0; font-family: var(--serif); color: var(--muted); }
 .forge-lines li { opacity: 0; animation: lineIn .5s var(--ease) forwards; margin: 6px 0; }
 .forge-lines li:nth-child(1) { animation-delay: .5s; }
-.forge-lines li:nth-child(2) { animation-delay: .7s; }
+.forge-lines li:nth-child(2) { animation-delay: 1.05s; }
 .forge-lines li:nth-child(3) { animation-delay: 1.6s; }
 @keyframes lineIn { from { opacity: 0; transform: translateY(6px); letter-spacing: .12em; } to { opacity: 1; transform: none; letter-spacing: .02em; } }
 

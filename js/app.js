@@ -86,7 +86,7 @@ function route() {
 
 // ---------- splash ----------
 // Shown on every launch over the first screen: seal, name, meaning, then a slow fade out. Tap to skip.
-const SPLASH_MS = 2800;
+const SPLASH_MS = 3600;
 function splash() {
   const el = document.createElement('div');
   el.className = 'splash'; el.setAttribute('aria-hidden', 'true');
