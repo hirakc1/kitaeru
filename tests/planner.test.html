@@ -433,7 +433,9 @@ let quickChecked = 0;
       if (reg && DRILL[reg].some(id => P.isAvailable(byId[id], eff))) ok(q.blocks[0].items.some(i => DRILL[reg].includes(i.exerciseId)), `${tag}: warm-up has no ${reg}-body drill (${q.blocks[0].items.map(i => i.exerciseId)})`);
     }
     const g = req.goal || 'health';
-    for (const it of main) if (it.reps && [...PUSH, ...PULL, 'squat', 'hinge'].includes(it.family) && !/Balance/.test(it.notes)) ok(it.reps.join() === RANGE[g].join(), `${tag}: ${it.exerciseId} reps ${it.reps} for ${g}`);
+    // v1.2: a goal-led muscle session (no area) works in 6-15 with a slow eccentric (research §1.1 allows 6-20)
+    const rng = g === 'muscle' && req.focus === 'full' && !req.muscles ? [6, 15] : RANGE[g];
+    for (const it of main) if (it.reps && [...PUSH, ...PULL, 'squat', 'hinge'].includes(it.family) && !/Balance/.test(it.notes)) ok(it.reps.join() === rng.join() || (rng !== RANGE[g] && it.reps.join() === RANGE[g].join()), `${tag}: ${it.exerciseId} reps ${it.reps} for ${g}`);
     ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${tag}: not deterministic`);
     return q;
   };
@@ -865,9 +867,8 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
   // Overlap limit (Jaccard of the content moves: everything outside warm-up and cool-down). At 5 min a goal has only 2-3 content moves,
   // so one shared move out of a union of 3 is exactly 1/3 and is tolerated (e.g. one supporting move); two shared moves give >= 1/2.
   const LIMIT = 0.34;
-  // strength, muscle and health keep the full-body patterns by design (research §1.1: the goal sets reps, sets and rest; the family
-  // level is the intensity), so these three pairs may share moves and must differ in dose instead.
-  const SAME_CONTENT = new Set(['health|muscle', 'health|strength', 'muscle|strength']);
+  // The same limit holds for strength / muscle / health: they train the same patterns, so at 5 min they may share one anchor move
+  // (1 of a union of 3 = 0.33), but muscle takes the next rung and accessories and health is a mix, so they must not share two.
   const jac = (a, b) => { const A = new Set(a), B = new Set(b), u = new Set([...A, ...B]); return u.size ? [...A].filter(x => B.has(x)).length / u.size : 0; };
   const SKILL_IDS = ['crow_pose', 'wall_handstand', 'freestanding_handstand', 'l_sit', 'hollow_body_hold', 'taichi_golden_rooster'];
   const balanceItem = (it, b) => { const ex = byId[it.exerciseId]; return b.kind === 'balance' || ex.category === 'balance' || ex.family === 'flow_taichi' || it.exerciseId === 'taichi_short_flow'
@@ -896,6 +897,21 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
       ok(its.every(i => byId[i.exerciseId] && P.isAvailable(byId[i.exerciseId], eff)), `${T}: unavailable ${its.filter(i => !P.isAvailable(byId[i.exerciseId], eff)).map(i => i.exerciseId)}`);
       ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${T}: deterministic`);
       const has = ids => ids.some(id => byId[id] && P.isAvailable(byId[id], eff));
+      if (goal === 'muscle') {
+        ok(main.some(i => /Lower for 3 s/.test(i.notes)), `${T}: no slow-eccentric note (${main.map(i => i.exerciseId)})`);
+        if (minutes >= 15 && main.length >= 2) ok(main.some(i => i.superset != null), `${T}: no supersets`);
+      }
+      if (goal === 'health' && minutes >= 15) {
+        const fam = i => byId[i.exerciseId].family;
+        const need = [['push or pull', i => [...PUSH, ...PULL].includes(fam(i))], ['lower body', i => ['squat', 'hinge'].includes(fam(i))],
+          ['balance / anti-rotation', i => ['anti_rotation', 'core_lateral'].includes(fam(i)) || (byId[i.exerciseId].unilateral && ['squat', 'hinge'].includes(fam(i)))],
+          ['mobility / rotation drill', i => fam(i) === 'mobility' || (fam(i) === 'rotation' && byId[i.exerciseId].level <= 3)], ['cardio', i => fam(i) === 'conditioning']];
+        const possible = need.filter(([, f]) => EXERCISES.some(e => P.isAvailable(e, eff) && f({ exerciseId: e.id })));
+        // 55+: the longer warm-up and cool-down (research §4) leave room for most, not all, of the mix at 15-20 min
+        const hits = possible.filter(([, f]) => content.some(f)).length;
+        ok(eff.age >= 55 && minutes <= 20 ? hits >= Math.min(3, possible.length) : hits === possible.length,
+          `${T}: health mix has only ${possible.filter(([, f]) => content.some(f)).map(([w]) => w)} (${content.map(i => i.exerciseId)})`);
+      }
       if (goal === 'balance') {
         const balOk = q.blocks.some(b => b.kind !== 'warmup' && b.kind !== 'cooldown' && b.items.some(i => balanceItem(i, b)));
         ok(balOk, `${T}: no balance or single-leg item (${content.map(i => i.exerciseId)})`);
@@ -932,14 +948,14 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
     if (!overlap || ![5, 10, 15, 20].includes(minutes)) continue;
     for (let i = 0; i < GOALS.length; i++) for (let k = i + 1; k < GOALS.length; k++) {
       const [a, b] = [GOALS[i], GOALS[k]].sort();
-      if (SAME_CONTENT.has(`${a}|${b}`) || !qs[a] || !qs[b]) continue;
+      if (!qs[a] || !qs[b]) continue;
       const j = jac(contentOf(qs[a]).map(x => x.exerciseId), contentOf(qs[b]).map(x => x.exerciseId));
       ok(j <= LIMIT, `goal overlap ${minutes}m ${pname} ${a}/${b}: Jaccard ${j.toFixed(2)} (${contentOf(qs[a]).map(x => x.exerciseId)} | ${contentOf(qs[b]).map(x => x.exerciseId)})`);
     }
   }
   // the founder's reproduction: the four goals no longer give the same 5-min session
-  const five = ['balance', 'skill', 'strength', 'flexibility'].map(g => contentOf(P.generateQuickSession({ minutes: 5, goal: g }, null, null, EXERCISES)).map(i => i.exerciseId).join());
-  ok(new Set(five).size === 4, `5 min balance/skill/strength/flexibility differ (${five.join(' | ')})`);
+  const five = ['balance', 'skill', 'strength', 'flexibility', 'muscle', 'health', 'endurance'].map(g => contentOf(P.generateQuickSession({ minutes: 5, goal: g }, null, null, EXERCISES)).map(i => i.exerciseId).join());
+  ok(new Set(five).size === 7, `5 min: every goal differs (${five.join(' | ')})`);
   // body-area and muscle targeting are untouched: an area wins over the goal
   const up = P.generateQuickSession({ minutes: 20, goal: 'balance', focus: 'upper', date: '2026-09-28' }, null, null, EXERCISES);
   ok(up.name === '20-min Upper body · Balance' && !up.blocks.some(b => b.kind === 'balance') && contentOf(up).some(i => PUSH.includes(i.family)), `area wins over the goal (${up.name})`);

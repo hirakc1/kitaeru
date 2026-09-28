@@ -1016,7 +1016,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   // --- balance (§4): 40-54 one item on 2 sessions/week, 55-64 >= 2 min, 65+ >= 3 min in every session
   const bal = D.B.balance;
   let balanceSec = 0;
-  if (Q && (Q.noBalance || Q.pool)) { /* mobility-only or pool quick session */ }
+  if (Q && (Q.noBalance || Q.pool || Q.noAgeBalance)) { /* mobility-only, pool or muscle quick session */ }
   else if (bal === 'two' && tpl.kind === 'hard' && tpl.focus.includes('legs') && ctx.balanceSessions < 2) balanceSec = 90;
   else if (typeof bal === 'number') balanceSec = bal;
   // world-movement §4.6.1: a 5-10 min balance block (55+ or the balance goal) on chosen sessions replaces the in-main item there
@@ -1133,6 +1133,8 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
     used.add(ex.id);
     const pt = makePart(ex, role, ctx, sess, pri, tier === 1, order++, tier);
     if (curSlot && curSlot.hold && pt.item.holdSec) pt.item.holdSec = curSlot.hold;
+    if (curSlot && curSlot.reps && pt.item.reps) pt.item.reps = curSlot.reps;
+    if (curSlot && curSlot.minSets) pt.min = Math.min(pt.min, curSlot.minSets);
     if (curSlot && curSlot.note) pt.item.notes = [pt.item.notes, curSlot.note].filter(Boolean).join(' ');
     if (curSlot && curSlot.maxSets) { pt.max = Math.min(pt.max, curSlot.maxSets); pt.base = Math.min(pt.base, pt.max); pt.min = Math.min(pt.min, pt.max); pt.hardMax = curSlot.maxSets; }
     if (tpl.targeted && pt.max >= 3) { pt.base = Math.max(pt.base, 3); pt.min = Math.min(pt.min, 2); } // targeted days: breadth at 2 sets, then ~3 each
@@ -1909,6 +1911,9 @@ function quickTemplate(focus, muscles, ctx, seed, minutes) {
 // strength, muscle and health keep the full-body patterns (research §1.1: the goal sets reps, sets and rest).
 // ---------------------------------------------------------------------------------------------
 const GOAL_QUICK_LABEL = { balance: 'Balance', skill: 'Skill practice', flexibility: 'Flexibility', endurance: 'Endurance circuit' };
+// goals with their own content; strength keeps the default full-body template (muscle and health keep "Full body · X" names)
+const GOAL_LED = [...Object.keys(GOAL_QUICK_LABEL), 'muscle', 'health'];
+const TEMPO_NOTE = 'Lower for 3 s, full range.';
 const SKILL_HOLD = { wall_handstand: [15, 45], freestanding_handstand: [5, 20], crow_pose: [5, 20], l_sit: [5, 15], hollow_body_hold: [15, 30], taichi_golden_rooster: [5, 15] };
 // when no handbalance is possible (wrist, shoulder, neck ...): other skill holds, then a one-leg balance skill
 const SKILL_ALT = ['l_sit', 'hollow_body_hold', 'taichi_golden_rooster'];
@@ -1923,7 +1928,50 @@ function goalTemplate(goal, ctx, seed, minutes, quick) {
   const T = (fams, role, tier, extra = {}) => S(fams, role, tier <= 2, { tier, ...extra });
   const pick = ids => ids.map(id => ctx.byId[id]).find(e => e && ctx.isAvail(e)) || null;
   const secs = minutes * 60;
+  // the next rung up the user's ladder (at most ~one level), for hypertrophy: harder or longer-range variants
+  const up = fams => {
+    for (const f of fams) {
+      const av = ctx.avail[f];
+      if (!av.length) continue;
+      const lvl = ctx.levelsEx[f]?.level ?? av[0].level;
+      const c = av.filter(e => e.level > lvl && e.level <= lvl + 2);
+      if (c.length) return nearest(c, lvl + 1);
+    }
+    return null;
+  };
   switch (goal) {
+    case 'muscle': { // research §1.1 muscle: 6-20 reps near failure, 3-4 sets; harder variants, slow eccentrics, accessories, supersets
+      const tempo = { note: TEMPO_NOTE, reps: [6, 15] }; // 6-15: the efficient middle of the 6-20 range, so a short session fits more sets
+      quick.noAgeBalance = true; // a one-off hypertrophy session: the 40+ balance item belongs to the plan's other sessions
+      // breadth first (2 sets each), then up to 3-4 sets: several exercises per muscle suit hypertrophy better than one long lift
+      return { kind: 'hard', name: '', focus: ['push', 'pull', 'legs', 'core'], targeted: true, ...(minutes >= 15 ? { fmt: 'superset' } : {}), slots: [
+        T(['push_horizontal'], 'main', 1, { prefer: up(['push_horizontal']), ...tempo }),
+        T(['pull_vertical', ...HPULL], 'main', 1, { prefer: up(['pull_vertical']) || up(HPULL), ...tempo }),
+        T(['squat'], 'main', 1, { prefer: pick(['bulgarian_split_squat']) || up(['squat']), ...tempo }),
+        T(['hinge'], 'main', 2, { prefer: pick(['hip_thrust']) || up(['hinge']), reps: [6, 15] }),
+        T(['dip', 'push_vertical'], 'main', 2, { prefer: pick(['ring_dip', 'bar_dip', 'bench_dip']) || up(['push_vertical']), ...tempo }),
+        T(HPULL, 'main', 2, { prefer: up(HPULL), ...tempo }),
+        T(['calves'], 'acc', 3, { prefer: up(['calves']) }), T(['core_anterior'], 'core', 3, { prefer: up(['core_anterior']) })] };
+    }
+    case 'health': { // research §1.1 / §1.3 health: a bit of everything at an easy-to-moderate dose
+      const odd = seed % 2;
+      const drills = rotate(['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'worlds_greatest_stretch', 'cat_cow'].map(id => ctx.byId[id])
+        .filter(e => e && ctx.isAvail(e) && (e.family !== 'rotation' || e.level <= 3)), seed);
+      const cav = ctx.avail.conditioning, clvl = ctx.levelsEx.conditioning?.level ?? 2;
+      const cardio = nearest(cav.filter(e => e.level <= clvl), clvl) || nearest(cav, 1);
+      quick.warmAvoid = new Set([drills[0]?.id, cardio?.id].filter(Boolean));
+      if (minutes < 30) quick.cond = 0;
+      const pp = odd ? ['push_horizontal', ...HPULL] : [...HPULL, 'push_horizontal'], lower = odd ? [['hinge'], ['squat']] : [['squat'], ['hinge']];
+      const steady = ctx.avail.anti_rotation.length || ctx.avail.core_lateral.length;
+      const two = { maxSets: 2, minSets: 1 }, three = { maxSets: 3, minSets: 1 }; // research §1.1 health: 1-3 sets
+      // breadth first (one of each, then sets): lower body, push or pull, a balance / anti-rotation item, a mobility drill, easy cardio
+      return { kind: 'hard', name: '', focus: ['push', 'pull', 'legs', 'core'], targeted: true, slots: [
+        T(lower[0], 'main', 1, three), T(pp, 'main', 1, three),
+        steady ? T(['anti_rotation', 'core_lateral'], 'core', 1, two) : T(['hinge', 'squat'], 'main', 1, { variant: true, unilateral: true, ...two }),
+        ...(drills[0] ? [T([drills[0].family], 'core', 1, { fixed: drills[0], ...two })] : []),
+        ...(cardio ? [T(['conditioning'], 'main', 1, { fixed: cardio, hold: [30, 45], reps: [20, 30], ...two })] : []),
+        T([...pp.slice(HPULL.includes(pp[0]) ? HPULL.length : 1)], 'main', 3, two), T(lower[1], 'main', 3, two), T(['calves'], 'acc', 3, two)] };
+    }
     case 'balance': { // world-movement §4.6.1: a balance block (Tai Chi and the one-leg hold when visible), then single-leg strength, slowly
       quick.balance = minutes <= 5 ? 150 : Math.max(150, Math.round(0.35 * secs)); // at 5 min the block is the session: single sets of two holds
       if (minutes > 10) quick.cool = Math.round(Math.min(0.15 * secs, 300));
@@ -2153,7 +2201,7 @@ export function generateQuickSession(request = {}, profile = null, levels = null
 
   const gq = {}; // what a content-led goal sets (applied last, over the generic Quick timing)
   // "Train for a goal" (no area, no muscles): content-led goals choose the main block themselves
-  const goalLed = focus === 'full' && !muscles.length && GOAL_QUICK_LABEL[goal] ? goal : null;
+  const goalLed = focus === 'full' && !muscles.length && GOAL_LED.includes(goal) ? goal : null;
   const pool = pooled ? poolTemplate(filter, ctx, seed, minutes, gq, library) : null;
   let tpl = pool ? pool.tpl : goalLed ? goalTemplate(goal, ctx, seed, minutes, gq) : quickTemplate(focus, muscles, ctx, seed, minutes);
   if (!tpl) { // nothing trains those muscles here: fall back to the body region
@@ -2210,7 +2258,7 @@ export function generateQuickSession(request = {}, profile = null, levels = null
     if (!pool.items.length) sess.note = `None of the ${label} moves suit you right now (kit, space or injuries), so this is a related session instead.`;
     else if (added || longCool) sess.note = (typeof pool.fill.note === 'function' ? pool.fill.note(pool.flows) : pool.fill.note) || `There isn’t enough ${label} to fill ${minutes} minutes, so we’ve added related work around it.`;
     sess.name = `${minutes}-min ${label}`;
-  } else sess.name = goalLed ? `${minutes}-min ${GOAL_QUICK_LABEL[goalLed]}` : quickName(minutes, focus === 'muscles' ? 'muscles' : focus, focus === 'muscles' ? muscles : [], goal, goalGiven);
+  } else sess.name = GOAL_QUICK_LABEL[goalLed] ? `${minutes}-min ${GOAL_QUICK_LABEL[goalLed]}` : quickName(minutes, focus === 'muscles' ? 'muscles' : focus, focus === 'muscles' ? muscles : [], goal, goalGiven);
   if (focus === 'mobility') sess.focus = ['mobility'];
   if (goalLed === 'flexibility') {
     sess.focus = sess.blocks.some(b => b.kind === 'flow') ? ['mobility', 'flow'] : ['mobility'];
