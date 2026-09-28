@@ -143,7 +143,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   const st = { clip: null, cam: null, playing: playing && !reduce, visible: true, t0: 0, elapsed: 0, last: 0, raf: 0, fixedT: null,
     trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), avg: {}, trailPath: {}, order: '', ms: [],
     lod: size < 160 ? 1 : 0, n: 0, slow: false };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
-  if (st.lod) svg.classList.add('lod');
+  if (st.lod) { svg.classList.add('lod'); st.trail = st.breath = false; }   // no overlays on thumbnails
 
   // ---------- primitives ----------
   const LIGHT = [-.55, -.83];
@@ -599,7 +599,8 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     setAnim(id, p, s) { st.fixedT = null; setAnim(id, p, s); kick(); },
     destroy() { api.pause(); if (io) io.disconnect(); svg.remove(); },
     seek(t) { st.fixedT = t; draw(); },
-    setTrail(on) { st.trail = on; trailPaths(); draw(); }, setBreath(on) { st.breath = on; draw(); },
+    setTrail(on) { on = !!on && !st.lod; if (on !== st.trail) { st.trail = on; trailPaths(); draw(); } },
+    setBreath(on) { on = !!on && !st.lod; if (on !== st.breath) { st.breath = on; draw(); } },
     stats() { const a = st.ms.slice().sort((x, y) => x - y); return { median: a[a.length >> 1] || 0, p95: a[Math.floor(a.length * .95)] || 0, n: a.length }; },
     get skeleton() { return st.S; }, get cam() { return st.cam; },
     svg,

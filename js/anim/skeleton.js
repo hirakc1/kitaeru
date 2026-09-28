@@ -763,8 +763,9 @@ export function createV1Player(container, animId, { primary = [], secondary = []
 // Same contract as before. setAnim() swaps renderer in place when crossing v1 <-> v2. ?anim=v1 forces v1 (A/B review).
 const FORCE_V1 = typeof location !== 'undefined' && /[?&]anim=v1(&|$)/.test(location.search);
 export const isV2 = id => !FORCE_V1 && V2_IDS.has(id);
+// opts.breath / opts.trail (default off): v2 breath ring and motion trail; v1 ignores both
 export function createSkeletonPlayer(container, animId, opts = {}) {
-  const o = { primary: [], secondary: [], size: 280, playing: true, ...opts };
+  const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, ...opts };
   let p = null, v2 = null;
   function load(id, prim, sec) {
     if (prim) o.primary = prim; if (sec) o.secondary = sec;
@@ -782,6 +783,8 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
     setAnim(id, prim, sec) { load(id, prim, sec); },
     destroy() { p.destroy(); },
     seek(t) { p.seek(t); },
+    setBreath(on) { o.breath = !!on; p.setBreath?.(o.breath); },
+    setTrail(on) { o.trail = !!on; p.setTrail?.(o.trail); },
     get svg() { return p.svg; },
     get renderer() { return v2 ? 'v2' : 'v1'; },
   };

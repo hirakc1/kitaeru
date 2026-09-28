@@ -15,7 +15,7 @@ function rawDel(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } 
 export function defaultState() {
   return {
     version: VERSION, profile: null, levels: {}, plan: null, logs: [], bodyweights: [],
-    settings: { units: 'metric', sound: true, theme: 'auto' },
+    settings: { units: 'metric', sound: true, theme: 'auto', animBreath: true, animTrail: true },   // anim*: v2 animation extras
   };
 }
 
