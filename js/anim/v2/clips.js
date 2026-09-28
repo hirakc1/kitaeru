@@ -337,7 +337,7 @@ const superman = (() => {
 const BAR_Y = 226;
 function hang(f) {
   const c = {
-    cam: { az: 24, el: 4 }, floor: false, bar: { y: BAR_Y, w: 52 }, trail: ['chin'], still: .1,
+    cam: { az: 24, el: 6 }, floor: true, bar: { y: BAR_Y, w: 52, posts: 'down' }, trail: ['chin'], still: .1,   // free-standing frame
     lag: .15, headLag: .3, shift: .3, shiftRoll: .5, gz: 25,
     arms: { both: { mode: 'ik', grip: 'bar', pole: [.35, -.25, 1], target: (sd, s) => [0, BAR_Y, c.gz * s] } },
     balance: () => 0,

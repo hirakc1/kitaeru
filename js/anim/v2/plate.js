@@ -444,7 +444,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const cx = (x0 + x1) / 2, cz = S.com[2], hw = Math.max(18, (x1 - x0) / 2 + 6);
     const at = splat(cam, [cx, 0, cz], [[hw, 0, 0], [0, .01, 0], [0, 0, 20]]);
     at.fill = `url(#${SHD})`; g.add('ellipse', at, '');
-    const zN = 34, zF = -34, xa = vb[0] - 20, xb = vb[0] + vb[2] + 20;
+    const zN = Math.max(34, (st.clip.floorZ || 0), (st.clip.bar?.w ?? 0) + 12), zF = -zN, xa = vb[0] - 20, xb = vb[0] + vb[2] + 20;
     const q = [[xa, 0, zF], [xb, 0, zF], [xb, 0, zN], [xa, 0, zN]].map(cam.pr);
     g.add('path', { d: `M${PT(q[0])}L${PT(q[1])}L${PT(q[2])}L${PT(q[3])}Z` }, 'pl-mat');
     g.add('line', { x1: f2(q[3][0]), x2: f2(q[2][0]), y1: f2(q[3][1]), y2: f2(q[2][1]) }, 'pl-fl');
@@ -464,6 +464,10 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
       const q = line([x, b.y, z], [x, b.posts === 'down' ? 0 : b.y + 16, z], 4);   // low bar: uprights to the floor
       const p = tube(cam, q, q.map(() => [1, 0, 0]), q.map(() => 1.3), q.map(() => [0, 0, 1]), q.map(() => 1.3));
       G[grp].add('path', { d: tubeD(p) }, 'pl-pr');
+      if (b.posts === 'down') {                    // floor-standing frame: a foot under each upright
+        const f = line([x - 26, 1.2, z], [x + 26, 1.2, z], 4);
+        G[grp].add('path', { d: tubeD(tube(cam, f, f.map(() => [0, 1, 0]), f.map(() => 1.2), f.map(() => [0, 0, 1]), f.map(() => 1.4))) }, 'pl-pr');
+      }
     }
   }
   function drawOverlay(S, cam, tn) {
@@ -562,7 +566,10 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const T = K.period(clip);
     for (let i = 0; i < 16; i++) { const S = K.poseAt(clip, i / 16 * T); for (const n in S.pt) inc(cam.pr(S.pt[n]), 4); inc(cam.pr(K.P(S.F.head, [1, 17, 0])), 3); }
     const b = clip.bar;
-    if (b) for (const z of [-b.w - 5, b.w + 5]) { inc(cam.pr([b.x || 0, b.y, z]), 3); inc(cam.pr([b.x || 0, b.posts === 'down' ? 0 : b.y + 16, z]), 2); }
+    if (b) for (const z of [-b.w - 5, b.w + 5]) {
+      inc(cam.pr([b.x || 0, b.y, z]), 3); inc(cam.pr([b.x || 0, b.posts === 'down' ? 0 : b.y + 16, z]), 2);
+      if (b.posts === 'down') for (const dx of [-26, 26]) inc(cam.pr([(b.x || 0) + dx, 0, z]), 2);
+    }
     if (clip.floor) inc(cam.pr([0, 0, 0]), st.lod ? 2 : 5);
     const pad = st.lod ? 2 : 8; x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
     let w = x1 - x0, h = y1 - y0;
