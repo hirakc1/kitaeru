@@ -56,6 +56,48 @@ export function handShape(fingers = 0, grip = 'free') {
   return { segs, blobs: [[[.2, 1.4, .2], [1.1, 1.7, 2.7]]] };
 }
 
+// Plate (A) hand art pass: every bone as its own tapered tube with joint gaps, so the hand reads as a hand at any angle.
+// Returns [{ c: [p0, p1, p2], r: [r0, r1, r2] }] in hand-local space (x palmar, y distal, z thumb side).
+// Carpus = a rounded block; metacarpals fan from it; fingers curl by `fingers` degrees (share .42/.33/.25 per joint);
+// the thumb leaves the palm plane at the trapezium and opposes around a bar, lies flat on the floor, or rests curled.
+const MC = { base: [[.2, 2.5, 1.7], [.2, 2.7, .55], [.2, 2.6, -.55], [.2, 2.4, -1.6]], head: [[0, 9.3, 2.3], [0, 9.7, .75], [0, 9.2, -.8], [0, 8.4, -2.2]] };
+const PH = [[3.9, 2.3, 1.7], [4.4, 2.8, 1.9], [4.1, 2.6, 1.8], [3.2, 1.9, 1.6]];
+const PR = [[.44, .36], [.36, .3], [.3, .2]];
+export function handBones(fingers = 0, grip = 'free') {
+  const out = [], gap = .18, sh = [.42, .33, .25];
+  const seg = (a, b, r0, r1) => { const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L = Math.hypot(...d), k = gap / L;
+    const p = [a[0] + d[0] * k, a[1] + d[1] * k, a[2] + d[2] * k], q = [b[0] - d[0] * k, b[1] - d[1] * k, b[2] - d[2] * k];
+    out.push({ c: [p, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2], q], r: [r0, (r0 + r1) / 2 * .85, r1] }); };
+  out.push({ c: [[.1, .1, .3], [.2, 1.3, .3], [.2, 2.4, .1]], r: [1.3, 2.3, 2.15], carpus: 1 });
+  for (let i = 0; i < 4; i++) {
+    const a = MC.base[i], h = MC.head[i];
+    seg(a, h, .46, .5);
+    let p = h, ang = 0;
+    const spread = (h[2] - a[2]) / 7 * .5;
+    for (let j = 0; j < 3; j++) {
+      ang += fingers * sh[j] * DEG;
+      const d = [Math.sin(ang), Math.cos(ang), spread * Math.cos(ang)], l = PH[i][j];
+      const q = [p[0] + d[0] * l, p[1] + d[1] * l, p[2] + d[2] * l];
+      seg(p, q, PR[j][0] - i * .02, PR[j][1] - i * .02); p = q;
+    }
+  }
+  // thumb: CMC at the trapezium; metacarpal 4.4, phalanges 3.0 / 2.3
+  const bar = grip === 'bar', flat = grip === 'palm';
+  let p = [.6, 1.9, 2.1], d = bar ? [.66, .66, .2] : flat ? [-.04, .62, .78] : [.55, .8, .24];
+  const curl = bar ? 32 : flat ? 0 : 8 + fingers * .35;
+  const n0 = Math.hypot(...d); d = d.map(v => v / n0);
+  const lens = [4.4, 3.0, 2.3], rad = [[.5, .46], [.42, .34], [.34, .22]];
+  for (let j = 0; j < 3; j++) {
+    const q = [p[0] + d[0] * lens[j], p[1] + d[1] * lens[j], p[2] + d[2] * lens[j]];
+    seg(p, q, rad[j][0], rad[j][1]); p = q;
+    const a = curl * DEG, c = Math.cos(a), s = Math.sin(a);
+    // bar: wraps up the front of the bar towards the fingers; otherwise flexes towards the palm and the index
+    d = bar ? [d[0] * c - d[1] * s, d[0] * s + d[1] * c, d[2] * c] : [d[0] + s * .55, d[1] * c - s * .15, d[2] * c - s * .45];
+    const n = Math.hypot(...d); d = d.map(v => v / n);
+  }
+  return out;
+}
+
 // foot (x along the foot, y up, z lateral); toes returned separately (relative to the ball) so they can stay flat
 export function footShape() {
   const segs = [], toes = [];
@@ -93,7 +135,26 @@ export const SKULL = [
 ];
 export const SKULL_MAIN = SKULL[0];
 
-// pelvis (right side; x fwd, y up, z right) in pelvis space
+// pelvis (right side; x fwd, y up, z right) in pelvis space; hip joint centre at [0, 0, 9].
+// Plate (A) art pass: one os coxae outline traced through real landmarks (Harrington-scaled: ASIS 4.8 fwd / 8.4 up of the
+// hip centre, inter-ASIS 24, PSIS 15 behind the ASIS), obturator foramen cut out, cup facing out / forward / down.
+// The older ilium / ring / obturator / acetabulum shapes stay for the three.js renderer (B).
+export const COXA = {
+  outline: [
+    [4.8, 8.4, 12.2], [2.6, 11.4, 13.6], [.4, 13.1, 14.1], [-2.8, 14.3, 12.8], [-6.2, 13.6, 9.6], [-8.9, 11.9, 6.1],   // ASIS, crest, tubercle
+    [-9.8, 10.4, 4.5], [-9.5, 8.9, 4.2], [-9.3, 7.4, 4.3], [-8.3, 5.9, 5.1], [-6.9, 3.7, 6.2], [-6.1, 1.4, 6.1],       // PSIS, PIIS, sciatic notch
+    [-5.8, -1.1, 5.0], [-5.1, -2.6, 5.5], [-5.2, -4.4, 6.0], [-4.3, -6.7, 6.5], [-2.6, -8.1, 6.1], [-.3, -8.0, 4.8],  // spine, lesser notch, tuberosity
+    [2.2, -7.1, 2.6], [3.8, -6.1, 1.0], [4.6, -4.6, .6], [5.1, -2.5, .6], [5.4, -1.6, 2.0], [4.7, -.9, 3.6],         // ramus, symphysis, tubercle
+    [3.9, .2, 5.6], [3.6, 1.6, 7.6], [4.7, 3.4, 9.6], [5.2, 4.8, 10.5], [4.3, 6.3, 11.1], [4.8, 7.4, 11.8],          // pecten, eminence, AIIS, notch
+  ],
+  foramen: [[4.1, -2.3, 3.6], [3.8, -4.3, 3.1], [2.4, -6.1, 3.7], [.6, -6.2, 5.2], [-.8, -4.4, 6.4], [-.4, -2.5, 6.6], [1.5, -1.7, 5.6]],
+  fossa: [[3.4, 9.2, 11.0], [1.2, 5.4, 9.2], [-3.6, 6.0, 7.0], [-6.8, 9.6, 5.8], [-4.4, 12.9, 10.2], [.8, 12.4, 12.4]],
+  crest: [[4.8, 8.4, 12.2], [2.6, 11.4, 13.6], [.4, 13.1, 14.1], [-2.8, 14.3, 12.8], [-6.2, 13.6, 9.6], [-8.9, 11.9, 6.1], [-9.8, 10.4, 4.5]],
+  brim: [[-8.6, 6.8, 3.8], [-5.2, 3.8, 5.0], [-1.6, 1.8, 6.2], [2.2, .8, 5.6], [4.4, -.6, 3.4], [5.3, -1.5, 1.6]],    // arcuate line + pecten
+  acet: { c: [.9, -.2, 10.5], n: [.42, -.52, 1], r: 2.9 },
+  tuber: { c: [-3.7, -6.9, 6.3], r: [1.4, 2.3, 1.1] },
+  coccyx: [[-7.6, -4.6, 0, .55, .7], [-6.9, -5.8, 0, .45, .55], [-6.0, -6.8, 0, .35, .4], [-5.1, -7.4, 0, .22, .25]],
+};
 export const PELVIS = {
   ilium: [[6, 9.6, 11.6], [5.4, 5, 10.2], [2, 2.6, 10.4], [-2.2, 3.2, 8], [-5.4, 4.6, 6.2], [-8.2, 10, 4.6], [-7, 14.6, 8],
     [-2.4, 17.2, 12], [2.8, 15.4, 13.6], [5.8, 12, 12.6]],
