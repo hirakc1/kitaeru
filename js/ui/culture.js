@@ -3,6 +3,7 @@
 // Everything here respects the accuracy gate: a card only exists while its tradition has visible exercises.
 import { TRADITIONS, EXERCISES, traditionVisible } from './deps.js';
 import { esc, icon, openSheet, nativeNameHTML } from './components.js';
+import { makeButtonHTML, onMakeClick } from './maker.js';
 
 const EXPLAINER_FAMILIES = ['rotation', 'anti_rotation'];
 const TRAINS = [['strength', 'Strength'], ['mobility', 'Mobility'], ['balance', 'Balance'], ['breath', 'Breath'], ['coordination', 'Coordination']];
@@ -79,9 +80,10 @@ export function openCultureCard(id) {
   if (!cardVisible(id)) return null;
   const t = TRADITIONS[id];
   return openSheet({
-    title: t.name, cls: 'sheet-tall', html: cardHTML(id, { head: false }),
+    // "Make a workout" from this discipline first (hidden when nothing in its pool suits this user), then the card.
+    title: t.name, cls: 'sheet-tall', html: makeButtonHTML({ tradition: id }, { cls: 'mk-in-card' }) + cardHTML(id, { head: false }),
     // Native name first (script + romanisation), then English (world-movement.md §5.1.2).
     titleHTML: t.nativeName ? `${nativeNameHTML(t.nativeName, { cls: 'title-native' })}<span class="title-en">${esc(t.name)}</span>` : '',
-    onMount(el, close) { el.addEventListener('click', e => { if (e.target.closest('.cc-items a')) close(); }); },
+    onMount(el, close) { el.addEventListener('click', e => { if (onMakeClick(e)) return; if (e.target.closest('.cc-items a')) close(); }); },
   });
 }

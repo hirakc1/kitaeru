@@ -702,14 +702,18 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .cc-attr .label, .cc-sources .label { display: inline; font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 6px 0 0; }
 
 /* ---------- culture cards ---------- */
-.cc-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--gut)); padding: 2px var(--gut); }
-.cc-chip { flex: none; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 14px 8px 10px; border-radius: var(--r-sm); border: 1px solid var(--line-strong);
+/* The disciplines wrap into a grid: every one stays visible at 360 px and up (it used to scroll off-screen with no hint). */
+.cc-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.cc-chip { min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 14px 8px 10px; border-radius: var(--r-sm); border: 1px solid var(--line-strong);
   background: var(--surface); color: var(--ink); text-align: left; }
 .cc-chip:hover { border-color: var(--ink); }
 .cc-chip-native { min-width: 40px; justify-content: center; }
 .cc-chip-native .native { font-size: 1.15rem; color: var(--accent); }
-.cc-chip-text { display: flex; flex-direction: column; line-height: 1.25; }
+.cc-chip-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
 .cc-chip-name { font-weight: 650; font-size: .92rem; }
+.cc-row .cc-chip { gap: 8px; padding: 8px 10px 8px 8px; }
+.cc-row .cc-chip-native { min-width: 34px; }
+.cc-row .cc-chip-native .native { font-size: 1.05rem; }
 .cc-chip-explainer { border-style: dashed; }
 .cc-chip-mark { color: var(--muted); width: 40px; display: grid; place-items: center; }
 .culture { padding-bottom: 8px; }
@@ -815,3 +819,29 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- sideways-scrolling chip rows: a fade says there is more ---------- */
+.scroll-x { position: relative; }
+.scroll-x::after { content: ""; position: absolute; top: 0; bottom: 2px; right: calc(-1 * var(--gut)); width: 44px; pointer-events: none;
+  background: linear-gradient(to right, color-mix(in srgb, var(--bg) 0%, transparent), var(--bg) 85%); transition: opacity .2s; }
+.scroll-x.at-end::after { opacity: 0; }
+
+/* ---------- make a workout (Library pools; reusable sheet) ---------- */
+.mk-open { width: 100%; font: inherit; text-align: left; cursor: pointer; margin: 0; }
+.mk-open .opt-name { font-weight: 650; }
+.mk-open > .ico { color: var(--muted); flex: none; }
+.lib-make { margin: -4px 0 16px; }
+.mk-in-card { margin: 4px 0 18px; }
+.mk-eyebrow { display: block; font: 600 .72rem/1.3 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.mk-lead { margin: 0 0 12px; }
+.mk-times { margin-bottom: 14px; }
+.mk-sum { margin: 0 0 6px; }
+.mk-note { margin: 8px 0 10px; }
+.mk-list { list-style: none; padding: 0; margin: 0; }
+.mk-block { margin-top: 10px; }
+.mk-block-t { display: block; font-size: .74rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
+.mk-block ul { list-style: none; padding: 0; margin: 0; }
+.mk-item { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.mk-name { font-weight: 600; min-width: 0; }
+.mk-item .muted { text-align: right; flex: none; max-width: 55%; }
+.mk-cta { padding: 12px 0 calc(4px + var(--safe-b)); background: linear-gradient(to bottom, transparent, var(--surface) 30%); }

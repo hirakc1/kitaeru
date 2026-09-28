@@ -2,11 +2,10 @@
 import { EXERCISES, FAMILIES, MUSCLES, renderBodyMap, generateQuickSession, availableFlows } from './deps.js';
 import { getState, update, todayISO } from '../store.js';
 import { esc, icon, mountAnims, muscleName, toast } from './components.js';
-import { GOALS, sessionMinutes, startWorkout } from './model.js';
+import { GOALS, QUICK_MINUTES as MINUTES, sessionMinutes, startWorkout } from './model.js';
 import { sessionPreviewHTML } from './plan.js';
 import { EQUIP } from './onboarding.js';
 
-const MINUTES = [5, 10, 15, 20, 30, 45, 60];
 const QGOALS = GOALS.map(g => ({ ...g, name: g.id === 'flexibility' ? 'Flexibility' : g.id === 'skill' ? 'Skills' : g.id === 'health' ? 'General' : g.name }));
 const BASE_FOCUS = [['full', 'Full body'], ['upper', 'Upper'], ['lower', 'Lower'], ['core', 'Core'], ['push', 'Push'], ['pull', 'Pull'], ['legs', 'Legs'], ['mobility', 'Mobility']];
 /**

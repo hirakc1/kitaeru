@@ -7,7 +7,7 @@ const SHELL_FILES = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/store.js',
   './js/ui/deps.js', './js/ui/components.js', './js/ui/seal-paths.js', './js/ui/model.js', './js/ui/welcome.js', './js/ui/onboarding.js',
-  './js/ui/today.js', './js/ui/plan.js', './js/ui/workout.js', './js/ui/progress.js', './js/ui/library.js', './js/ui/me.js', './js/ui/quick.js', './js/ui/culture.js',
+  './js/ui/today.js', './js/ui/plan.js', './js/ui/workout.js', './js/ui/progress.js', './js/ui/library.js', './js/ui/me.js', './js/ui/quick.js', './js/ui/culture.js', './js/ui/maker.js',
   './js/data/muscles.js', './js/data/exercises.js', './js/data/traditions.js', './js/data/animated.js',
   './js/anim/skeleton.js', './js/anim/poses.js', './js/anim/bodymap.js',
   // v2 animation: ids.js loads at start; the rest is imported on first use but precached here for offline

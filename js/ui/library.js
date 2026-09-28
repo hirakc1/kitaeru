@@ -3,6 +3,7 @@ import { EXERCISES, FAMILIES, MUSCLES, byId, EQUIPMENT, TRADITIONS, flowSteps, c
 import { getState } from '../store.js';
 import { esc, icon, openSheet, mountAnims, muscleName, familyName, ladder, isAvailable, isProgression, reducedMotion, nativeNameHTML, fmtDur, stepName, stepCount } from './components.js';
 import { cardFor, cardChipHTML, visibleCards, openCultureCard, traditionName } from './culture.js';
+import { makeButtonHTML, onMakeClick } from './maker.js';
 
 // Categories that have visible exercises (v1.2 adds flow, balance and breath once their items are visible).
 const ALL_CATS = [['strength', 'Strength'], ['core', 'Core'], ['skill', 'Skill'], ['conditioning', 'Cardio'], ['mobility', 'Mobility'], ['warmup', 'Warm-up'],
@@ -49,8 +50,15 @@ function gridHTML() {
 const FAM_ORDER = Object.keys(FAMILIES);
 const PROG = e => isProgression(e.family);
 
+/** "Make a workout" for the current pool filter (category / tradition / pattern); nothing on All or an empty pool. */
+function makerHTML() {
+  return f.cat || f.tradition || f.family ? makeButtonHTML({ category: f.cat, tradition: f.tradition, family: f.family }, { cls: 'lib-make' }) : '';
+}
+
 function redrawGrid(root) {
   destroyGrid && destroyGrid();
+  const m = root.querySelector('[data-maker]');
+  if (m) m.innerHTML = makerHTML();
   const g = root.querySelector('[data-grid]');
   g.innerHTML = gridHTML();
   destroyGrid = mountAnims(g);
@@ -76,7 +84,7 @@ export function render(root, ctx) {
     <div class="lib-filters">
       <label class="search"><span class="sr-only">Search exercises</span>${icon('search', { size: 18 })}
         <input type="search" class="input" placeholder="Search push-up, glutes, hold…" value="${esc(f.q)}" data-f="q" autocomplete="off"></label>
-      <div class="chips chips-scroll" role="group" aria-label="Category">${CATS.map(([v, l]) => `<button type="button" class="chip" data-cat="${v}" aria-pressed="${f.cat === v}">${l}</button>`).join('')}</div>
+      <div class="scroll-x" data-scrollx><div class="chips chips-scroll" role="group" aria-label="Category">${CATS.map(([v, l]) => `<button type="button" class="chip" data-cat="${v}" aria-pressed="${f.cat === v}">${l}</button>`).join('')}</div></div>
       ${cardsRowHTML()}
       <div class="filter-row">
         <label class="select"><span class="sr-only">Muscle group</span><select data-f="muscle"><option value="">All muscles</option>${muscles.map(([id, m]) => `<option value="${id}" ${f.muscle === id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
@@ -86,9 +94,15 @@ export function render(root, ctx) {
       </div>
       <label class="switch-row switch-inline"><span class="small">Only what I can do with my kit</span><input type="checkbox" class="switch" data-f="mine" ${f.mine ? 'checked' : ''}></label>
     </div>
+    <div data-maker></div>
     <div data-grid></div>
   </div>`;
   redrawGrid(root);
+  // The category row scrolls sideways: a fade on the right says there is more until the end is reached.
+  const sx = root.querySelector('[data-scrollx]'), row = sx.firstElementChild;
+  const edge = () => sx.classList.toggle('at-end', row.scrollLeft + row.clientWidth >= row.scrollWidth - 4);
+  row.addEventListener('scroll', edge, { passive: true }); edge();
+  root.querySelector('[data-cat][aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 
   let t = 0;
   root.addEventListener('input', e => {
@@ -98,6 +112,7 @@ export function render(root, ctx) {
   });
   root.addEventListener('change', e => { if (e.target.tagName === 'SELECT' || e.target.type === 'checkbox') { const k = e.target.dataset.f; f[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; redrawGrid(root); } });
   root.addEventListener('click', e => {
+    if (onMakeClick(e)) return;
     const cc = e.target.closest('[data-culture]');
     if (cc) { openCultureCard(cc.dataset.culture); return; }
     const c = e.target.closest('[data-cat]'); if (!c) return;

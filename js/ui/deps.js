@@ -9,7 +9,7 @@ export { generateMorningTaiso, availableFlows, MORNING_TAISO_SESSION_ID } from '
 export { hasAnimation } from '../data/animated.js';
 export { createSkeletonPlayer } from '../anim/skeleton.js';
 export { renderBodyMap, bodyMapSVG } from '../anim/bodymap.js';
-export { initialLevels, generateWeek, applySessionLog, computeStreak, explainPlan, estimateMinutes, generateQuickSession } from '../engine/planner.js';
+export { initialLevels, generateWeek, applySessionLog, computeStreak, explainPlan, estimateMinutes, generateQuickSession, quickPoolIds } from '../engine/planner.js';
 
 // Optional (non-contract) helper: the planner's own availability rule, so the UI agrees with the plan.
 import * as planner from '../engine/planner.js';

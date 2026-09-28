@@ -180,7 +180,10 @@ export function mobilityFlow(profile = getState().profile) {
 
 export async function startWorkout(session, { weekIndex = getCurrentWeekIndex(), sessionId = session.id } = {}) {
   const existing = getActiveWorkout();
-  if (existing && existing.sessionId === sessionId && existing.date === toISO()) { location.hash = '#/workout'; return; }
+  // Resume today's session of the same id; a different Quick workout ('Q' with another request) is a new session.
+  const same = existing && existing.sessionId === sessionId && existing.date === toISO()
+    && (sessionId !== 'Q' || JSON.stringify(existing.session.request || null) === JSON.stringify(session.request || null));
+  if (same) { location.hash = '#/workout'; return; }
   if (existing && existing.logs.some(l => l.sets.length)) {
     const ok = await confirmSheet({ title: 'Replace workout in progress?', body: `You have sets logged in “${existing.session.name}”. Starting a new session discards them.`, ok: 'Start new', danger: true });
     if (!ok) return;
@@ -207,6 +210,9 @@ export function levelsFor(profile, oldLevels = {}, reset = false) {
   if (oldLevels && oldLevels.flowStages) kept.flowStages = oldLevels.flowStages; // v1.2 flow progress (stance, tempo) survives profile edits
   return { ...fresh, ...kept };
 }
+
+/** Session lengths offered by Quick and by "Make a workout" (the planner accepts 5..90). */
+export const QUICK_MINUTES = [5, 10, 15, 20, 30, 45, 60];
 
 export const GOALS = [
   { id: 'strength', name: 'Strength', emoji: '力', desc: 'Get stronger in the big movement patterns.' },
