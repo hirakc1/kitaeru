@@ -1,7 +1,7 @@
 // Me tab: profile, settings, data export/import/reset, about.
 import { getState, update, exportJSON, validateImport, replaceState, resetAll, todayISO } from '../store.js';
 import { esc, icon, seal, openSheet, confirmSheet, toast, downloadFile, fmtHeight, fmtWeight, DOW_SHORT, DOW_ORDER } from './components.js';
-import { goalName, levelsFor } from './model.js';
+import { goalName, levelsFor, morningTaisoAvailable } from './model.js';
 import { beginEdit, DISCLAIMER } from './onboarding.js';
 import { inviteHTML } from './plan.js';
 
@@ -29,6 +29,7 @@ export function render(root, ctx) {
         <div class="set-row"><span>Units</span>${seg('units', st.units, [['metric', 'Metric'], ['imperial', 'Imperial']])}</div>
         <div class="set-row"><span>Theme</span>${seg('theme', st.theme, [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}</div>
         <label class="set-row"><span>Sound & vibration<br><span class="small muted">Rest-timer beeps and haptics</span></span><input type="checkbox" class="switch" data-sound ${st.sound ? 'checked' : ''}></label>
+        ${morningTaisoAvailable() ? `<label class="set-row"><span>Morning Taisō<br><span class="small muted">A 3-minute routine on Today. Keeps your day streak going; doesn’t count towards your weekly sessions.</span></span><input type="checkbox" class="switch" data-taiso ${st.morningTaiso ? 'checked' : ''}></label>` : ''}
         <div class="set-row"><span class="small muted">Animation extras</span></div>
         <label class="set-row"><span>Breath guide<br><span class="small muted">Breathing ring on holds</span></span><input type="checkbox" class="switch" data-anim-set="animBreath" ${st.animBreath !== false ? 'checked' : ''}></label>
         <label class="set-row"><span>Motion trail<br><span class="small muted">Movement path in the library</span></span><input type="checkbox" class="switch" data-anim-set="animTrail" ${st.animTrail !== false ? 'checked' : ''}></label>
@@ -74,6 +75,7 @@ export function render(root, ctx) {
   });
   root.addEventListener('change', async e => {
     if (e.target.matches('[data-sound]')) { update(s => { s.settings.sound = e.target.checked; }); return; }
+    if (e.target.matches('[data-taiso]')) { update(s => { s.settings.morningTaiso = e.target.checked; }); toast(e.target.checked ? 'Morning Taisō is on your Today screen' : 'Morning Taisō switched off'); return; }
     if (e.target.matches('[data-anim-set]')) { const k = e.target.dataset.animSet; update(s => { s.settings[k] = e.target.checked; }); return; }
     if (e.target.matches('[data-import]')) {
       const file = e.target.files[0]; e.target.value = '';

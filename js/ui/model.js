@@ -1,5 +1,5 @@
 // Derived data shared by screens: the current week, today's session, streaks, workout bootstrapping.
-import { EXERCISES, byId, generateWeek, computeStreak, estimateMinutes, initialLevels, plannerStartDate } from './deps.js';
+import { EXERCISES, byId, generateWeek, computeStreak, estimateMinutes, initialLevels, plannerStartDate, generateMorningTaiso } from './deps.js';
 import { getState, getCurrentWeekIndex, toISO, fromISO, weekStart, addDays, saveActiveWorkout, getActiveWorkout } from '../store.js';
 import { isAvailable, confirmSheet } from './components.js';
 
@@ -42,8 +42,12 @@ export function displayWeekStart(date = new Date()) {
   return start && fromISO(start) > t ? fromISO(start) : t;
 }
 
+/** Light logs that are not training sessions: rest-day mobility and Morning Taisō (day streak only, v1.2). */
+export const NOT_A_SESSION = new Set(['M', 'T']);
+/** A training session log (not rest-day mobility, not Morning Taisō). */
+export const isTrainingLog = l => !NOT_A_SESSION.has(l.sessionId);
 /** True until the user has logged a real (non-mobility) session. */
-export const isFirstTimer = () => !getState().logs.some(l => l.sessionId !== 'M');
+export const isFirstTimer = () => !getState().logs.some(l => !NOT_A_SESSION.has(l.sessionId));
 
 /** Options every planner call shares: plan anchors from the store. */
 export function planOpts() {
@@ -90,7 +94,7 @@ export function weeklyTarget(profile = getState().profile) {
 /** Distinct training days logged in the current Mon–Sun week. */
 export function sessionsThisWeek(date = new Date()) {
   const start = toISO(weekStart(date)), end = toISO(addDays(weekStart(date), 6));
-  return new Set(getState().logs.filter(l => l.date >= start && l.date <= end && l.sessionId !== 'M').map(l => l.date)).size;
+  return new Set(getState().logs.filter(l => l.date >= start && l.date <= end && !NOT_A_SESSION.has(l.sessionId)).map(l => l.date)).size;
 }
 /** Freezes banked (max 2). Accepts a number or boolean from the planner. */
 export function freezesBanked(streak) {
@@ -112,7 +116,8 @@ export function weekDays(date = new Date()) {
     const session = iso < planStart ? null : sessionForDow(week, d.getDay());
     const logs = byDate.get(iso) || [];
     const beforePlan = iso < created;
-    return { date: d, iso, dow: d.getDay(), session, logs, done: logs.length > 0, isToday: iso === todayIso, isPast: iso < todayIso, beforePlan };
+    // Morning Taisō alone doesn't mark a day done: it keeps the day streak, not the planned session (v1.2).
+    return { date: d, iso, dow: d.getDay(), session, logs, done: logs.some(l => l.sessionId !== 'T'), taiso: logs.some(l => l.sessionId === 'T'), isToday: iso === todayIso, isPast: iso < todayIso, beforePlan };
   });
 }
 
@@ -120,6 +125,41 @@ export function sessionItems(session) {
   const out = [];
   (session.blocks || []).forEach((b, bi) => (b.items || []).forEach((it, ii) => out.push({ ...it, bi, ii, blockKind: b.kind, blockTitle: b.title })));
   return out;
+}
+
+/**
+ * v1.2 optional swaps (Session.options): replace the warm-up or cool-down with the option's block when the user has
+ * switched it on (settings.options[id]). Options only exist while their tradition is visible (planner rule).
+ */
+export function withOptions(session, prefs = getState().settings.options || {}) {
+  if (!session?.options?.length) return session;
+  const blocks = session.blocks.slice();
+  for (const o of session.options) {
+    if (!prefs[o.id]) continue;
+    const nb = { ...o.block, optionId: o.id };
+    const i = blocks.findIndex(b => b.kind === o.replaces);
+    if (i >= 0) blocks[i] = nb; else if (o.replaces === 'warmup') blocks.unshift(nb); else blocks.push(nb);
+  }
+  return { ...session, blocks };
+}
+/** Minutes for an option or a flow-only session: a flow's own length (its steps), otherwise the planner's estimate. */
+export function flowMinutes(blocks) {
+  const items = blocks.flatMap(b => b.items);
+  if (items.length && items.every(i => i.flow)) return Math.max(1, Math.round(items.reduce((a, i) => a + i.flow.estSec * i.sets + (i.sets - 1) * (i.restSec || 0), 0) / 60));
+  try { return Math.max(1, Math.round(estimateMinutes({ blocks }, EXERCISES))); } catch { return 0; }
+}
+export const optionMinutes = o => flowMinutes([o.block]);
+
+/** The optional Morning Taisō session (id 'T') when the setting is on and it is available (verified, suitable). */
+export function morningTaiso() {
+  const s = getState();
+  if (!s.settings.morningTaiso) return null;
+  try { return generateMorningTaiso(s.profile || null, s.profile ? s.levels : null, EXERCISES); } catch (e) { console.warn(e); return null; }
+}
+/** Can Morning Taisō be offered at all (for the settings toggle)? */
+export function morningTaisoAvailable() {
+  const s = getState();
+  try { return !!generateMorningTaiso(s.profile || null, s.profile ? s.levels : null, EXERCISES); } catch { return false; }
 }
 
 /** An optional rest-day mobility flow built from available mobility drills. */
@@ -146,7 +186,7 @@ export async function startWorkout(session, { weekIndex = getCurrentWeekIndex(),
     if (!ok) return;
   }
   const items = sessionItems(session).map(it => ({ ...it, origExerciseId: it.exerciseId, sets: Math.max(1, it.sets || 1) }));
-  const week = sessionId === 'M' || sessionId === 'Q' ? null : getWeek(weekIndex);
+  const week = ['M', 'Q', 'T'].includes(sessionId) ? null : getWeek(weekIndex);
   saveActiveWorkout({
     v: 1, session: { id: session.id, name: session.name, blocks: session.blocks, ...(session.request && { request: session.request }) }, sessionId, weekIndex,
     weekPhase: week?.phase || 'build', reentry: week?.meta?.reentry ?? null,
@@ -163,7 +203,8 @@ export function levelsFor(profile, oldLevels = {}, reset = false) {
   try { fresh = initialLevels(profile, EXERCISES) || {}; } catch (e) { if (e?.code !== 'AGE_UNDER_13') console.error(e); }
   if (reset) return fresh;
   const kept = {};
-  for (const [fam, id] of Object.entries(oldLevels || {})) if (byId[id] && isAvailable(byId[id], profile)) kept[fam] = id;
+  for (const [fam, id] of Object.entries(oldLevels || {})) if (typeof id === 'string' && byId[id] && isAvailable(byId[id], profile)) kept[fam] = id;
+  if (oldLevels && oldLevels.flowStages) kept.flowStages = oldLevels.flowStages; // v1.2 flow progress (stance, tempo) survives profile edits
   return { ...fresh, ...kept };
 }
 
@@ -174,5 +215,6 @@ export const GOALS = [
   { id: 'flexibility', name: 'Flexibility & mobility', emoji: '柔', desc: 'Move freely; deeper, pain-free ranges.' },
   { id: 'skill', name: 'Skills', emoji: '技', desc: 'Handstand, crow and other arm balances.' },
   { id: 'health', name: 'General health', emoji: '健', desc: 'Feel good, move daily, stay consistent.' },
+  { id: 'balance', name: 'Balance', emoji: '衡', desc: 'Steadier on your feet: single-leg work and slow, controlled moves.' },
 ];
 export const goalName = id => GOALS.find(g => g.id === id)?.name || id;

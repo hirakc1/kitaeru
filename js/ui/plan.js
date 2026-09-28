@@ -3,10 +3,29 @@ import { getState, getCurrentWeekIndex } from '../store.js';
 import { explainPlan } from './deps.js';
 import { esc, icon, openSheet, mountAnims, fmtTarget, exName, DOW_LONG, seal, fmtDate } from './components.js';
 import { todayISO } from '../store.js';
-import { getWeek, weekDays, sessionMinutes, startWorkout, sessionById, groupLabel } from './model.js';
+import { getWeek, weekDays, sessionMinutes, startWorkout, sessionById, groupLabel, withOptions, optionMinutes } from './model.js';
 import { beginEdit } from './onboarding.js';
+import { update } from '../store.js';
 
-const KIND_LABEL = { warmup: 'Warm-up', skill: 'Skill', main: 'Main', conditioning: 'Conditioning', mobility: 'Mobility', cooldown: 'Cool-down' };
+const KIND_LABEL = { warmup: 'Warm-up', skill: 'Skill', main: 'Main', conditioning: 'Conditioning', mobility: 'Mobility', cooldown: 'Cool-down', balance: 'Balance', flow: 'Flow' };
+
+/** v1.2 optional warm-up / cool-down swaps as switches. Empty when the session has none (tradition gated). */
+export function optionsHTML(session) {
+  const opts = session?.options || [];
+  if (!opts.length) return '';
+  const on = getState().settings.options || {};
+  return `<div class="options" role="group" aria-label="Optional swaps">${opts.map(o => `<label class="switch-row opt-swap">
+    <span><span class="opt-name">Swap the ${o.replaces === 'warmup' ? 'warm-up' : 'cool-down'} for ${esc(o.block.title || o.title)}</span>
+    <span class="small muted">Optional · about ${optionMinutes(o)} min${o.block.items[0]?.notes ? ` · ${esc(o.block.items[0].notes)}` : ''}</span></span>
+    <input type="checkbox" class="switch" data-option="${esc(o.id)}" ${on[o.id] ? 'checked' : ''}></label>`).join('')}</div>`;
+}
+/** Handle a change on an option switch: remembers the choice for next time. Returns true when handled. */
+export function onOptionChange(e) {
+  const t = e.target.closest?.('[data-option]');
+  if (!t) return false;
+  update(s => { s.settings.options = { ...(s.settings.options || {}), [t.dataset.option]: t.checked }; });
+  return true;
+}
 
 export function sessionPreviewHTML(session) {
   return `<div class="preview">${session.blocks.map(b => `<section class="pv-block"><h3 class="pv-title">${esc(b.title || KIND_LABEL[b.kind] || b.kind)}</h3>
@@ -68,18 +87,24 @@ export function render(root, ctx) {
   root.addEventListener('click', e => {
     const pv = e.target.closest('[data-preview]');
     if (pv) {
-      const ses = sessionById(week, pv.dataset.preview);
+      const base = sessionById(week, pv.dataset.preview);
       const today = days.find(d => d.isToday);
-      const isToday = today?.session?.id === ses.id && !today.done;
+      const isToday = today?.session?.id === base.id && !today.done;
+      const body = () => { const ses = withOptions(base); return `<p class="muted small">~${sessionMinutes(ses)} min · ${week.phase === 'deload' ? 'deload' : 'build'} week</p>${optionsHTML(base)}${sessionPreviewHTML(ses)}`; };
       openSheet({
-        title: ses.name,
-        html: `<p class="muted small">~${sessionMinutes(ses)} min · ${week.phase === 'deload' ? 'deload' : 'build'} week</p>${sessionPreviewHTML(ses)}
+        title: base.name,
+        html: `<div data-pv>${body()}</div>
           <button class="btn ${isToday ? 'btn-primary' : 'btn-ghost'} btn-block sheet-cta" data-go>${icon('play', { size: 18 })} ${isToday ? 'Start today’s session' : 'Do this session now'}</button>`,
         onMount(el, close) {
-          const d = mountAnims(el);
-          el.querySelector('[data-go]').addEventListener('click', () => { close(); startWorkout(ses, { weekIndex: wi }); });
+          let d = mountAnims(el);
+          el.querySelector('[data-go]').addEventListener('click', () => { close(); startWorkout(withOptions(base), { weekIndex: wi, sessionId: base.id }); });
           el.addEventListener('click', ev => { if (ev.target.closest('.pv-name')) close(); });
-          return d;
+          el.addEventListener('change', ev => {
+            if (!onOptionChange(ev)) return;
+            d(); el.querySelector('[data-pv]').innerHTML = body(); d = mountAnims(el);
+            el.querySelector(`[data-option="${ev.target.dataset.option}"]`)?.focus({ preventScroll: true });
+          });
+          return () => d();
         },
       });
     }

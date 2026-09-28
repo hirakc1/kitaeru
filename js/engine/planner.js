@@ -4,6 +4,13 @@
 //
 // Errors: every public function that reads a profile throws a PlannerError { code: 'AGE_UNDER_13' }
 // when profile.age < 13 (research §13.1: "Kitaeru is for ages 13+").
+//
+// v1.2 world movement (docs/world-movement.md §3-4): flows as session items, rotation / anti-rotation families,
+// balance blocks, Morning Taiso and Baduanjin options. The accuracy gate (js/data/traditions.js) is applied in
+// availability, so unverified tradition items are never planned, whichever library is passed in.
+import { contentVisible, traditionPreview } from '../data/traditions.js';
+import { flowSeconds, ALL_BY_ID } from '../data/exercises.js';
+import { exerciseAnimated, animationGateVersion } from '../data/animated.js';
 
 // =============================================================================================
 // Tunables and tables
@@ -29,8 +36,8 @@ export const GOAL_RX = {
   health:   { sets: [1, 3], reps: [8, 15], hold: [20, 40], rest: 75,  rir: 2 },
 };
 const LOADING = ['strength', 'muscle', 'endurance', 'health'];
-const ALL_GOALS = [...LOADING, 'flexibility', 'skill'];
-const GOAL_LABEL = { strength: 'Strength', muscle: 'Muscle', endurance: 'Endurance', health: 'Health', flexibility: 'Flexibility', skill: 'Skill' };
+const ALL_GOALS = [...LOADING, 'flexibility', 'skill', 'balance'];
+const GOAL_LABEL = { strength: 'Strength', muscle: 'Muscle', endurance: 'Endurance', health: 'Health', flexibility: 'Flexibility', skill: 'Skill', balance: 'Balance' };
 
 // §4 age bands
 const BANDS = {
@@ -52,8 +59,11 @@ const PULL = ['pull_vertical', 'pull_horizontal', 'pull_noequip'];
 const HPULL = ['pull_horizontal', 'pull_noequip'];
 const LEGS = ['squat', 'hinge', 'calves'];
 const CORE = ['core_anterior', 'core_lateral', 'core_posterior'];
-export const PROGRESSION_FAMILIES = [...PUSH, ...PULL, ...LEGS, ...CORE, 'skill_balance'];
-const LEVEL_FAMILIES = [...PROGRESSION_FAMILIES, 'conditioning'];
+const ROT = ['anti_rotation', 'rotation']; // world-movement §3.3: pattern 'core'
+export const PROGRESSION_FAMILIES = [...PUSH, ...PULL, ...LEGS, ...CORE, 'skill_balance', ...ROT];
+const LEVEL_FAMILIES = [...PROGRESSION_FAMILIES, 'conditioning', 'stance'];
+/** Session id of a Morning Taiso log: keeps the day streak alive, never counts toward the weekly target. */
+export const MORNING_TAISO_SESSION_ID = 'T';
 const INJURY_NAME = { wrist: 'wrist', elbow: 'elbow', shoulder: 'shoulder', neck: 'neck', lower_back: 'lower back', hip: 'hip', knee: 'knee', ankle: 'ankle' };
 
 // §6.2 extra exclusions beyond each exercise's `stress` tags
@@ -75,9 +85,13 @@ const INJ_ALLOW = {
   elbow: { negative_pull_up: 'Chin-up or neutral grip, 3 s lowering.', band_assisted_pull_up: 'Chin-up or neutral grip, 3 s lowering.', chin_up: 'Neutral or chin-up grip, 3 s lowering.',
     pull_up: 'Neutral grip if possible, 3 s lowering.', inverted_row: 'Neutral grip, 3 s lowering.' },
   shoulder: { incline_push_up: 'Stop at parallel: pain-free depth only.', knee_push_up: 'Stop at parallel: pain-free depth only.', push_up: 'Stop at parallel: pain-free depth only.' },
-  knee: { split_squat: 'Partial range, pain-free (≤3/10).' },
+  knee: { split_squat: 'Partial range, pain-free (≤3/10).', horse_stance: 'High stance only: knees slightly bent, pain-free.',
+    taichi_part_horse_mane: 'High stance: knees slightly bent, pain-free.', taichi_brush_knee: 'High stance: knees slightly bent, pain-free.',
+    taichi_golden_rooster: 'Standing knee soft; lift only as high as is comfortable.', baduanjin_draw_bow: 'High stance: knees slightly bent, pain-free.' },
   ankle: { calf_raise: 'Both legs, hands on a wall for support.' },
 };
+// world-movement §3.3 / §4.6.5: with a back problem, only the gentlest rotation levels
+const INJ_LEVEL_CAP = { lower_back: { rotation: 2, anti_rotation: 4 } };
 const AGE_EXCLUDE = {
   u16: ['freestanding_handstand'],
   a55: ['pistol_squat', 'shrimp_squat', 'nordic_curl_negative'],
@@ -90,11 +104,12 @@ const FALLBACK = {
   core_anterior: ['core_lateral', 'core_posterior'], core_lateral: ['core_anterior', 'core_posterior'], core_posterior: ['core_lateral', 'core_anterior'],
 };
 const PRI = { push_horizontal: 1, pull_horizontal: 2, pull_noequip: 2, squat: 3, balance: 3.5, hinge: 4, pull_vertical: 5, push_vertical: 6, dip: 6,
-  core_anterior: 7, core_lateral: 8, core_posterior: 8, calves: 9 };
+  core_anterior: 7, core_lateral: 8, core_posterior: 8, anti_rotation: 8, rotation: 8.5, calves: 9, stance: 9 };
 
 const mid = r => (r[0] + r[1]) / 2;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-const patternOf = fam => PUSH.includes(fam) ? 'push' : PULL.includes(fam) ? 'pull' : LEGS.includes(fam) ? 'legs' : CORE.includes(fam) ? 'core' : fam;
+const patternOf = fam => PUSH.includes(fam) ? 'push' : PULL.includes(fam) ? 'pull' : LEGS.includes(fam) || fam === 'stance' ? 'legs'
+  : CORE.includes(fam) || ROT.includes(fam) ? 'core' : fam;
 const dayNum = s => { const [y, m, d] = String(s).split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; };
 const dowOf = n => (((n + 4) % 7) + 7) % 7; // 1970-01-01 was a Thursday
 const mondayOf = n => n - ((dowOf(n) + 6) % 7);
@@ -150,25 +165,164 @@ function availabilityFn(profile, D) {
   if (D.band === 'a55' && D.exp !== 'advanced') AGE_EXCLUDE.a55.forEach(x => excl.add(x));
   if (D.band === 'a65') AGE_EXCLUDE.a65.forEach(x => excl.add(x));
   if (D.bmiCaps) excl.add('deep_squat_hold');
-  return ex => (ex.equipment || []).every(e => eq.has(e))
+  // §4.6.2: 75+ (or new to exercise at 65+) should use the seated version, which is not built yet
+  if (D.age >= 75 || (D.age >= 65 && D.exp === 'new')) excl.add('radio_taiso_1');
+  const capOk = ex => D.inj.every(i => { const c = INJ_LEVEL_CAP[i]?.[ex.family]; return c == null || ex.level <= c; });
+  return ex => contentVisible(ex) && !ex.flowOnly // accuracy gate; flow-only steps are never planned on their own
+    && exerciseAnimated(ex, ALL_BY_ID) // animation gate: nothing is planned that would render as a fallback figure
+    && (ex.equipment || []).every(e => eq.has(e))
     && (SPACE_RANK[ex.space] ?? 0) <= sp
-    && !(ex.impact === 'high' && D.lowImpact)
     && !excl.has(ex.id)
-    && (ex.stress || []).every(s => !D.inj.includes(s) || (INJ_ALLOW[s] && INJ_ALLOW[s][ex.id]));
+    && capOk(ex)
+    && (ex.mode === 'flow' ? flowAdapt(ex, D) !== null // flows adapt step by step (§6.2) instead of failing on the union
+      : !(ex.impact === 'high' && D.lowImpact) && (ex.stress || []).every(s => !D.inj.includes(s) || (INJ_ALLOW[s] && INJ_ALLOW[s][ex.id])));
 }
+
+// =============================================================================================
+// Flows (world-movement §4.4, §4.6, §6.2)
+// =============================================================================================
+// Steps dropped for an injury (§4.6.3 neck, §4.6.5 lower back); other stressed steps stay, in a smaller range.
+const FLOW_DROP = { neck: ['baduanjin_look_back', 'baduanjin_sway_head_tail'], lower_back: ['rt_trunk_circle', 'baduanjin_touch_toes', 'baduanjin_sway_head_tail'],
+  ankle: ['baduanjin_heel_bounce'] };
+const FLOW_RANGE = { knee: 'Knees only slightly bent; stay pain-free.', lower_back: 'Keep bends and twists small and pain-free.',
+  shoulder: 'Keep arm movements in a pain-free range.', neck: 'Keep head turns small and pain-free.' };
+const FLOW_ROUNDS = { taichi_short_flow: 3, radio_taiso_1: 2 }; // how many times a flow may repeat in one block (default once)
+
+/** How a flow adapts to this profile: { skip: [moveId], replace: { moveId: moveId }, stance, notes } or null (unusable). */
+function flowAdapt(ex, D) {
+  const out = { skip: [], replace: {}, stance: null, notes: [] };
+  const swap = ex.variants?.lowImpact?.replace || {};
+  const moves = (ex.sequence || []).filter(st => st.move);
+  const note = n => { if (!out.notes.includes(n)) out.notes.push(n); };
+  for (const st of moves) {
+    const id = st.move;
+    if (out.skip.includes(id) || out.replace[id]) continue;
+    if (D.lowImpact && st.impact === 'high') { if (!swap[id]) return null; out.replace[id] = swap[id]; continue; } // §4.6.2 hops -> heel raises
+    const hit = (st.stress || []).filter(s => D.inj.includes(s));
+    if (hit.some(s => (FLOW_DROP[s] || []).includes(id))) { out.skip.push(id); continue; }
+    for (const s of hit) {
+      if (!FLOW_RANGE[s]) { out.skip.push(id); break; } // no safe smaller range to offer: leave the step out
+      if (s === 'knee' && ex.stanceLevels) out.stance = 'high'; // §4.6.4: high stance for all Tai Chi
+      note(FLOW_RANGE[s]);
+    }
+  }
+  if (D.inj.includes('neck')) note(FLOW_RANGE.neck); // §4.6.3: cap the neck range throughout
+  if (Object.keys(out.replace).length) note('No hops: heel raises instead.');
+  if (out.skip.length > new Set(moves.map(st => st.move)).size / 3) return null; // too little of the form is left
+  return out;
+}
+
+/** Highest progression stage allowed: never a soft-gaze stage at 65+ (§4.4). */
+function flowMaxStage(ex, D) {
+  const st = ex.progression?.stages || [];
+  let i = st.length - 1;
+  while (i > 0 && D.age >= 65 && st[i].support === 'soft_gaze') i--;
+  return Math.max(0, i);
+}
+
+/** Plain words for a progression stage, naming what changed from `prev` when given. */
+function flowStageText(st, prev = null) {
+  const parts = [];
+  if (st.variant && (!prev || prev.variant !== st.variant)) parts.push(st.variant === 'full' ? 'the full version' : 'the short version');
+  if (st.stance && (!prev || prev.stance !== st.stance)) parts.push(`a ${st.stance} stance`);
+  if (st.support && (!prev || prev.support !== st.support)) parts.push(st.support === 'chair' ? 'a chair nearby' : st.support === 'free' ? 'no chair' : 'a soft, lowered gaze');
+  if (st.tempoScale && prev && st.tempoScale > (prev.tempoScale || 1)) parts.push('a slower tempo');
+  return parts.length ? parts.join(', ') : 'the next stage';
+}
+
+/** A flow as a session item. holdSec is the length of one pass; item.flow carries what a flow player needs. */
+function flowItem(ex, ctx, { variant = null, sets = 1 } = {}) {
+  const D = ctx.D;
+  const ad = flowAdapt(ex, D) || { skip: [], replace: {}, stance: null, notes: [] };
+  const stages = ex.progression?.stages || null;
+  const idx = stages ? clamp(Number(ctx.flowStages?.[ex.id]?.stage) || 0, 0, flowMaxStage(ex, D)) : null;
+  const stage = stages ? stages[idx] : {};
+  const v = variant || stage.variant || 'full';
+  const tempoScale = stage.tempoScale || 1;
+  const stance = ex.stanceLevels ? (ad.stance || stage.stance || ex.stanceLevels[0]) : null;
+  const support = stage.support || (ex.stanceLevels && D.age >= 55 ? 'chair' : null);
+  const sec = Math.round(flowSeconds(ex, { variant: v, skip: ad.skip, tempoScale }));
+  const notes = [...ad.notes];
+  if (support === 'chair') notes.push('Keep a chair nearby for support.');
+  return { exerciseId: ex.id, family: ex.family, sets, reps: null, holdSec: [sec, sec], perSide: false, restSec: 0, rir: null, notes: notes.join(' '),
+    flow: { variant: v, stage: idx, stance, support, tempoScale, skip: ad.skip, replace: ad.replace, estSec: sec } };
+}
+
+/** Repeat a flow item (up to its round limit) while the block stays within target + 30 s. */
+function addRounds(block, it, target, info) {
+  while (it.sets < (FLOW_ROUNDS[it.exerciseId] || 1)) {
+    it.sets++; it.restSec = 20;
+    if (blockSec(block, info) > target + 30) { it.sets--; break; }
+  }
+  if (it.sets === 1) it.restSec = 0;
+}
+
+/** A block of whole flows (light days, Quick 'flow'), filling about `target` seconds. */
+function flowBlock(ctx, target, used, order, info) {
+  const block = { kind: 'flow', title: 'Flow', items: [] };
+  for (const id of order) {
+    const ex = ctx.byId[id];
+    if (!ex || used.has(id) || !ctx.isAvail(ex)) continue;
+    const left = target - blockSec(block, info);
+    if (left < 60) break;
+    let it = flowItem(ex, ctx);
+    if (blockSec({ items: [it] }, info) > left + 30 && ex.variants?.short) it = flowItem(ex, ctx, { variant: 'short' });
+    if (blockSec({ items: [it] }, info) > left + 30) continue;
+    block.items.push(it); used.add(id);
+    addRounds(block, it, target, info);
+  }
+  if (!block.items.length) return null;
+  block.title = block.items.map(i => ctx.byId[i.exerciseId].name).join(' · ');
+  return block;
+}
+
+// §4.6.1 balance block: Tai Chi when its content is verified, otherwise single-leg and anti-rotation work.
+const BALANCE_GENERIC = ['single_leg_rdl', 'bird_dog', 'split_squat', 'single_leg_calf_raise', 'single_leg_glute_bridge', 'bird_dog_row', 'reverse_lunge'];
+const BAL_NOTE = 'Balance: stand near a wall or sturdy chair for support.';
+const injNotes = (ex, D) => (ex.stress || []).filter(s => D.inj.includes(s) && INJ_ALLOW[s]?.[ex.id]).map(s => INJ_ALLOW[s][ex.id]);
+function balanceBlock(ctx, target, used, info) {
+  const D = ctx.D;
+  const block = { kind: 'balance', title: 'Balance', items: [] };
+  const tc = ctx.byId.taichi_short_flow;
+  if (tc && ctx.isAvail(tc) && !used.has(tc.id)) {
+    const it = flowItem(tc, ctx);
+    if (blockSec({ items: [it] }, info) <= target + 30) {
+      block.title = 'Balance: Tai Chi';
+      block.items.push(it); used.add(tc.id);
+      const gr = ctx.byId.taichi_golden_rooster;
+      if (gr && ctx.isAvail(gr) && !used.has(gr.id)) {
+        const g = flatItem(gr, { hold: [5, 15], sets: 2, rest: 15, notes: [BAL_NOTE, ...injNotes(gr, D)].join(' ') });
+        if (blockSec({ items: [...block.items, g] }, info) <= target + 30) { block.items.push(g); used.add(gr.id); }
+      }
+      addRounds(block, it, target, info);
+      return block;
+    }
+  }
+  const cands = BALANCE_GENERIC.map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !used.has(e.id));
+  fillFlat(block, cands, target, target + 30, ex => flatItem(ex, { reps: [6, 10], hold: [20, 40], sets: 2, rest: 30, notes: [BAL_NOTE, ...injNotes(ex, D)].join(' ') }), 3, used, info);
+  return block.items.length ? block : null;
+}
+/** Flows to prefer on light days: Tai Chi first for balance (55+ or the balance goal), otherwise Baduanjin. */
+const flowOrder = D => D.age >= 55 || D.goals.includes('balance') ? ['taichi_short_flow', 'baduanjin_sequence'] : ['baduanjin_sequence', 'taichi_short_flow'];
 
 /** Is an exercise usable by this profile (equipment, space, impact, injuries, age/BMI exclusions)? */
 export function isAvailable(ex, profile) { return availabilityFn(profile, derive(profile))(ex); }
 
 const infoCache = new WeakMap();
+/** Family ladders and lookups for a library, after the accuracy gate: hidden items are not rungs (per preview state). */
 function libInfo(library) {
   if (!library) return { byId: {}, fam: {}, famMax: {} };
-  if (infoCache.has(library)) return infoCache.get(library);
+  const key = (traditionPreview() ? 'preview' : 'gated') + ':' + animationGateVersion();
+  const cached = infoCache.get(library);
+  if (cached && cached[key]) return cached[key];
   const byId = {}, fam = {}, famMax = {};
-  for (const ex of library) { byId[ex.id] = ex; (fam[ex.family] ||= []).push(ex); }
+  for (const ex of library) {
+    if (!contentVisible(ex) || ex.flowOnly || !exerciseAnimated(ex, ALL_BY_ID)) continue;
+    byId[ex.id] = ex; (fam[ex.family] ||= []).push(ex);
+  }
   for (const f of Object.keys(fam)) { fam[f].sort((a, b) => a.level - b.level); famMax[f] = fam[f][fam[f].length - 1].level; }
   const info = { byId, fam, famMax };
-  infoCache.set(library, info);
+  infoCache.set(library, { ...(cached || {}), [key]: info });
   return info;
 }
 
@@ -209,6 +363,9 @@ const EXP_TABLE = { // §3.3 (null = do not schedule yet)
   dip: [null, 'bench_dip', 'bench_dip', 'bar_dip'],
   skill_balance: ['crow_pose', 'crow_pose', 'crow_pose', 'wall_handstand'],
   conditioning: ['marching_in_place', 'jumping_jack', 'mountain_climber', 'mountain_climber'],
+  anti_rotation: ['bird_dog_row', 'half_kneeling_pallof_hold', 'plank_shoulder_tap', 'pallof_press'], // no band: steps down to the shoulder tap
+  rotation: ['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'bodyweight_woodchop'],
+  stance: ['horse_stance', 'horse_stance', 'horse_stance', 'horse_stance'],
 };
 const BASE_FIELD = { push_horizontal: 'pushUps', push_vertical: 'pushUps', dip: 'pushUps', skill_balance: 'pushUps', pull_vertical: 'pullUps', pull_horizontal: 'pullUps',
   squat: 'squats', hinge: 'squats', calves: 'squats', core_anterior: 'plankSec', core_lateral: 'plankSec' };
@@ -375,7 +532,7 @@ function weekIdxFromDate(dateStr, startDate) {
 function gapBefore(logs, n) {
   let last = null;
   for (const l of logs || []) {
-    if (!l || !l.date || l.sessionId === 'M') continue;
+    if (!l || !l.date || l.sessionId === 'M' || l.sessionId === MORNING_TAISO_SESSION_ID) continue;
     const d = dayNum(l.date);
     if (d < n && (last === null || d > last)) last = d;
   }
@@ -432,7 +589,8 @@ function rirFor(ex, ctx, role) {
   const D = ctx.D;
   let rir = GOAL_RX[D.loading].rir + (ctx.phase.blockWeek <= 2 ? 1 : 0);           // §9.2 ramp
   rir = Math.max(rir, D.B.rirFloor);
-  if ((ctx.fam[ex.family] || []).some(e => (e.stress || []).some(s => D.inj.includes(s)))) rir = Math.max(rir, 3); // §6.1.4
+  // §6.1.4 (tradition variants such as the daṇḍ are variety, so they do not re-rate a whole ladder)
+  if ((ctx.fam[ex.family] || []).some(e => !e.tradition && (e.stress || []).some(s => D.inj.includes(s)))) rir = Math.max(rir, 3);
   if (role === 'skill' || ex.family === 'skill_balance') rir = Math.max(rir, 3);
   return rir;
 }
@@ -491,7 +649,7 @@ function planSplit(D, weekIndex) {
   let maxHard = { u18: ['regular', 'advanced'].includes(D.exp) ? 4 : 3, a18: 6, a40: 5, a55: 4, a65: 3 }[D.band];
   if (fullOnly) maxHard = Math.min(maxHard, 3);
   if (M < 25 && d >= 5) maxHard = Math.min(maxHard, 3);
-  const flowDay = D.primary === 'flexibility' && d >= 3;
+  const flowDay = (D.primary === 'flexibility' || D.primary === 'balance') && d >= 3;
   const hard = Math.min(d - (flowDay ? 1 : 0), maxHard);
   let keys;
   if (hard <= 2) keys = ['fullA', 'fullB'].slice(0, Math.max(2, hard));
@@ -556,35 +714,38 @@ function template(key, variant, weekIndex) {
       S(['push_horizontal'], 'main', 1), S(['pull_vertical'], 'main', 1, { pv: true }), S(HPULL, 'main', 1, { hp2: true }),
       variant % 2 ? S(['squat'], 'main', 1, { variant: true, unilateral: true }) : S(['squat'], 'main', 1),
       S([variant % 2 ? 'core_lateral' : 'core_anterior'], 'core', 1), S(['hinge'], 'main', 1, { tier: 2 }),
-      S(['calves'], 'acc', 0), S(['core_lateral'], 'core', 0), S(['push_vertical', 'dip'], 'main', 0)] };
+      S(['calves'], 'acc', 0), S(['core_lateral'], 'core', 0), S(['push_vertical', 'dip'], 'main', 0), S(['rotation'], 'core', 0, { minLevel: 4 })] };
     case 'fullB': return { kind: 'hard', name: 'Full body B', focus: ['push', 'pull', 'legs', 'core'], slots: [
       S(['push_vertical', 'dip'], 'main', 1), S(HPULL, 'main', 1), S(['hinge'], 'main', 1),
       S(coreB, 'core', 1), S(['squat'], 'main', 1, { tier: 2, variant: true, unilateral: true }),
-      S(['pull_vertical'], 'main', 0), S(['push_horizontal'], 'main', 0), S(['calves'], 'acc', 0), S(['core_anterior'], 'core', 0)] };
+      S(['pull_vertical'], 'main', 0), S(['push_horizontal'], 'main', 0), S(['calves'], 'acc', 0), S(['core_anterior'], 'core', 0), S(['anti_rotation'], 'core', 0)] };
     case 'fullC': return { kind: 'hard', name: 'Full body C', focus: ['push', 'pull', 'legs', 'core'], slots: [
       S(['push_horizontal'], 'main', 1, { variant: true }), S(['pull_vertical'], 'main', 1, { pv: true }), S(HPULL, 'main', 1, { hp2: true }),
-      S(['squat'], 'main', 1, { alt: true, unilateral: true }), S([coreB[1], coreB[0], 'core_anterior'], 'core', 1), S(['hinge'], 'main', 1, { tier: 2 }),
-      S(['push_vertical', 'dip'], 'main', 0), S(['calves'], 'acc', 0), S(['core_lateral'], 'core', 0)] };
+      // world-movement §4.1: C's core slot is anti-rotation (falls back to the usual core when none is available)
+      S(['squat'], 'main', 1, { alt: true, unilateral: true }), S(['anti_rotation', coreB[1], coreB[0], 'core_anterior'], 'core', 1), S(['hinge'], 'main', 1, { tier: 2 }),
+      S(['push_vertical', 'dip'], 'main', 0), S(['calves'], 'acc', 0), S(['core_lateral'], 'core', 0), S([coreB[1]], 'core', 0)] };
     case 'upper': {
       const a = [S(['push_horizontal'], 'main', 1), S(HPULL, 'main', 1), S(['push_vertical', 'dip'], 'main', 1), S(['pull_vertical'], 'main', 1)];
       return { kind: 'hard', name: 'Upper', letter: true, focus: ['push', 'pull', 'core'], slots: [
         ...(variant % 2 ? [a[2], a[3], a[0], a[1]] : a), S(coreRot, 'core', 1),
-        S(['pull_horizontal'], 'main', 0, { variant: true }), S(['dip', 'push_vertical'], 'main', 0), S(['pull_noequip'], 'main', 0), S(coreRot.slice(1), 'core', 0)] };
+        S(['pull_horizontal'], 'main', 0, { variant: true }), S(['dip', 'push_vertical'], 'main', 0), S(['pull_noequip'], 'main', 0), S(coreRot.slice(1), 'core', 0),
+        S(['rotation'], 'core', 0, { minLevel: 4 })] };
     }
     case 'lower': return { kind: 'hard', name: 'Lower', letter: true, focus: ['legs', 'core'], slots: [
       S(['squat'], 'main', 1), S(['hinge'], 'main', 1), S(['squat'], 'main', 1, { variant: true, unilateral: true }), S(['calves'], 'acc', 1),
-      S(['core_posterior', 'core_lateral'], 'core', 1), S(['hinge'], 'main', 0, { variant: true }), S(['core_anterior'], 'core', 0), S(['core_lateral'], 'core', 0)] };
+      S(['core_posterior', 'core_lateral'], 'core', 1), S(['hinge'], 'main', 0, { variant: true }), S(['core_anterior'], 'core', 0), S(['core_lateral'], 'core', 0),
+      S(['anti_rotation'], 'core', 0), S(['stance'], 'acc', 0)] };
     case 'push': return { kind: 'hard', name: 'Push', focus: ['push', 'core'], slots: [
       S(['push_horizontal'], 'main', 1), S(['push_vertical', 'dip'], 'main', 1), S(['dip', 'push_vertical'], 'main', 1), S(HPULL, 'main', 1),
-      S(coreRot, 'core', 1), S(['push_horizontal'], 'main', 0, { variant: true }), S(coreRot.slice(1), 'core', 0)] };
+      S(coreRot, 'core', 1), S(['push_horizontal'], 'main', 0, { variant: true }), S(coreRot.slice(1), 'core', 0), S(['rotation'], 'core', 0, { minLevel: 4 })] };
     case 'pull': return { kind: 'hard', name: 'Pull', focus: ['pull', 'core'], slots: [
       S(['pull_vertical'], 'main', 1), S(['pull_horizontal', 'pull_noequip'], 'main', 1), S(['pull_noequip', 'pull_horizontal'], 'main', 1, { variant: true }),
-      S(coreRot, 'core', 1), S(['pull_vertical'], 'main', 0, { variant: true }), S(coreRot.slice(1), 'core', 0)] };
+      S(coreRot, 'core', 1), S(['pull_vertical'], 'main', 0, { variant: true }), S(coreRot.slice(1), 'core', 0), S(['anti_rotation'], 'core', 0)] };
     case 'legs': return { kind: 'hard', name: 'Legs', focus: ['legs', 'core'], slots: [
       S(['squat'], 'main', 1), S(['hinge'], 'main', 1), S(['squat'], 'main', 1, { variant: true, unilateral: true }), S(['calves'], 'acc', 1),
-      S(coreRot, 'core', 1), S(['hinge'], 'main', 0, { variant: true }), S(coreRot.slice(1), 'core', 0)] };
+      S(coreRot, 'core', 1), S(['hinge'], 'main', 0, { variant: true }), S(coreRot.slice(1), 'core', 0), S(['anti_rotation'], 'core', 0), S(['stance'], 'acc', 0)] };
     case 'flow': return { kind: 'flow', name: 'Mobility flow', focus: ['mobility', 'core'], slots: [
-      S(['core_posterior', 'core_anterior'], 'core', 1), S(['core_anterior', 'core_lateral'], 'core', 1), S(['core_lateral'], 'core', 0)] };
+      S(['core_posterior', 'core_anterior'], 'core', 1), S(['core_anterior', 'core_lateral'], 'core', 1), S(['core_lateral'], 'core', 0), S(['anti_rotation'], 'core', 0)] };
     case 'skillmob': return { kind: 'skillmob', name: 'Skill & mobility', focus: ['skill', 'mobility', 'core'], slots: [
       S(['core_anterior', 'core_lateral'], 'core', 1), S(['core_lateral', 'core_posterior'], 'core', 1)] };
   }
@@ -847,6 +1008,10 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   if (Q && Q.noBalance) { /* mobility-only quick session */ }
   else if (bal === 'two' && tpl.kind === 'hard' && tpl.focus.includes('legs') && ctx.balanceSessions < 2) balanceSec = 90;
   else if (typeof bal === 'number') balanceSec = bal;
+  // world-movement §4.6.1: a 5-10 min balance block (55+ or the balance goal) on chosen sessions replaces the in-main item there
+  let tbal = Q ? (Q.balance || 0)
+    : tpl.kind === 'hard' && M >= 15 && ctx.balanceBlockIdx && ctx.balanceBlockIdx.has(slot.hardIdx) ? clamp(Math.round(0.2 * T), M < 25 ? 180 : 300, 600) : 0;
+  if (tbal > 0) balanceSec = 0;
 
   // --- block targets (seconds)
   let tw = Math.max(row[1], D.B.warm) * 60;
@@ -874,15 +1039,22 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   if (tpl.kind === 'skillmob') tcool = Math.max(tcool, 0.3 * T);
   // keep at least ~45% of hard sessions for main work
   if (tpl.kind === 'hard') {
-    const over = tw + tcool + tskill + tcond - 0.55 * T;
-    if (over > 0) { const cut = Math.min(over, tcond); tcond -= cut; tskill = Math.max(0, tskill - Math.max(0, over - cut)); }
+    const over = tw + tcool + tskill + tcond + tbal - 0.55 * T;
+    if (over > 0) {
+      const cut = Math.min(over, tcond); tcond -= cut;
+      const cut2 = Math.min(tskill, over - cut); tskill -= cut2;
+      tbal = Math.max(Math.min(tbal, 180), tbal - (over - cut - cut2));
+    }
   }
 
   if (Q) {
     if (Q.warm != null) tw = Q.warm;
     if (Q.cool != null) tcool = Math.max(Q.coolIsMin ? tcool : 0, Q.cool);
     if (Q.cond != null) tcond = Q.cond;
-    if (tpl.kind === 'hard') { const over = tw + tcool + tskill + tcond - 0.6 * T; if (over > 0) { const c = Math.min(over, tcond); tcond -= c; tskill = Math.max(0, tskill - (over - c)); } }
+    if (tpl.kind === 'hard') {
+      const over = tw + tcool + tskill + tcond + tbal - 0.6 * T;
+      if (over > 0) { const c = Math.min(over, tcond); tcond -= c; const c2 = Math.min(tskill, over - c); tskill -= c2; tbal = Math.max(Math.min(tbal, 120), tbal - (over - c - c2)); }
+    }
   }
   const blocks = [];
   // --- warm-up
@@ -893,7 +1065,10 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const rk = (sessIdx + weekIndex) % rel.length;
   const relRot = [...rel.slice(rk), ...rel.slice(0, rk)].filter(id => ctx.isAvail(ctx.byId[id]));
   // a drill for the session's region first (short warm-ups may hold only one item), then the pulse raiser
-  const warmOrder = [...relRot.slice(0, 1), wo[0], ...relRot.slice(1), ...wo.slice(1 + wk), ...wo.slice(1, 1 + wk)];
+  // world-movement §4.1: one gentle rotation (levels 1-3) in the warm-up
+  const rotW = ctx.avail.rotation.filter(e => e.level <= Math.max(1, Math.min(3, ctx.levelsEx.rotation?.level ?? 1)));
+  const rotWarm = rotW.length ? [rotW[(sessIdx + weekIndex) % rotW.length].id] : [];
+  const warmOrder = [...relRot.slice(0, 1), wo[0], ...rotWarm, ...relRot.slice(1), ...wo.slice(1 + wk), ...wo.slice(1, 1 + wk)];
   let warmCands = candidates([...new Set(warmOrder)], ctx, ['warmup']);
   if (Q && Q.noBalance) warmCands = warmCands.filter(e => e.family !== 'mobility'); // keep the stretches for the flow itself
   const warmMk = ex => flatItem(ex, { reps: [8, 12], hold: ex.family === 'conditioning' ? [45, 60] : [20, 30] });
@@ -932,6 +1107,10 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const tierOf = s => s.tier ?? (s.pv ? (hasPV ? 1 : 3) : s.hp2 ? (hasPV ? 2 : 1) : !s.ess ? 3 : s.role === 'main' ? 1 : s.role === 'core' ? 2 : 3);
   const slots = [...tpl.slots];
   if (balanceSec > 0) slots.splice(Math.min(slots.length, tpl.kind === 'hard' ? 4 : 1), 0, S([], 'balance', 1, { balance: true }));
+  // A Quick balance session is about the balance block: it chooses first. In plans the main lifts choose first.
+  let balBlk = null, flowBlk = null;
+  const addBalance = () => { if (tbal > 0 && !balBlk) { balBlk = balanceBlock(ctx, tbal, used, info); if (balBlk) blocks.push(balBlk); } };
+  if (Q) addBalance();
   for (const s of slots) {
     curSlot = s;
     if (s.balance) {
@@ -947,20 +1126,29 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
       continue;
     }
     if (s.pv && !hasPV) continue; // no bar: the horizontal-pull slot carries the pulling (§7)
+    if (s.minLevel && !((ctx.levelsEx[s.fams[0]]?.level ?? 0) >= s.minLevel)) continue; // e.g. loaded rotation only from level 4
     curSlot = s;
     const ex = s.fixed ? (used.has(s.fixed.id) ? null : s.fixed) : resolveSlot(s, ctx, used);
     if (!ex) continue;
     addPart(ex, s.role, (PRI[ex.family] ?? 9) + (s.variant ? 10 : 0) + (s.ess ? 0 : 20) - (s.hp2 ? 5 : 0), s.ess, tierOf(s));
   }
+  // --- balance and flow blocks: in plans, built after the main slots so they never take a main exercise
+  addBalance();
+  const tflow = Q ? (Q.flow || 0) : tpl.kind === 'flow' ? Math.round(0.4 * T) : 0;
+  if (tflow > 0) {
+    flowBlk = flowBlock(ctx, tflow, used, (Q && Q.flowOrder) || flowOrder(D), info);
+    if (flowBlk) { blocks.push(flowBlk); tcool = Math.max(row[2] * 60, tcool - blockSec(flowBlk, info)); } // the flow replaces part of the stretching
+  }
   const tWarm = blockSec(warm, info);
-  const tSkill = blocks[1] ? blockSec(blocks[1], info) : 0;
-  const mainBudget = Math.max(0, T - tWarm - tSkill - tcond - tcool);
+  const tSkill = blocks.filter(b => b.kind === 'skill').reduce((t, b) => t + blockSec(b, info), 0);
+  const tExtra = [balBlk, flowBlk].filter(Boolean).reduce((t, b) => t + blockSec(b, info), 0);
+  const mainBudget = Math.max(0, T - tWarm - tSkill - tExtra - tcond - tcool);
   const fm = fillMain(parts, fmt, ctx, sess, mainBudget);
   if (mainBudget - fm.t > 120) fm.topUp(mainBudget);
   const main = { kind: 'main', title: tpl.kind === 'hard' ? 'Main' : 'Strength, core & balance', items: unitsToItems(fm.units, sess) };
   blocks.push(main);
   // core did not fit after the primary lifts: keep the session's core pattern as a short warm-up activation
-  if (tpl.kind === 'hard' && !ctx.quick && !main.items.some(i => CORE.includes(i.family))) {
+  if (tpl.kind === 'hard' && !ctx.quick && !main.items.some(i => patternOf(i.family) === 'core')) {
     const cp = parts.find(p => p.role === 'core');
     if (cp) warm.items.push(flatItem(cp.ex, { reps: [8, 12], hold: [20, 30], sets: 1, notes: 'Core activation.' }));
   }
@@ -1003,6 +1191,20 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const mk = mobilityItem(ctx);
   const flexSets = tpl.kind !== 'hard' || (D.w.flexibility || 0) >= 0.2 ? 2 : 1;
   const others = () => blocks.reduce((t, b) => t + blockSec(b, info), 0);
+  // world-movement §4.1: Baduanjin (short) as the cool-down when it fits and suits the goal; otherwise offered as an option
+  const options = [];
+  const bdj = ctx.byId.baduanjin_sequence;
+  if (tpl.kind === 'hard' && bdj && !used.has(bdj.id) && ctx.isAvail(bdj)) {
+    const it = flowItem(bdj, ctx, { variant: 'short' });
+    const calm = ['health', 'flexibility', 'balance'].includes(D.primary) || D.age >= 55;
+    if (calm && blockSec({ items: [it] }, info) <= T - others() + 15) { cool.items.push(it); used.add(bdj.id); cool.title = 'Cool-down: Baduanjin'; }
+    else options.push({ id: 'baduanjin_cooldown', replaces: 'cooldown', title: 'Baduanjin cool-down', block: { kind: 'cooldown', title: 'Baduanjin', items: [it] } });
+  }
+  // Morning Taiso as an optional warm-up (the UI offers the swap; the plan's timing uses the normal warm-up)
+  const rt = ctx.byId.radio_taiso_1;
+  if (rt && !used.has(rt.id) && ctx.isAvail(rt) && !(Q && Q.flow)) {
+    options.unshift({ id: 'morning_taiso', replaces: 'warmup', title: rt.name, block: { kind: 'warmup', title: rt.name, items: [flowItem(rt, ctx)] } });
+  }
   fillFlat(cool, mobCands, T - others(), T - others() + 15, ex => mk(ex, flexSets), flexSets === 2 ? 3 : 2, used, info);
   blocks.push(cool);
 
@@ -1030,7 +1232,9 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   if (blocks.some(b => b.kind === 'skill' && b.items.length) && !focus.includes('skill')) focus.push('skill');
   if (cond && !focus.includes('conditioning')) focus.push('conditioning');
   if (main.items.some(i => i.notes.includes('Balance')) && !focus.includes('balance')) focus.push('balance');
-  return { id: '', name: '', focus, estMinutes: 0, blocks: blocks.filter(b => b.items.length), _tpl: tpl, _key: key };
+  if (balBlk && !focus.includes('balance')) focus.push('balance');
+  if (flowBlk && !focus.includes('flow')) focus.push('flow');
+  return { id: '', name: '', focus, estMinutes: 0, blocks: blocks.filter(b => b.items.length), ...(options.length ? { options } : {}), _tpl: tpl, _key: key, _flow: !!flowBlk };
 }
 
 // =============================================================================================
@@ -1111,7 +1315,7 @@ function rebalance(sessions, ctx, pad) {
     // (b2) trade an accessory/core set in the same session for a pull set
     for (const pl of [...pulls].sort((a, b) => a.it.sets - b.it.sets)) {
       if (pl.it.sets >= 6) continue;
-      const acc = pl.b.items.filter(i => i.family === 'calves' || CORE.includes(i.family) || /Balance/.test(i.notes || '')).sort((a, b) => b.sets - a.sets)[0];
+      const acc = pl.b.items.filter(i => i.family === 'calves' || patternOf(i.family) === 'core' || /Balance/.test(i.notes || '')).sort((a, b) => b.sets - a.sets)[0];
       if (!acc) continue;
       if (acc.sets > 1) acc.sets--; else pl.b.items.splice(pl.b.items.indexOf(acc), 1);
       pl.it.sets++;
@@ -1154,11 +1358,12 @@ function resolveLevels(ctx, profile, levels, library) {
   for (const fam of LEVEL_FAMILIES) {
     const avail = ctx.avail[fam];
     if (!avail.length) continue;
-    const given = levels && levels[fam] ? ctx.byId[levels[fam]] : null;
+    const given = levels && typeof levels[fam] === 'string' ? ctx.byId[levels[fam]] : null;
     if (given && given.family === fam) {
       ctx.levelsEx[fam] = avail.includes(given) ? given : (stepDown(ctx.fam[fam], ctx.fam[fam].indexOf(given), ctx.isAvail) || nearest(avail, given.level));
     } else if (init[fam]) ctx.levelsEx[fam] = ctx.byId[init[fam]];
   }
+  ctx.flowStages = (levels && levels.flowStages) || {}; // { [flowId]: { stage, easy } } (§4.4)
 }
 
 export function generateWeek(profile, levels, library, requestedWeek = 0, opts = {}) {
@@ -1173,6 +1378,9 @@ export function generateWeek(profile, levels, library, requestedWeek = 0, opts =
 
   const split = planSplit(D, weekIndex);
   ctx.lightKeys = split.light;
+  // world-movement §4.6.1: balance blocks on >= 2 hard sessions a week (3 when balance is the main goal), spread out
+  const nBal = Math.min(split.hard.length, D.age >= 55 || D.goals.includes('balance') ? (D.primary === 'balance' ? 3 : 2) : 0);
+  ctx.balanceBlockIdx = new Set(Array.from({ length: nBal }, (_, k) => Math.round(k * split.hard.length / nBal)));
   const slots = placeSessions(split.hard, split.light.length, profile.preferredDays, D);
   ctx.hitCount = { core: split.hard.length };
   for (const k of split.hard) for (const r of REGIONS[k]) ctx.hitCount[r] = (ctx.hitCount[r] || 0) + 1;
@@ -1187,8 +1395,9 @@ export function generateWeek(profile, levels, library, requestedWeek = 0, opts =
     const t = s._tpl;
     const n = seen2[s._key] = (seen2[s._key] || 0) + 1;
     const letter = t.letter && counts[s._key] > 1 ? ' ' + String.fromCharCode(64 + n) : '';
-    s.name = t.kind === 'hard' && !s._key.startsWith('full') ? `${t.name}${letter} — ${GOAL_LABEL[D.primary]}` : t.name;
-    delete s._tpl; delete s._key;
+    s.name = t.kind === 'hard' && !s._key.startsWith('full') ? `${t.name}${letter} — ${GOAL_LABEL[D.primary]}` : t.kind === 'flow' && s._flow ? 'Flow & mobility' : t.name;
+    if (t.kind !== 'hard') s.light = true; // light days: flows, mobility, skill (world-movement §4.1)
+    delete s._tpl; delete s._key; delete s._flow;
   });
   rebalance(sessions, ctx, true);
   const ph = ctx.phase;
@@ -1271,12 +1480,35 @@ export function applySessionLog(levels, profile, sessionLog, library, history = 
     changes.push({ family: fam, from: cur.id, to: to.id, reason: reason(to) });
     return true;
   };
+  // §4.4 flows: two 'easy' ratings in a row unlock the next stage (stance, support, tempo, length); 'hard' keeps it.
+  const flowStep = (fex, item) => {
+    const stages = fex.progression?.stages;
+    if (!stages?.length) return;
+    const fs = out.flowStages = { ...(out.flowStages || {}) };
+    const max = flowMaxStage(fex, ctx.D);
+    const cur = fs[fex.id] || { stage: 0, easy: 0 };
+    const from = clamp(Number(cur.stage) || 0, 0, max);
+    let next = { stage: from, easy: Number(cur.easy) || 0 };
+    let reason = null;
+    if (item.pain != null && Number(item.pain) > 3) {
+      next = { stage: Math.max(0, from - 1), easy: 0 };
+      if (next.stage !== from) reason = `You reported pain of ${item.pain}/10, so ${name(fex)} steps back to ${flowStageText(stages[next.stage])}.`;
+    } else if (lightWeek) return;
+    else if (item.rating === 'easy') {
+      next.easy = Math.min(2, next.easy + 1);
+      if (next.easy >= 2 && from < max) { next = { stage: from + 1, easy: 0 }; reason = `Rated easy twice, so ${name(fex)} moves on to ${flowStageText(stages[from + 1], stages[from])}.`; }
+    } else next.easy = 0;
+    fs[fex.id] = next;
+    if (reason) changes.push({ family: fex.family, from: fex.id, to: fex.id, flow: true, fromStage: from, toStage: next.stage, up: next.stage > from, reason });
+  };
   for (const item of sessionLog.items || []) {
+    const fex = ctx.byId[item.exerciseId];
+    if (fex && fex.mode === 'flow') { flowStep(fex, item); continue; }
     const fam = item.family || ctx.byId[item.exerciseId]?.family;
     if (!PROGRESSION_FAMILIES.includes(fam) || levels[fam] !== item.exerciseId || out[fam] !== item.exerciseId) continue;
     const cur = ctx.byId[item.exerciseId];
     if (!cur) continue;
-    const fb = hold => CORE.includes(fam) ? (hold ? [20, 45] : [8, 15]) : (hold ? g.hold : g.reps);
+    const fb = hold => patternOf(fam) === 'core' ? (hold ? [20, 45] : [8, 15]) : (hold ? g.hold : g.reps);
     const now = judge(item, prescribed(profile, levels, library, sessionLog, item.exerciseId, cache), fb);
     const unit = now.hold ? ' s' : ' reps';
     if (item.pain != null && Number(item.pain) > 3) { // §6.1.3: immediate regression, even in light weeks
@@ -1366,10 +1598,14 @@ export function computeStreak(logs, profile, today = new Date(), opts = {}) {
   const todayN = toDayN(today);
   const created = opts.createdOn || profile.createdOn;
   const createdN = created ? toDayN(created) : -Infinity;
-  const logDays = new Set((logs || []).filter(l => l && l.date && l.sessionId !== 'M').map(l => dayNum(l.date)).filter(n => n <= todayN && n >= createdN));
+  const counted = (logs || []).filter(l => l && l.date && l.sessionId !== 'M');
+  const inRange = n => n <= todayN && n >= createdN;
+  const logDays = new Set(counted.map(l => dayNum(l.date)).filter(inRange));
+  // Morning Taiso keeps the day streak alive but does not count toward the weekly session target (founder decision, v1.2)
+  const trainDays = new Set(counted.filter(l => l.sessionId !== MORNING_TAISO_SESSION_ID).map(l => dayNum(l.date)).filter(inRange));
   const startD = opts.startDate || profile.startDate;
   const startN = startD ? toDayN(startD) : -Infinity;
-  const early = [...logDays].filter(n => n < startN).length;
+  const early = [...trainDays].filter(n => n < startN).length;
   const d = clamp(profile.daysPerWeek || 3, 2, 6);
   const empty = { current: 0, best: 0, weekly: { current: 0, best: 0 }, freezeAvailable: false, freezesBanked: 0, freezesUsed: 0 };
   if (!logDays.size) return empty;
@@ -1384,7 +1620,7 @@ export function computeStreak(logs, profile, today = new Date(), opts = {}) {
   const curMon = mondayOf(todayN);
   const weekCount = mon => {
     let c = 0;
-    for (let k = mon; k < mon + 7 && k <= todayN; k++) if (logDays.has(k) && k >= startN) c++;
+    for (let k = mon; k < mon + 7 && k <= todayN; k++) if (trainDays.has(k) && k >= startN) c++;
     if (Number.isFinite(startN) && mon === mondayOf(startN)) c += early; // early starts count for week 1
     return c;
   };
@@ -1499,6 +1735,11 @@ export function explainPlan(profile, week) {
     a55: '55+: a 7-minute warm-up, 2+ minutes of balance work every session, and sets stop 2+ reps short of failure.',
     a65: '65+: low impact, an 8-minute warm-up, 3+ minutes of balance every session, longer rests and more mobility.' }[D.band];
   if (ageTxt) out.push(ageTxt);
+  const balS = week.sessions.filter(s => s.blocks.some(b => b.kind === 'balance'));
+  if (balS.length) {
+    const tai = balS.some(s => s.blocks.some(b => b.kind === 'balance' && b.items.some(i => i.flow)));
+    out.push(`A balance block in ${balS.length} session${balS.length > 1 ? 's' : ''} (${tai ? 'Tai Chi forms and a one-leg hold' : 'single-leg and trunk-control work'}), with a wall or chair nearby.`);
+  }
 
   if (week.phase === 'deload') out.push('Deload week: same exercises at about half the sets. Lighter on purpose: this is when you adapt.');
   else if (meta.reentry != null) out.push(`Welcome back: this week uses about ${Math.round(meta.reentry * 100)}% of your usual sets to ease you in after a break.`);
@@ -1519,7 +1760,10 @@ export function explainPlan(profile, week) {
 // =============================================================================================
 const QUICK_DEFAULT = { goals: ['health'], primaryGoal: 'health', daysPerWeek: 3, minutesPerSession: 30, preferredDays: [1, 3, 5], age: 30, sex: 'unspecified',
   experience: 'some', baseline: {}, injuries: [], equipment: ['wall'], space: 'medium', lowImpact: false, _noSexPrior: true };
-const FOCUS_LABEL = { full: 'Full body', upper: 'Upper body', lower: 'Lower body', core: 'Core', push: 'Push', pull: 'Pull', legs: 'Legs', mobility: 'Mobility flow' };
+const FOCUS_LABEL = { full: 'Full body', upper: 'Upper body', lower: 'Lower body', core: 'Core', push: 'Push', pull: 'Pull', legs: 'Legs', mobility: 'Mobility flow',
+  flow: 'Flow', balance: 'Balance', rotation: 'Rotation' };
+const ROTATION_MOBILITY = ['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'thoracic_opener', 'worlds_greatest_stretch', 'cat_cow', 'childs_pose', 'hip_flexor_stretch',
+  'standing_hamstring_stretch', 'doorway_chest_stretch'];
 const MUSCLE_LABEL = { front_delts: 'front shoulders', side_delts: 'side shoulders', rear_delts: 'rear shoulders', upper_back: 'upper back', lower_back: 'lower back', hip_flexors: 'hip flexors', abs: 'abs' };
 function hashStr(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
@@ -1535,6 +1779,11 @@ function quickTemplate(focus, muscles, ctx, seed, minutes) {
   const hard = (f, slots) => ({ kind: 'hard', name: '', focus: f, slots });
   switch (focus) {
     case 'mobility': return { kind: 'flow', name: '', focus: ['mobility'], slots: [] };
+    case 'flow': return { kind: 'flow', name: '', focus: ['flow', 'mobility'], slots: [] };
+    case 'rotation': return { ...hard(['core'], [T(['anti_rotation'], 'core', 1), T(['rotation'], 'core', 1), T(['core_lateral'], 'core', 2),
+      T(['anti_rotation'], 'core', 3, { variant: true }), T(['rotation'], 'core', 3, { variant: true }), T(['core_posterior'], 'core', 3)]), region: 'full' };
+    case 'balance': return { ...hard(['legs', 'core'], [T(['squat'], 'main', 1, { variant: true, unilateral: true }), T(['hinge'], 'main', 1, { variant: true, unilateral: true }),
+      T(['anti_rotation'], 'core', 2), T(['calves'], 'acc', 2), T(['core_lateral'], 'core', 3)]), region: 'lower' };
     case 'core': return hard(['core'], [T([core[0]], 'core', 1), T([core[1]], 'core', 1), T([core[2]], 'core', 2),
       T([core[0]], 'core', 3, { variant: true }), T([core[1]], 'core', 3, { variant: true }), T([core[2]], 'core', 3, { variant: true })]);
     case 'upper': return { ...hard(['push', 'pull'], [T(['push_horizontal'], 'main', 1), T(HPULL, 'main', 1), T(['push_vertical', 'dip'], 'main', 2),
@@ -1618,7 +1867,7 @@ function quickName(minutes, focus, muscles, goal, goalGiven) {
     label = n.length === 1 ? n[0] : n.length === 2 ? `${n[0]} & ${n[1]}` : n.length === 3 ? `${n[0]}, ${n[1]} & ${n[2]}` : `${n[0]}, ${n[1]} & ${n.length - 2} more`;
     label = label.charAt(0).toUpperCase() + label.slice(1);
   } else label = FOCUS_LABEL[focus];
-  return `${minutes}-min ${label}${goalGiven && focus !== 'mobility' ? ` · ${GOAL_LABEL[goal]}` : ''}`;
+  return `${minutes}-min ${label}${goalGiven && !['mobility', 'flow'].includes(focus) ? ` · ${GOAL_LABEL[goal]}` : ''}`;
 }
 
 /**
@@ -1652,8 +1901,8 @@ export function generateQuickSession(request = {}, profile = null, levels = null
     tpl = quickTemplate(focus, [], ctx, seed, minutes);
   }
   const T = minutes * 60;
-  const quick = { noBalance: focus === 'mobility' };
-  quick.warm = minutes <= 5 ? 45 : minutes <= 10 ? Math.max(60, Math.round(0.15 * T)) : minutes < 20 ? 150 : null; // always a warm-up, scaled down when short
+  const quick = { noBalance: focus === 'mobility' || focus === 'flow' };
+  quick.warm =minutes <= 5 ? 45 : minutes <= 10 ? Math.max(60, Math.round(0.15 * T)) : minutes < 20 ? 150 : null; // always a warm-up, scaled down when short
   if (minutes <= 10) quick.cool = muscles.length ? 95 : 60;
   if (minutes < 15) quick.cond = 0;
   if (focus === 'muscles' || ['upper', 'lower', 'legs', 'push', 'pull'].includes(focus)) quick.cond = goal === 'endurance' && minutes >= 30 ? 180 : 0; // targeted time stays on target
@@ -1662,13 +1911,24 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   if (['upper', 'lower', 'legs', 'push', 'pull'].includes(focus)) tpl.targeted = true;
   if (tpl.kind === 'hard' && minutes >= 30 && focus !== 'muscles') { // more variations of the same families, used only if time is left after the prescription
     const fams = [...new Set(tpl.slots.map(x => x.fixed ? x.fixed.family : x.fams[0]))];
-    for (let k = 0; k < 2; k++) for (const f of fams) tpl.slots.push(S([f], CORE.includes(f) ? 'core' : f === 'calves' ? 'acc' : 'main', false, { tier: 4, variant: true }));
+    for (let k = 0; k < 2; k++) for (const f of fams) tpl.slots.push(S([f], patternOf(f) === 'core' ? 'core' : f === 'calves' ? 'acc' : 'main', false, { tier: 4, variant: true }));
     if (minutes >= 45 && !tpl.targeted) for (let k = 0; k < 2; k++) for (const f of CORE) tpl.slots.push(S([f], 'core', false, { tier: 4, variant: true })); // long narrow sessions: complementary core work
   }
   const targeted = focus === 'muscles' || ['upper', 'lower', 'legs', 'push', 'pull'].includes(focus);
   if (targeted && minutes >= 15 && minutes < 30) quick.warm = 120; // lean warm-up so the targeted work gets the time
   if (focus === 'muscles' && minutes >= 15) { quick.cool = minutes < 30 ? 95 : 120; quick.coolIsMin = minutes >= 30; }
-  if (focus === 'mobility') quick.cond = 0;
+  if (focus === 'flow') { // whole flows (when their tradition is verified), then stretches with rotation openers first
+    quick.flow = Math.round(0.6 * T);
+    quick.flowOrder = ['radio_taiso_1', ...flowOrder(ctx.D)];
+    quick.mobOrder = ROTATION_MOBILITY;
+  }
+  if (focus === 'balance') { // the gentle balance block comes early and doubles as preparation, so warm-up and stretching stay short
+    quick.balance = Math.max(120, Math.round(0.35 * T));
+    if (minutes > 10) quick.cool = Math.round(Math.min(0.15 * T, 300));
+    if (minutes >= 20) quick.warm = Math.round(Math.min(0.15 * T, 300));
+  }
+  if (focus === 'rotation') quick.mobOrder = ROTATION_MOBILITY;
+  if (['mobility', 'flow', 'balance', 'rotation'].includes(focus)) quick.cond = 0;
   if (muscles.length) { // stretches for the chosen areas first
     const ranked = [...ctx.avail.mobility].map((ex, i) => ({ ex, i, sc: muscleScore(ex, muscles).score })).sort((a, b) => b.sc - a.sc || a.i - b.i);
     quick.mobOrder = ranked.map(x => x.ex.id);
@@ -1678,7 +1938,36 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   sess.id = 'Q';
   sess.name = quickName(minutes, focus === 'muscles' ? 'muscles' : focus, focus === 'muscles' ? muscles : [], goal, goalGiven);
   if (focus === 'mobility') sess.focus = ['mobility'];
+  if (focus === 'flow') sess.focus = sess.blocks.some(b => b.kind === 'flow') ? ['flow', 'mobility'] : ['mobility'];
   if (muscles.length) sess.muscles = muscles;
   sess.estMinutes = estimateMinutes(sess, library);
   return sess;
+}
+
+// =============================================================================================
+// Morning Taiso and flow helpers (v1.2)
+// =============================================================================================
+/**
+ * The optional 3-minute Morning Taiso as its own session (id 'T'), adapted to the profile (no hops for low impact,
+ * smaller ranges for injuries). Returns null while its tradition is unverified (no ?preview=traditions) or when
+ * unsuitable (75+, or new to exercise at 65+, until the seated version exists). A 'T' log keeps the day streak alive
+ * and never counts toward the weekly target.
+ */
+export function generateMorningTaiso(profile = null, levels = null, library) {
+  const p = profile ? { ...profile } : { ...QUICK_DEFAULT };
+  const ctx = buildCtx(p, library);
+  resolveLevels(ctx, p, profile ? levels : null, library);
+  const ex = ctx.byId.radio_taiso_1;
+  if (!ex || !ctx.isAvail(ex)) return null;
+  const s = { id: MORNING_TAISO_SESSION_ID, name: ex.name, focus: ['flow', 'mobility'], light: true, estMinutes: 0,
+    blocks: [{ kind: 'flow', title: ex.name, items: [flowItem(ex, ctx)] }] };
+  s.estMinutes = estimateMinutes(s, library);
+  return s;
+}
+
+/** Ids of the flows this profile can do now (gate, injuries, age). For the UI: e.g. hide Quick 'flow' when empty. */
+export function availableFlows(profile, library) {
+  const p = profile || QUICK_DEFAULT;
+  const ok = availabilityFn(p, derive(p));
+  return (library || []).filter(e => e.mode === 'flow' && ok(e)).map(e => e.id);
 }
