@@ -10,6 +10,7 @@ const SHELL_FILES = [
   './js/ui/today.js', './js/ui/plan.js', './js/ui/workout.js', './js/ui/progress.js', './js/ui/library.js', './js/ui/me.js', './js/ui/quick.js',
   './js/data/muscles.js', './js/data/exercises.js',
   './js/anim/skeleton.js', './js/anim/poses.js', './js/anim/bodymap.js',
+  './js/anim/v2/core.js', './js/anim/v2/anatomy.js', './js/anim/v2/clips.js', './js/anim/v2/plate.js',
   './js/engine/planner.js',
   './icons/favicon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
 ];

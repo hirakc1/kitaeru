@@ -333,6 +333,7 @@ function arm(S, ch, ctx, sd, s) {
     extra = want;
   }
   const { G, E, W, ant, scap } = res;
+  if (res.herr != null) S.humerusErr = Math.max(S.humerusErr || 0, res.herr);   // QA: upper-arm stretch with a planted elbow
   S.F['scapula' + sd] = scap;
   const [hu, fo] = limbFrames(G, E, W, ant, s);
   S.F['humerus' + sd] = hu; S.F['fore' + sd] = fo;
@@ -358,14 +359,19 @@ function armFK(ch, G, sd, s, T4) {
 }
 
 function armIK(S, ch, G, spec, sd, s, T4) {
-  const pl = spec.pole;
+  const pl = spec.pole || [0, -1, 0];
   const pole = nrm(add(add(mul(T4.x, pl[0]), mul(T4.y, pl[1])), mul(T4.z, pl[2] * s)));
   let W, hand = null;
+  // planted / bar hands: z = thumb side (medial when palm-down or overhand, lateral underhand), as for free hands
   if (spec.grip === 'palm') {                               // flat hand planted on the floor
     const c = spec.target(sd, s);
     const d = nrm(spec.dir(s)), a = [0, -1, 0];
     W = add(madd(c, d, -5.2), [0, 2.4, 0]);
-    hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), s), len: 18, grip: 'palm' };
+    hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'palm' };
+  } else if (spec.grip === 'forearm') {                     // forearm flat on the floor (forearm plank): elbow + hand planted
+    const E = spec.target(sd, s), d = nrm(spec.dir(s)), a = [0, -1, 0];
+    W = madd(E, d, LEN.fore);
+    return { E, W, ant: d, herr: Math.abs(len(sub(E, G)) - LEN.humerus), hand: { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'palm' } };
   } else if (spec.grip === 'bar') {                          // hand wrapped around a bar: pivots about the bar axis
     const B = spec.target(sd, s);
     let dirv = nrm(sub(G, B));
@@ -375,8 +381,8 @@ function armIK(S, ch, G, spec, sd, s, T4) {
       dirv = nrm(lerp3(nrm(sub(r.mid, B)), nrm(sub(G, B)), .35));
     }
     W = madd(B, dirv, 6.6);
-    const d = nrm(sub(B, W)), a = perp([1, 0, 0], d);
-    hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), s), len: 18, grip: 'bar', bar: B };
+    const d = nrm(sub(B, W)), a = perp([spec.sup ? -1 : 1, 0, 0], d);   // sup: underhand (chin-up) grip
+    hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'bar', bar: B };
   } else {                                                   // free hand driven by a target in chest space
     W = P(T4, [ch['handX' + sd], ch['handY' + sd], ch['handZ' + sd] * s]);
   }
@@ -406,15 +412,30 @@ function leg(S, ch, ctx, sd, s) {
       const Rf = mm(ry(-s * (spec.toeOut ?? 10)), [1, 0, 0, 0, 1, 0, 0, 0, s]);
       A = spec.ankle(sd, s, ch);
       foot = frameR(A, Rf);
-    } else {                                                // on the toes: ball + toes planted, heel lifts as needed
-      const yaw = -s * (spec.toeOut ?? 4);
-      const ball = spec.ball(sd, s);
-      const D = Math.sqrt(LEN.femur ** 2 + LEN.tibia ** 2 + 2 * LEN.femur * LEN.tibia * Math.cos((spec.knee ?? 2) * DEG));
-      const at = be => { const Rf = mm(ry(yaw), mm(rz(-be), [1, 0, 0, 0, 1, 0, 0, 0, s])); return { A: sub(ball, mv(Rf, FOOT.ball)), Rf }; };
-      let lo = 0, hi = 115;
-      for (let i = 0; i < 28; i++) { const m = (lo + hi) / 2; if (len(sub(H, at(m).A)) > D) lo = m; else hi = m; }
-      const r = at((lo + hi) / 2);
-      A = r.A; foot = frameR(A, r.Rf); foot.toeFlat = mm(ry(yaw), [1, 0, 0, 0, 1, 0, 0, 0, s]);
+    } else if (spec.foot === 'fixed') {                     // planted in any orientation: axes = [toes, up, lateral] (world)
+      const [x, y, z] = spec.axes(sd, s, ch);
+      A = spec.ankle(sd, s, ch);
+      foot = { o: A, x: nrm(x), y: nrm(y), z: nrm(z) };
+    } else {                                                // pivoting on a planted point: 'toes' = ball + toes planted, heel lifts
+      // as needed; 'heel' = heel planted, toes lift (rows). Foot pitch = spec.lift(s, ch) if given (split-squat back foot),
+      // else solved so the knee has the flexion spec.knee (number or (s, ch) => deg)
+      const heel = spec.foot === 'heel', yaw = -s * (spec.toeOut ?? 4);
+      const piv = heel ? spec.heel(sd, s, ch) : spec.ball(sd, s, ch), off = heel ? FOOT.heel : FOOT.ball;
+      const at = be => { const Rf = mm(ry(yaw), mm(rz(-be), [1, 0, 0, 0, 1, 0, 0, 0, s])); return { A: sub(piv, mv(Rf, off)), Rf }; };
+      let be;
+      if (spec.lift) be = spec.lift(s, ch);
+      else {
+        const kn = typeof spec.knee === 'function' ? spec.knee(s, ch) : (spec.knee ?? 2);
+        const D = Math.sqrt(LEN.femur ** 2 + LEN.tibia ** 2 + 2 * LEN.femur * LEN.tibia * Math.cos(kn * DEG));
+        const f = b => len(sub(H, at(b).A)) - D;
+        let lo = heel ? -115 : 0, hi = heel ? 0 : 115;
+        const up = f(lo) > f(hi);
+        for (let i = 0; i < 28; i++) { const m = (lo + hi) / 2; if ((f(m) > 0) === up) lo = m; else hi = m; }
+        be = (lo + hi) / 2;
+      }
+      const r = at(be);
+      A = r.A; foot = frameR(A, r.Rf);
+      if (!heel) foot.toeFlat = mm(ry(yaw), [1, 0, 0, 0, 1, 0, 0, 0, s]);
     }
     const r = ik2(H, A, LEN.femur, LEN.tibia, pole);
     K = r.mid; A = r.end; ant = pole;
@@ -459,7 +480,7 @@ export function poseAt(clip, ts) {
   ch.roll += (clip.shiftRoll ?? .6) * Math.sin(w + 1.1);
   const ctx = { clip, breath: sm.breath, sm, lag };
   clip.derive?.(ch, lag, sm);
-  let S = build(ch, ctx);
+  let S = settle(clip, ch, ctx);
   if (clip.balance) {
     for (let i = 0; i < 3; i++) {
       const err = clip.balance(S) - S.com[0];
@@ -472,11 +493,26 @@ export function poseAt(clip, ts) {
   return S;
 }
 export const period = clip => compile(clip).T;
+// pin: a body point held at a world position (upper back in a bridge, knees in a knee push-up) by translating the root
+function settle(clip, ch, ctx) {
+  let S = build(ch, ctx);
+  const pn = clip.pin;
+  if (pn) for (let i = 0; i < 3; i++) {
+    const p = pn.pt(S), dx = pn.at[0] == null ? 0 : pn.at[0] - p[0], dy = pn.at[1] == null ? 0 : pn.at[1] - p[1];
+    if (Math.abs(dx) + Math.abs(dy) < .01) break;
+    ch.rootX += dx; ch.rootY += dy;
+    S = build(ch, ctx);
+  }
+  return S;
+}
 
 function prepare(clip) {
   if (clip._prepped) return;
   clip._prepped = true;
-  clip.prep?.({ build: (pose, fk) => build({ ...zeroCh(), ...expand({ ...(clip.base || {}), ...pose }) }, { clip, breath: .5, fk }) });
+  const full = pose => ({ ...zeroCh(), ...expand({ ...(clip.base || {}), ...pose }) });
+  clip.prep?.({ build: (pose, fk) => build(full(pose), { clip, breath: .5, fk }),
+    // derive + pin, as poseAt does (no secondary motion)
+    settle: (pose, fk) => { const ch = full(pose); clip.derive?.(ch, ch, {}); return settle(clip, ch, { clip, breath: .5, fk }); } });
   clip._c = null;
 }
 const zeroCh = () => Object.fromEntries(CHANNELS.map(c => [c, 0]));
@@ -563,6 +599,12 @@ export const bulge = (L, Lavg) => clamp(Math.pow(Lavg / L, 1.25), .75, 1.65);
 
 // muscle average lengths over a cycle (for contraction), and a joint path for the motion trail
 export function analyse(clip, groups, trailPts = [], n = 36) {
+  const key = [...groups].sort().join() + '|' + trailPts.join();
+  const memo = clip._an || (clip._an = new Map());
+  if (!memo.has(key)) memo.set(key, analyse1(clip, groups, trailPts, n));
+  return memo.get(key);
+}
+function analyse1(clip, groups, trailPts, n) {
   const T = period(clip), avg = {}, trail = Object.fromEntries(trailPts.map(p => [p, []]));
   let cnt = 0;
   for (let i = 0; i < n; i++) {
@@ -571,7 +613,7 @@ export function analyse(clip, groups, trailPts = [], n = 36) {
     cnt++;
   }
   for (const k in avg) avg[k] /= cnt;
-  const m = 72;
+  const m = trailPts.length ? 72 : -1;
   for (let i = 0; i <= m; i++) { const S = poseAt(clip, i / m * T); for (const p of trailPts) trail[p].push(S.pt[p]); }
   return { avg, trail };
 }

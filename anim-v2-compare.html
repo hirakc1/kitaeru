@@ -7,7 +7,7 @@
 <style>
   :root {
     --bg: #F5F1E8; --surface: #FFFDF7; --ink: #1C1B19; --ink-muted: #6B665C; --line: #E3DCCB;
-    --accent: #C8372D; --accent-2: #D9A441;
+    --accent: #C8372D; --accent-2: #D9A441; --ok: #3F7D58;
     --muscle-primary: #C8372D; --muscle-secondary: #D9A441; --bone: #EFE8D8; --joint: #8A8374;
   }
   @media (prefers-color-scheme: dark) {
@@ -33,15 +33,19 @@
   .ex { margin: 18px 0 26px; }
   .ex h2 { font: 600 16px "Noto Serif JP", Georgia, serif; margin: 0 0 8px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
   .ex h2 small { font: 400 12px system-ui, sans-serif; color: var(--ink-muted); }
-  .row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-  @media (max-width: 820px) { .row { grid-template-columns: 1fr; } }
+  .qa { font: 11px ui-monospace, monospace; color: var(--ink-muted); margin: -4px 0 8px; overflow-wrap: anywhere; }
+  .qa b { color: var(--ok); } .qa b.bad { color: var(--accent); }
+  .row { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
   .cell { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; position: relative; min-width: 0; }
   .cell h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .02em; display: flex; justify-content: space-between; }
   .cell h3 span { color: var(--ink-muted); font-weight: 400; }
-  .stage { aspect-ratio: 1 / 1; display: grid; place-items: center; overflow: hidden; }
+  .stage { aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; }
   .stage > svg, .stage > canvas, .stage > div { max-height: 100%; }
   .stage canvas { touch-action: none; cursor: grab; }
   .na { color: var(--ink-muted); font-size: 12px; text-align: center; padding: 20px; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; }
+  nav a { color: var(--ink-muted); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -54,41 +58,50 @@
   <button id="theme">Theme</button>
   <span class="note" id="status">loading…</span>
 </header>
-<main id="main"></main>
+<main id="main"><nav id="nav"></nav></main>
 <script type="module">
-  import { createSkeletonPlayer } from './js/anim/skeleton.js';
+  // v1 vs Direction A for every converted exercise (+ Direction B with ?b). ?only=id,id  ?size=px
+  // QA line per exercise: IK reach, contact slide, floor penetration (see js/anim/v2/qa.js)
+  import { createV1Player } from './js/anim/skeleton.js';
   import { createPlatePlayer } from './js/anim/v2/plate.js';
-  import { CLIPS } from './js/anim/v2/clips.js';
+  import { CLIPS, CLIP_IDS } from './js/anim/v2/clips.js';
+  import { qaClip } from './js/anim/v2/qa.js';
+  import { byId } from './js/data/exercises.js';
 
   const params = new URLSearchParams(location.search);
   const only = params.get('only');
-  const size = +(params.get('size') || 420);
-  const ids = ['push_up', 'bodyweight_squat', 'pull_up', 'taichi_cloud_hands'].filter(i => !only || only.split(',').includes(i));
+  const size = +(params.get('size') || 480);
+  const ids = CLIP_IDS.filter(i => !only || only.split(',').includes(i));
   const main = document.getElementById('main');
   const players = [], plates = [], threes = [];
   let three = null;
-  const noB = params.has('noB');
-  if (!noB) try { three = await import('./js/anim/v2/three-player.js'); } catch (e) { console.error(e); }
+  if (params.has('b')) try { three = await import('./js/anim/v2/three-player.js'); } catch (e) { console.error(e); }
+  document.documentElement.style.setProperty('--cols', three ? 3 : 2);
+  const PINS = { knee_push_up: ['kneeR', 'kneeL'] };
+  const nav = document.getElementById('nav');
+  nav.innerHTML = ids.map(id => `<a href="#${id}">${CLIPS[id].name}</a>`).join(' · ');
 
   for (const id of ids) {
-    const c = CLIPS[id];
-    const sec = document.createElement('section'); sec.className = 'ex';
-    sec.innerHTML = `<h2>${c.name} <small>primary: ${c.muscles.primary.join(', ')} · secondary: ${c.muscles.secondary.join(', ')}</small></h2>
+    const c = CLIPS[id], ex = byId[id], m = ex ? ex.muscles : c.muscles;
+    const sec = document.createElement('section'); sec.className = 'ex'; sec.id = id;
+    sec.innerHTML = `<h2>${ex ? ex.name : c.name} <small>${id} · primary: ${m.primary.join(', ')}${m.secondary.length ? ' · secondary: ' + m.secondary.join(', ') : ''}${ex?.mode === 'hold' ? ' · hold' : ''}${ex?.unilateral ? ' · unilateral' : ''}</small></h2>
+      <p class="qa"></p>
       <div class="row">
         <div class="cell"><h3>Current <span>v1 (2D FK)</span></h3><div class="stage" data-v="cur"></div></div>
         <div class="cell"><h3>Direction A <span>2D anatomical plate</span></h3><div class="stage" data-v="a"></div></div>
-        <div class="cell"><h3>Direction B <span>3D (three.js), drag to rotate</span></h3><div class="stage" data-v="b"></div></div>
+        ${three ? '<div class="cell"><h3>Direction B <span>3D (three.js), drag to rotate</span></h3><div class="stage" data-v="b"></div></div>' : ''}
       </div>`;
     main.appendChild(sec);
     const cur = sec.querySelector('[data-v=cur]');
-    if (id === 'taichi_cloud_hands') cur.innerHTML = '<p class="na">Not possible in v1: no trunk rotation, no 3/4 view.</p>';
-    else players.push(createSkeletonPlayer(cur, id, { primary: c.muscles.primary, secondary: c.muscles.secondary, size }));
-    const pa = createPlatePlayer(sec.querySelector('[data-v=a]'), id, { primary: c.muscles.primary, secondary: c.muscles.secondary, size });
+    if (!ex) cur.innerHTML = '<p class="na">Not an exercise in v1 (no trunk rotation, no 3/4 view).</p>';
+    else players.push(createV1Player(cur, id, { primary: m.primary, secondary: m.secondary, size }));
+    const pa = createPlatePlayer(sec.querySelector('[data-v=a]'), id, { primary: m.primary, secondary: m.secondary, size });
     plates.push(pa); players.push(pa);
-    if (three) {
-      const pb = three.createThreePlayer(sec.querySelector('[data-v=b]'), id, { primary: c.muscles.primary, secondary: c.muscles.secondary, size });
-      threes.push(pb); players.push(pb);
-    } else sec.querySelector('[data-v=b]').innerHTML = '<p class="na">3D disabled</p>';
+    if (three) { const pb = three.createThreePlayer(sec.querySelector('[data-v=b]'), id, { primary: m.primary, secondary: m.secondary, size }); threes.push(pb); players.push(pb); }
+    const q = qaClip(c, { pins: PINS[id] || [] }), f = (v, bad) => `<b class="${bad ? 'bad' : ''}">${v}</b>`;
+    sec.querySelector('.qa').innerHTML = `QA ${f(q.ok ? 'pass' : 'FAIL', !q.ok)} · arm reach ${f(q.reach, q.reach > 1)} · leg reach ${f(q.reachLeg, q.reachLeg > 1)}`
+      + ` · contact slide ${f(q.slide + ' cm', q.slide >= .05)}${q.slide ? ` (${q.slideAt})` : ''} · floor ${f(q.floor + ' cm', q.floor <= -.3)} (${q.floorAt})`
+      + `${q.humerus ? ` · humerus stretch ${f(q.humerus + ' cm', q.humerus >= .6)}` : ''} · ${q.ms} ms/pose · cycle ${(c._c?.T ?? 0).toFixed(2)} s`;
   }
 
   let paused = false;
@@ -111,11 +124,11 @@
     if (ts - t0 > 1000) {
       const fps = frames * 1000 / (ts - t0); frames = 0; t0 = ts;
       const med = arr => arr.length ? (arr.reduce((a, p) => a + p.stats().median, 0) / arr.length) : 0;
-      status.textContent = `${fps.toFixed(0)} fps page · A ${med(plates).toFixed(2)} ms/frame · B ${med(threes).toFixed(2)} ms/frame (median, per player)`;
+      status.textContent = `${ids.length} clips · ${fps.toFixed(0)} fps page · A ${med(plates).toFixed(2)} ms/frame${three ? ` · B ${med(threes).toFixed(2)} ms/frame` : ''} (median, per player)`;
     }
     requestAnimationFrame(tick);
   })(performance.now());
-  // ---- capture: compose current | A | B for every exercise at time t into one PNG (used for docs/anim-v2) ----
+  // ---- capture: compose v1 | A (| B) at time t into one PNG (docs/anim-v2; needs a server with POST /save) ----
   const NS = 'http://www.w3.org/2000/svg';
   async function svgImg(svg, w) {
     const clone = svg.cloneNode(true), vb = svg.viewBox.baseVal;
@@ -130,30 +143,33 @@
     const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' }));
     const img = new Image(); img.src = url; await img.decode(); return img;
   }
-  async function sheet(t, { cell = 520, cols = ['cur', 'a', 'b'] } = {}) {
-    const secs = [...main.querySelectorAll('.ex')];
-    const cv = document.createElement('canvas'), pad = 12, head = 30;
-    cv.width = cols.length * (cell + pad) + pad; cv.height = secs.length * (cell + head + pad) + pad;
+  // rows: section ids (default all on the page); t: a number, or { id: t } per exercise
+  async function sheet(t, { cell = 460, cols = three ? ['cur', 'a', 'b'] : ['cur', 'a'], rows } = {}) {
+    const secs = [...main.querySelectorAll('.ex')].filter(s => !rows || rows.includes(s.id));
+    const cv = document.createElement('canvas'), pad = 12, head = 30, ch = Math.round(cell * .78);
+    cv.width = cols.length * (cell + pad) + pad; cv.height = secs.length * (ch + head + pad) + pad;
     const g = cv.getContext('2d'), cs = getComputedStyle(document.documentElement);
     g.fillStyle = cs.getPropertyValue('--bg'); g.fillRect(0, 0, cv.width, cv.height);
-    players.forEach(p => { p.pause(); p.seek(t); });
     for (let r = 0; r < secs.length; r++) {
-      const y = pad + r * (cell + head + pad);
+      const tt = typeof t === 'object' ? (t[secs[r].id] ?? .45) : t;
+      const y = pad + r * (ch + head + pad);
       g.fillStyle = cs.getPropertyValue('--ink'); g.font = '600 17px Georgia, serif';
-      g.fillText(`${secs[r].querySelector('h2').firstChild.textContent.trim()}  ·  t = ${t.toFixed(2)}`, pad, y + 20);
+      g.fillText(`${secs[r].querySelector('h2').firstChild.textContent.trim()}  ·  t = ${tt.toFixed(2)}`, pad, y + 20);
       for (let c = 0; c < cols.length; c++) {
         const x = pad + c * (cell + pad);
-        g.fillStyle = cs.getPropertyValue('--surface'); g.fillRect(x, y + head, cell, cell);
+        g.fillStyle = cs.getPropertyValue('--surface'); g.fillRect(x, y + head, cell, ch);
         g.fillStyle = cs.getPropertyValue('--ink-muted'); g.font = '12px system-ui';
         g.fillText({ cur: 'Current (v1)', a: 'Direction A · 2D anatomical plate', b: 'Direction B · 3D (three.js)' }[cols[c]], x + 8, y + head + 16);
         const st = secs[r].querySelector(`[data-v=${cols[c]}]`);
+        const p = players.find(q => st.contains(q.svg || q.canvas));
+        if (p) { p.pause(); p.seek(tt); }
         const svg = st.querySelector('svg'), canvas = st.querySelector('canvas');
         let img = null, w = 0, h = 0;
         if (svg) { img = await svgImg(svg, cell); const vb = svg.viewBox.baseVal; w = cell; h = cell * vb.height / vb.width; }
-        else if (canvas) { const p = threes.find(q => q.canvas === canvas); p.hiRes(cell * 2); p.seek(t); img = document.createElement('canvas'); img.width = canvas.width; img.height = canvas.height; img.getContext('2d').drawImage(canvas, 0, 0); p.hiRes(0); p.seek(t); w = cell; h = cell; }
+        else if (canvas) { p.hiRes(cell * 2); p.seek(tt); img = document.createElement('canvas'); img.width = canvas.width; img.height = canvas.height; img.getContext('2d').drawImage(canvas, 0, 0); p.hiRes(0); p.seek(tt); w = cell; h = cell; }
         if (!img) continue;
-        const k = Math.min(cell / w, (cell - 20) / h); w *= k; h *= k;
-        g.drawImage(img, x + (cell - w) / 2, y + head + 20 + (cell - 20 - h) / 2, w, h);
+        const k = Math.min(cell / w, (ch - 20) / h); w *= k; h *= k;
+        g.drawImage(img, x + (cell - w) / 2, y + head + 20 + (ch - 20 - h) / 2, w, h);
       }
     }
     return cv;
@@ -164,8 +180,8 @@
     return r.ok;
   }
   // zoomed capture of one plate around a skeleton point (visual QA)
-  async function zoom(i, t, pt, half = 30, name = 'zoom.png', px = 900) {
-    const p = plates[i]; p.pause(); p.seek(t);
+  async function zoom(id, t, pt, half = 30, name = 'zoom.png', px = 900) {
+    const p = plates[ids.indexOf(id)]; p.pause(); p.seek(t);
     const S = p.skeleton, cam = p.cam, q = cam.pr(typeof pt === 'string' ? S.pt[pt] : pt);
     const svg = p.svg, old = svg.getAttribute('viewBox');
     svg.setAttribute('viewBox', `${q[0] - half} ${q[1] - half} ${2 * half} ${2 * half}`);
@@ -174,7 +190,7 @@
     const g = cv.getContext('2d'); g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface'); g.fillRect(0, 0, px, px); g.drawImage(img, 0, 0, px, px);
     return (await fetch(`/save?name=${name}`, { method: 'POST', body: cv.toDataURL('image/png') })).ok;
   }
-  window.kt2 = { players, plates, threes, CLIPS, sheet, save, zoom };
+  window.kt2 = { players, plates, threes, CLIPS, ids, sheet, save, zoom, qaClip };
 </script>
 </body>
 </html>

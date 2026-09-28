@@ -13,6 +13,7 @@
 //     foot / hand  absolute world angle override for the sole / hand (90 = pointing +x, 180 = up)
 // Absolute angle convention: direction(a) = (sin a, cos a) in SVG space, so 0 = down, 90 = +x, 180 = up.
 import { ANIMS } from './poses.js';
+import { createPlatePlayer, V2_IDS } from './v2/plate.js';
 
 export const ANIM_IDS = Object.keys(ANIMS);
 
@@ -674,7 +675,7 @@ function injectStyle() {
 
 const FALLBACK = { view: 'side', anchor: 'feet', balance: true, duration: 4000, hold: true, props: [], frames: [{ t: 0, pose: { footN: 90, footF: 90, shN: 4, elN: 8, shF: -4, elF: 8 } }] };
 
-export function createSkeletonPlayer(container, animId, { primary = [], secondary = [], size = 280, playing = true } = {}) {
+export function createV1Player(container, animId, { primary = [], secondary = [], size = 280, playing = true } = {}) {
   injectStyle();
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const svg = document.createElementNS(NS, 'svg');
@@ -756,4 +757,32 @@ export function createSkeletonPlayer(container, animId, { primary = [], secondar
     svg,
   };
   return api;
+}
+
+// ---------- public player: v2 anatomical plate (Direction A) where a clip exists, v1 otherwise ----------
+// Same contract as before. setAnim() swaps renderer in place when crossing v1 <-> v2. ?anim=v1 forces v1 (A/B review).
+const FORCE_V1 = typeof location !== 'undefined' && /[?&]anim=v1(&|$)/.test(location.search);
+export const isV2 = id => !FORCE_V1 && V2_IDS.has(id);
+export function createSkeletonPlayer(container, animId, opts = {}) {
+  const o = { primary: [], secondary: [], size: 280, playing: true, ...opts };
+  let p = null, v2 = null;
+  function load(id, prim, sec) {
+    if (prim) o.primary = prim; if (sec) o.secondary = sec;
+    const want = isV2(id);
+    if (p && want === v2) { p.setAnim(id, o.primary, o.secondary); return; }
+    const old = p;
+    p = (want ? createPlatePlayer : createV1Player)(container, id, { ...o });
+    v2 = want;
+    if (old) { if (old.svg.parentNode === container) container.insertBefore(p.svg, old.svg); old.destroy(); }
+  }
+  load(animId);
+  return {
+    play() { o.playing = true; p.play(); },
+    pause() { o.playing = false; p.pause(); },
+    setAnim(id, prim, sec) { load(id, prim, sec); },
+    destroy() { p.destroy(); },
+    seek(t) { p.seek(t); },
+    get svg() { return p.svg; },
+    get renderer() { return v2 ? 'v2' : 'v1'; },
+  };
 }
