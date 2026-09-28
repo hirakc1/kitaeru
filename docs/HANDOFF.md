@@ -21,7 +21,7 @@ This is the current state for a new Claude session picking up the project. Claud
 - **Timed holds:** 3-2-1 get-ready, then a countdown to the top of the `holdSec` range. It auto-logs at 0, and "Stop & log" still logs early.
 - **Opening screen:**
   - One stage only: no pulsing boot square, and the splash is skipped before setup because the Welcome screen is the opening.
-  - It shows the seal, the name, "鍛える · to forge" and the line "The world's movement traditions, brought together to strengthen body and mind."
+  - It shows the seal, the name, "鍛える · to forge" and the line "Movement disciplines from around the world, brought together to strengthen body and mind."
   - It runs 3.6 s (the founder found 2.8 s too fast) and can be tapped to skip.
   - The logo seal sits straight. Only the earned "workout complete" stamp is tilted.
 - **Anim v2, direction A** (deployed as v2026.09.28-1455):

@@ -45,7 +45,7 @@ export function render(root, ctx) {
 
       <section class="section about"><h2 class="section-title">About</h2><div class="card">
         <div class="about-head">${seal('鍛える', { size: 64 })}<div><p class="opt-name">Kitaeru 鍛える</p><p class="small muted">“To forge” — body and mind, a little every day.</p></div></div>
-        <p>The world’s movement traditions, brought together to strengthen body and mind.</p>
+        <p>Movement disciplines from around the world, brought together to strengthen body and mind.</p>
         <p><strong>Kitaeru is free forever.</strong> No account, no ads, no tracking. Your data never leaves your phone.</p>
         <details class="disclaimer"><summary>Health disclaimer</summary><p class="small">${esc(DISCLAIMER)}</p></details>
         <p class="small muted">Programming follows published evidence on progressive calisthenics, deloads and habit formation. Version 1.</p>
