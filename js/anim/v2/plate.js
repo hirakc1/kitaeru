@@ -153,8 +153,8 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   for (const n of GROUPS) G[n] = new Grp(root, n);
   const over = new Grp(svg, 'over');
   const st = { clip: null, cam: null, playing: playing && !reduce, visible: true, t0: 0, elapsed: 0, last: 0, raf: 0, fixedT: null,
-    trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), avg: {}, trailPath: {}, order: '', ms: [],
-    lod: size < 160 ? 1 : 0, n: 0, slow: false, props: [], pnames: [], gnames: GROUPS };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
+    trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), avg: {}, trailPath: {}, trailPathM: {}, order: '', ms: [],
+    lod: size < 160 ? 1 : 0, n: 0, slow: false, props: [], props0: [], propsM: [], pnames: [], gnames: GROUPS };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
   if (st.lod) { svg.classList.add('lod'); st.trail = st.breath = false; }   // no overlays on thumbnails
 
   // ---------- primitives ----------
@@ -385,7 +385,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   }
   // hand: carpal block, five metacarpals, fourteen phalanges; each a tapered tube, painted far to near
   function drawHand(g, cam, H, sd) {
-    const bones = handBones(H.fingers, H.grip).map(b => ({ ...b, w: b.c.map(p => K.P(H, p)) }));
+    const bones = handBones(H.fingers, H.grip, H.shape).map(b => ({ ...b, w: b.c.map(p => K.P(H, p)) }));
     if (st.lod) {                                 // thumbnails: palm block + one stroke per digit
       const b0 = bones[0], t = tube(cam, b0.w, b0.w.map(() => H.x), b0.r.map(r => r * .42), b0.w.map(() => H.z), b0.r);
       g.add('path', { d: tubeD(t), fill: 'var(--bone,#EFE8D8)' }, 'pl-b');
@@ -530,7 +530,11 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   }
   function setProps(clip) {
     for (const n of st.pnames) { G[n].g.remove(); delete G[n]; }
-    st.props = (typeof clip.props === 'function' ? clip.props(clip) : clip.props) || [];
+    st.props = st.props0 = (typeof clip.props === 'function' ? clip.props(clip) : clip.props) || [];
+    // sides alternate (swap): the props swap too (a band anchored on the other side)
+    const fz = v => (typeof v === 'function' ? v : [v[0], v[1], -v[2]]);
+    st.propsM = clip.swap ? st.props0.map(p => ({ ...p, ...(p.a ? { a: fz(p.a) } : {}), ...(p.b && p.t === 'box' ? { a: [p.a[0], p.a[1], -p.b[2]], b: [p.b[0], p.b[1], -p.a[2]] } : p.b ? { b: fz(p.b) } : {}),
+      ...(p.pts ? { pts: p.pts.map(fz) } : {}), ...(p.c ? { c: fz(p.c) } : {}), ...(p.n ? { n: fz(p.n) } : {}) })) : st.props0;
     st.pnames = st.props.map((_, i) => 'prop' + i);
     st.props.forEach((p, i) => { G[st.pnames[i]] = new Grp(root, st.pnames[i]); });
     st.gnames = [...GROUPS, ...st.pnames];
@@ -539,9 +543,10 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   function drawOverlay(S, cam, tn) {
     const g = over;
     if (st.trail) for (const name of st.clip.trail || []) {
-      const P = st.trailPath[name]; if (!P) continue;
+      const T = K.period(st.clip), h = st.clip.swap ? K.swapTime(st.clip) : 0, second = h && tn * T >= h;
+      const P = (second ? st.trailPathM : st.trailPath)[name]; if (!P) continue;
       g.add('path', { d: smoothOpen(P) }, 'pl-trail');
-      const n = P.length - 1, i = tn * n;
+      const n = P.length - 1, i = (h ? (tn * T - (second ? h : 0)) / h : tn) * n;
       for (let j = 0; j < 7; j++) {
         const a = i - j * 1.2, b = a - 1.4;
         const pt = u => { const w = ((u % n) + n) % n, k = Math.floor(w), f = w - k; return [P[k][0] + (P[k + 1][0] - P[k][0]) * f, P[k][1] + (P[k + 1][1] - P[k][1]) * f]; };
@@ -599,6 +604,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     }
     S._strands = K.strands(S, st.groups);
     for (const k in G) G[k].begin(); over.begin();
+    st.props = clip.swap && tn * T >= K.swapTime(clip) ? st.propsM : st.props0;
     drawFloor(S, cam); drawBar(cam);
     st.props.forEach((p, i) => drawProp(G[st.pnames[i]], cam, p, S));
     drawSpine(S, cam); drawSkull(S, cam); drawSternum(S, cam);
@@ -643,7 +649,18 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   function trailPaths() {
     st.trailPath = {};
     if (!st.trail) return;
-    const an = K.analyse(st.clip, st.groups, st.clip.trail || []), tv = st.clip.travel;   // (camera frame when travelling)
+    const clip = st.clip, tv = clip.travel;
+    if (clip.swap) {                                // one side's path, and its mirror image for the second half
+      const h = K.swapTime(clip), m = 48, pts = clip.trail || [];
+      st.trailPathM = {};
+      for (const p of pts) { st.trailPath[p] = []; st.trailPathM[p] = []; }
+      for (let i = 0; i <= m; i++) {
+        const S = K.poseAt(clip, i / m * h * .999);
+        for (const p of pts) { const q = S.pt[p]; st.trailPath[p].push(st.cam.pr(q)); st.trailPathM[p].push(st.cam.pr([q[0], q[1], -q[2]])); }
+      }
+      return;
+    }
+    const an = K.analyse(clip, st.groups, clip.trail || []);   // (camera frame when travelling)
     for (const p in an.trail) st.trailPath[p] = an.trail[p].map((q, i, a) => st.cam.pr(tv ? K.sub(q, K.mul(tv, i / (a.length - 1))) : q));
   }
   // view box from the whole cycle (cached per clip)
@@ -661,7 +678,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     // the bar frames the view; floor-standing uprights and their feet may run out of the picture (figure stays large)
     if (b) for (const z of [-b.w * .7, b.w * .7]) inc(cam.pr([b.x || 0, b.y, z]), 3);
     if (b && b.posts !== 'down') for (const z of [-b.w - 5, b.w + 5]) inc(cam.pr([b.x || 0, b.y + 16, z]), 2);
-    for (const p of st.props) if (!p.nv) for (const q of propPts(p)) inc(cam.pr(q), 1);   // nv: may run out of frame
+    for (const p of [...st.props0, ...st.propsM]) if (!p.nv) for (const q of propPts(p)) inc(cam.pr(q), 1);   // nv: may run out of frame
     if (clip.floor && !clip.travel) inc(cam.pr([0, 0, 0]), st.lod ? 2 : 5);
     const pad = st.lod ? 2 : 8; x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
     let w = x1 - x0, h = y1 - y0;

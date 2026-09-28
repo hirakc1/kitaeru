@@ -6,32 +6,7 @@
 // by QA (centre of mass over the base of support). clip.travel is the net displacement per cycle: the last key equals
 // the first shifted by it, and the camera pans at a steady rate so the loop wraps seamlessly (the floor grid scrolls).
 import { mirrorPose } from '../core.js';
-import { CLIPS, R } from './lib.js';
-
-// feet in world terms: { R: [heelX, worldZ, toeOut, lift, pitch], L: [...] } -> sided channels (footZ is lateral: *side)
-const feet = f => Object.fromEntries(Object.entries(f).flatMap(([sd, [x, z, turn = 4, lift = 0, pitch = 0]]) => {
-  const s = sd === 'R' ? 1 : -1;
-  return [['footX' + sd, x], ['footZ' + sd, z * s], ['footTurn' + sd, turn], ['footLift' + sd, lift], ['footPitch' + sd, pitch]];
-}));
-// read back world feet from a key (to shift / mirror the second half of a cycle)
-const feetOf = k => Object.fromEntries(['R', 'L'].map(sd => [sd, [k['footX' + sd], k['footZ' + sd] * (sd === 'R' ? 1 : -1), k['footTurn' + sd], k['footLift' + sd], k['footPitch' + sd]]]));
-const mix = (a, b, u) => Object.fromEntries([...new Set([...Object.keys(a), ...Object.keys(b)])].map(k => [k, (a[k] ?? 0) + ((b[k] ?? 0) - (a[k] ?? 0)) * u]));
-const noFeet = k => Object.fromEntries(Object.entries(k).filter(([n]) => !n.startsWith('foot')));
-// swing keys for one foot between footholds fa -> fb ([heelX, worldZ, toeOut, lift, pitch]); a, b = the phase's end
-// keys. The foot clears the floor before it travels and travels before it sets down (no scuffing); mid overrides the
-// mid-swing foothold (e.g. passing the standing ankle). Returns [keys, phase] for a timeline entry.
-function swing(k, name, from, to, sd, fa, fb, { mid, lift = 6, dur, breath } = {}) {
-  const U = [.22, .5, .78], T = [.06, .5, .95], H = [lift * .75, lift, lift * .7];
-  const vias = U.map((u, i) => {
-    const t = T[i], f = i === 1 && mid ? mid.slice() : fa.map((v, j) => v + (fb[j] - v) * t);
-    f[3] = H[i]; if (!(i === 1 && mid)) f[4] = i === 0 ? Math.min(0, fa[4] ?? 0) * .5 : i === 2 ? (fb[4] ?? 0) * .5 : 0;   // heel strike only at the end
-    k[name + i] = { ...mix(k[from], k[to], u), ...feet({ [sd]: f }) };
-    return name + i;
-  });
-  return { from, via: vias, to, at: [0, ...U, 1], dur, r1: .2, r2: .25, breath };
-}
-// knees track the toes
-const stepLegs = { both: { mode: 'ik', foot: 'step', pole: (s, ch) => { const t = ch['footTurn' + (s > 0 ? 'R' : 'L')] * R; return [Math.cos(t), .05, s * (Math.sin(t) + .08)]; } } };
+import { CLIPS, R, feet, mix, noFeet, swing, stepLegs } from './lib.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // cloud hands (yún shǒu) with side-steps: turned left with the weight on the left foot, the right foot steps in beside

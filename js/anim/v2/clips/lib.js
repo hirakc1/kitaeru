@@ -201,3 +201,58 @@ export function rowGeometry(c, settle, topGap = 7, reach = .985) {
   // top: chest topGap cm under the grip line
   k.top.bodyAngle = solve(k.bottom.bodyAngle, 60, th => settle({ ...k.top, bodyAngle: th }).pt.sternum[1], c.gy - topGap);
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// stepping helpers (core leg mode 'step'; see flow.js for the conventions)
+// ---------------------------------------------------------------------------------------------------------------
+// feet in world terms: { R: [x, worldZ, toeOut, lift, pitch, pivot], L: [...] } -> sided channels (footZ is lateral: *side).
+// x / z locate the heel, or the ball when pivot = 1 (a foot that turns on its ball: woodchop back foot)
+export const feet = f => Object.fromEntries(Object.entries(f).flatMap(([sd, [x, z, turn = 4, lift = 0, pitch = 0, pivot = 0]]) => {
+  const s = sd === 'R' ? 1 : -1;
+  return [['footX' + sd, x], ['footZ' + sd, z * s], ['footTurn' + sd, turn], ['footLift' + sd, lift], ['footPitch' + sd, pitch], ['footPivot' + sd, pivot]];
+}));
+// read back world feet from a key (to shift / mirror the second half of a cycle)
+export const feetOf = k => Object.fromEntries(['R', 'L'].map(sd => [sd, [k['footX' + sd], k['footZ' + sd] * (sd === 'R' ? 1 : -1), k['footTurn' + sd], k['footLift' + sd], k['footPitch' + sd]]]));
+export const mix = (a, b, u) => Object.fromEntries([...new Set([...Object.keys(a), ...Object.keys(b)])].map(k => [k, (a[k] ?? 0) + ((b[k] ?? 0) - (a[k] ?? 0)) * u]));
+export const noFeet = k => Object.fromEntries(Object.entries(k).filter(([n]) => !n.startsWith('foot')));
+// swing keys for one foot between footholds fa -> fb ([heelX, worldZ, toeOut, lift, pitch]); a, b = the phase's end
+// keys. The foot clears the floor before it travels and travels before it sets down (no scuffing); mid overrides the
+// mid-swing foothold (e.g. passing the standing ankle). Returns [keys, phase] for a timeline entry.
+export function swing(k, name, from, to, sd, fa, fb, { mid, lift = 6, dur, breath } = {}) {
+  const U = [.22, .5, .78], T = [.06, .5, .95], H = [lift * .75, lift, lift * .7];
+  const vias = U.map((u, i) => {
+    const t = T[i], f = i === 1 && mid ? mid.slice() : fa.map((v, j) => v + (fb[j] - v) * t);
+    f[3] = H[i]; if (!(i === 1 && mid)) f[4] = i === 0 ? Math.min(0, fa[4] ?? 0) * .5 : i === 2 ? (fb[4] ?? 0) * .5 : 0;   // heel strike only at the end
+    k[name + i] = { ...mix(k[from], k[to], u), ...feet({ [sd]: f }) };
+    return name + i;
+  });
+  return { from, via: vias, to, at: [0, ...U, 1], dur, r1: .2, r2: .25, breath };
+}
+// knees track the toes
+export const stepLegs = { both: { mode: 'ik', foot: 'step', pole: (s, ch) => { const t = ch['footTurn' + (s > 0 ? 'R' : 'L')] * R; return [Math.cos(t), .05, s * (Math.sin(t) + .08)]; } } };
+
+
+// ---------------------------------------------------------------------------------------------------------------
+// side plank rig on the left forearm, facing the camera: body line tilted up by bodyAngle in the picture plane
+// (yaw -90, roll = bodyAngle - 90). Feet stacked (left foot on its outer edge); the elbow under the shoulder is solved
+// in prep. The right arm is the clip's (FK by default).
+// ---------------------------------------------------------------------------------------------------------------
+export function sidePlank(f) {
+  const c = {
+    cam: { az: 14, el: 13 }, floor: true, lag: .2, headLag: .2, shift: 0, shiftRoll: 0, L: 85.3, _ex: 100, _ez: 0,
+    // left ankle 4.3 cm up (foot on its outer edge), right ankle stacked 8.6 cm above it along the body's right
+    legs: { both: { mode: 'ik', foot: 'fixed', pole: () => [0, 0, 1],
+      ankle: (sd, s, ch) => { const r = ch.bodyAngle * R, k = s > 0 ? 8.6 : 0; return [-k * Math.sin(r), 4.3 + k * Math.cos(r), 0]; },
+      axes: (sd, s, ch) => { const r = ch.bodyAngle * R; return [[0, 0, 1], [Math.cos(r), Math.sin(r), 0], [-s * Math.sin(r), s * Math.cos(r), 0]]; } } },
+    arms: { L: { mode: 'ik', grip: 'forearm', dir: () => [.3, 0, 1], target: () => [c._ex, 3.4, c._ez] } },
+    derive(ch) {
+      const r = ch.bodyAngle * R, up = [Math.cos(r), Math.sin(r)], rt = [-Math.sin(r), Math.cos(r)];
+      const m = [4.3 * rt[0], 4.3 + 4.3 * rt[1]];              // between the stacked ankles
+      ch.rootX = m[0] + up[0] * c.L; ch.rootY = m[1] + up[1] * c.L; ch.rootZ = 0;
+      ch.roll = ch.bodyAngle - 90; ch.pitch = 0;
+    },
+    prep({ settle }) { elbowsUnder(c, settle, Object.keys(c.keys), 'L', { dx: 0, dz: 0, lo: 5 }); },
+  };
+  const o = f(c), arms = o.arms ? { ...c.arms, ...o.arms } : c.arms;
+  return Object.assign(c, o, { arms });
+}

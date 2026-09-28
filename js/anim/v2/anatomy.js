@@ -63,8 +63,20 @@ export function handShape(fingers = 0, grip = 'free') {
 const MC = { base: [[.2, 2.5, 1.7], [.2, 2.7, .55], [.2, 2.6, -.55], [.2, 2.4, -1.6]], head: [[0, 9.3, 2.3], [0, 9.7, .75], [0, 9.2, -.8], [0, 8.4, -2.2]] };
 const PH = [[3.9, 2.3, 1.7], [4.4, 2.8, 1.9], [4.1, 2.6, 1.8], [3.2, 1.9, 1.6]];
 const PR = [[.44, .36], [.36, .3], [.3, .2]];
-export function handBones(fingers = 0, grip = 'free') {
-  const out = [], gap = .18, sh = [.42, .33, .25];
+// Hand shapes (core channel handShape): per-finger curl (index..little, degrees over three joints), fan (+ spread,
+// - converge the tips) and the thumb's direction / curl. relaxed = the `fingers` channel with the default thumb.
+//   palm: open, fingers together, thumb alongside (Tai Chi palm). fist: fingers rolled in, thumb across the middle
+//   phalanges. hook (勾手): fingertips drawn together, pointing down with a flexed wrist. point: index out.
+//   bazi (八字掌, "figure-eight palm"): index straight up, thumb out wide, the other three curled (Baduanjin draw-the-bow).
+const SHAPES = {
+  palm: { curl: [4, 4, 4, 4], fan: .4, thumb: [.05, .75, .6], tc: 2 },
+  fist: { curl: [235, 245, 245, 235], fan: .6, thumb: [.78, .45, -.25], tc: 42 },
+  hook: { curl: [95, 100, 100, 95], fan: -1.4, thumb: [.85, .5, -.12], tc: 30 },
+  point: { curl: [0, 235, 245, 235], fan: .8, thumb: [.78, .45, -.25], tc: 42 },
+  bazi: { curl: [0, 235, 245, 235], fan: .8, thumb: [-.05, .5, .86], tc: 0 },
+};
+export function handBones(fingers = 0, grip = 'free', shape = 'relaxed') {
+  const out = [], gap = .18, sh = [.42, .33, .25], S = SHAPES[shape];
   const seg = (a, b, r0, r1) => { const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L = Math.hypot(...d), k = gap / L;
     const p = [a[0] + d[0] * k, a[1] + d[1] * k, a[2] + d[2] * k], q = [b[0] - d[0] * k, b[1] - d[1] * k, b[2] - d[2] * k];
     out.push({ c: [p, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2], q], r: [r0, (r0 + r1) / 2 * .85, r1] }); };
@@ -73,9 +85,9 @@ export function handBones(fingers = 0, grip = 'free') {
     const a = MC.base[i], h = MC.head[i];
     seg(a, h, .46, .5);
     let p = h, ang = 0;
-    const spread = (h[2] - a[2]) / 7 * .5;
+    const spread = S ? (S.fan < 0 ? -h[2] / 4 * -S.fan * .5 : (h[2] - a[2]) / 7 * .5 * S.fan) : (h[2] - a[2]) / 7 * .5, fc = S ? S.curl[i] : fingers;
     for (let j = 0; j < 3; j++) {
-      ang += fingers * sh[j] * DEG;
+      ang += fc * sh[j] * DEG;
       const d = [Math.sin(ang), Math.cos(ang), spread * Math.cos(ang)], l = PH[i][j];
       const q = [p[0] + d[0] * l, p[1] + d[1] * l, p[2] + d[2] * l];
       seg(p, q, PR[j][0] - i * .02, PR[j][1] - i * .02); p = q;
@@ -83,8 +95,8 @@ export function handBones(fingers = 0, grip = 'free') {
   }
   // thumb: CMC at the trapezium; metacarpal 4.4, phalanges 3.0 / 2.3
   const bar = grip === 'bar', flat = grip === 'palm';
-  let p = [.6, 1.9, 2.1], d = bar ? [.66, .66, .2] : flat ? [-.04, .62, .78] : [.55, .8, .24];
-  const curl = bar ? 32 : flat ? 0 : 8 + fingers * .35;
+  let p = [.6, 1.9, 2.1], d = bar ? [.66, .66, .2] : flat ? [-.04, .62, .78] : S ? S.thumb.slice() : [.55, .8, .24];
+  const curl = bar ? 32 : flat ? 0 : S ? S.tc : 8 + fingers * .35;
   const n0 = Math.hypot(...d); d = d.map(v => v / n0);
   const lens = [4.4, 3.0, 2.3], rad = [[.5, .46], [.42, .34], [.34, .22]];
   for (let j = 0; j < 3; j++) {

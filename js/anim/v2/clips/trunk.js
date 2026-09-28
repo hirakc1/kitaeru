@@ -1,6 +1,6 @@
 // Kitaeru animation v2 clips: trunk (planks, back extension). See lib.js for conventions.
 import { P } from '../core.js';
-import { CLIPS, R, solve, hold, floorPlank, straighten, elbowsUnder } from './lib.js';
+import { CLIPS, solve, hold, floorPlank, straighten, elbowsUnder, sidePlank } from './lib.js';
 
 // forearm plank: elbows planted under the shoulders, forearms flat; a breathing hold
 const plank = floorPlank(c => ({
@@ -13,32 +13,15 @@ const plank = floorPlank(c => ({
   prep({ settle }) { straighten(c, settle, 'a', 12); elbowsUnder(c, settle, ['a', 'b'], 'R', { hi: 30 }); },
 }));
 
-// side plank on the left forearm, facing the camera: body line tilted up by bodyAngle in the picture plane
-// (yaw -90, roll = bodyAngle - 90). Feet stacked (left foot on its outer edge), right arm to the ceiling.
-// Stays on one side: a mirror would turn the body away from the camera.
-const side_plank = (() => {
-  const c = {
-    name: 'Side plank', cam: { az: 14, el: 13 }, floor: true, trail: [], still: 0,
-    muscles: { primary: ['obliques'], secondary: ['abs', 'glutes', 'side_delts'] },
-    lag: .2, headLag: .2, shift: 0, shiftRoll: 0, L: 85.3, _ex: 100, _ez: 0,
-    // left ankle 4.3 cm up (foot on its outer edge), right ankle stacked 8.6 cm above it along the body's right
-    legs: { both: { mode: 'ik', foot: 'fixed', pole: () => [0, 0, 1],
-      ankle: (sd, s, ch) => { const r = ch.bodyAngle * R, k = s > 0 ? 8.6 : 0; return [-k * Math.sin(r), 4.3 + k * Math.cos(r), 0]; },
-      axes: (sd, s, ch) => { const r = ch.bodyAngle * R; return [[0, 0, 1], [Math.cos(r), Math.sin(r), 0], [-s * Math.sin(r), s * Math.cos(r), 0]]; } } },
-    arms: { L: { mode: 'ik', grip: 'forearm', dir: () => [.3, 0, 1], target: () => [c._ex, 3.4, c._ez] } },
-    base: { yaw: -90, shAbdR: 86, shFlexR: 4, elbowR: 4, palmR: 0, fingersR: 12, wristR: 0, cervical: 2, head: 0, fingersL: 25 },
-    derive(ch) {
-      const r = ch.bodyAngle * R, up = [Math.cos(r), Math.sin(r)], rt = [-Math.sin(r), Math.cos(r)];
-      const m = [4.3 * rt[0], 4.3 + 4.3 * rt[1]];              // between the stacked ankles
-      ch.rootX = m[0] + up[0] * c.L; ch.rootY = m[1] + up[1] * c.L; ch.rootZ = 0;
-      ch.roll = ch.bodyAngle - 90; ch.pitch = 0;
-    },
-    keys: { a: { bodyAngle: 20 }, b: { bodyAngle: 20, head: 1.5, scapProtL: 1 } },
-    timeline: hold('a', 'b'),
-    prep({ settle }) { elbowsUnder(c, settle, ['a', 'b'], 'L', { dx: 0, dz: 0, lo: 5 }); },
-  };
-  return c;
-})();
+// side plank on the left forearm, facing the camera (rig in lib.js). Stays on one side: a mirror would turn the body
+// away from the camera.
+const side_plank = sidePlank(() => ({
+  name: 'Side plank', trail: [], still: 0,
+  muscles: { primary: ['obliques'], secondary: ['abs', 'glutes', 'side_delts'] },
+  base: { yaw: -90, shAbdR: 86, shFlexR: 4, elbowR: 4, palmR: 0, fingersR: 12, wristR: 0, cervical: 2, head: 0, fingersL: 25 },
+  keys: { a: { bodyAngle: 20 }, b: { bodyAngle: 20, head: 1.5, scapProtL: 1 } },
+  timeline: hold('a', 'b'),
+}));
 
 // prone: the pelvis front is pinned; spine and hips extend to lift chest, arms and legs, then a breathing hold
 const superman = (() => {

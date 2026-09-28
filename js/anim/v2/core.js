@@ -93,7 +93,7 @@ export const SCAP = {
   acromion: [3.6, 7.4, 8.3],
 };
 export const FOOT = { heel: [-5.6, -6.2, .3], ball: [14.2, -7.1, 0], toe: [20.8, -7.2, -.6] };
-const HEEL_Y = 7.5 + FOOT.heel[1];   // heel point height with the foot flat (ankle 7.5 cm up)
+const HEEL_Y = 7.5 + FOOT.heel[1], BALL_Y = 7.5 + FOOT.ball[1];   // heel / ball point heights with the foot flat (ankle 7.5 cm up)
 export const TMJ = [.8, 1.3];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -160,7 +160,10 @@ function gauss(A, b) {
 // footLift = heel height above the floor, footTurn = toe-out (deg), footPitch = + toes up about the heel (heel strike),
 // - heel up about the ball (toe-off)
 const SIDED = ['scapElev', 'scapProt', 'scapUp', 'shFlex', 'shAbd', 'elbow', 'wrist', 'palm', 'fingers', 'handX', 'handY', 'handZ',
-  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch'];
+  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch', 'footPivot', 'handShape', 'release'];
+// release: a planted palm (grip 'palm') lifts off towards the free target handX/Y/Z (0 = planted, 1 = at the target)
+// footPivot: 1 = footX / footZ locate the ball and the foot turns on it (0 = heel). handShape: rounded to HAND_SHAPES
+export const HAND_SHAPES = ['relaxed', 'palm', 'fist', 'hook', 'point', 'bazi'];
 // weight: stepping clips, share of body weight on the right foot (0..1) while both feet are down
 const AXIAL = ['rootX', 'rootY', 'rootZ', 'pitch', 'yaw', 'roll', 'lumbar', 'thoracic', 'cervical', 'head', 'headYaw', 'bend', 'twist',
   'jaw', 'bodyAngle', 'weight'];
@@ -344,6 +347,7 @@ function arm(S, ch, ctx, sd, s) {
   S.F['humerus' + sd] = hu; S.F['fore' + sd] = fo;
   const hand = res.hand || handFrame(fo, ch['wrist' + sd], ch['palm' + sd], s);
   hand.fingers = ch['fingers' + sd] ?? 0;
+  hand.shape = HAND_SHAPES[Math.round(clamp(ch['handShape' + sd] || 0, 0, HAND_SHAPES.length - 1))];
   S.F['hand' + sd] = hand;
   S.pt['glenoid' + sd] = G; S.pt['elbow' + sd] = E; S.pt['wrist' + sd] = W;
   S.pt['palm' + sd] = P(hand, [0, 5, 0]);
@@ -373,6 +377,14 @@ function armIK(S, ch, G, spec, sd, s, T4) {
     const d = nrm(spec.dir(s)), a = mul(n, -1);
     W = madd(madd(c, d, -5.2), n, 2.4);
     hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'palm' };
+    const u = clamp(ch['release' + sd] || 0, 0, 1);
+    if (u > 0) {   // lifting off: rises first (arc), then travels to the free target (shoulder tap, thread the needle)
+      const W1 = P(T4, [ch['handX' + sd], ch['handY' + sd], ch['handZ' + sd] * s]), e = u * u * (3 - 2 * u);
+      W = add(lerp3(W, W1, e), mul(n, (spec.arc ?? 10) * Math.sin(Math.PI * Math.min(1, u * 1.4)) * (1 - e * .6)));
+      if (u > .3) hand = null;   // turns into a free hand once it has lifted clear
+    }
+  } else if (spec.grip === 'world') {                       // free hand at a world point: straight up, sliding down a leg
+    W = spec.at(sd, s, ch, S, G);
   } else if (spec.grip === 'forearm') {                     // forearm flat on the floor (forearm plank): elbow + hand planted
     const E = spec.target(sd, s), d = nrm(spec.dir(s)), a = [0, -1, 0];
     W = madd(E, d, LEN.fore);
@@ -423,9 +435,10 @@ function leg(S, ch, ctx, sd, s) {
       // rotates about the heel and a toe-off (pitch < 0) about the ball. Constant channels = a planted, unmoving foot.
       const turn = ch['footTurn' + sd], pitch = ch['footPitch' + sd], lift = Math.max(0, ch['footLift' + sd]);
       const Rf0 = mm(ry(-s * turn), [1, 0, 0, 0, 1, 0, 0, 0, s]);
-      const heel = [ch['footX' + sd], HEEL_Y + lift, ch['footZ' + sd] * s];
+      const at = [ch['footX' + sd], lift, ch['footZ' + sd] * s], onBallPivot = ch['footPivot' + sd] > .5;
       let Rf = Rf0, pe = pitch;
-      A = sub(heel, mv(Rf0, FOOT.heel));
+      A = onBallPivot ? sub(add(at, [0, BALL_Y, 0]), mv(Rf0, FOOT.ball)) : sub(add(at, [0, HEEL_Y, 0]), mv(Rf0, FOOT.heel));
+      const heel = add(A, mv(Rf0, FOOT.heel));
       const ball = add(A, mv(Rf0, FOOT.ball)), onBall = p => { const R2 = mm(Rf0, rz(p)); return { R2, A2: sub(ball, mv(R2, FOOT.ball)) }; };
       // a rear foot peels its heel as far as the leg needs (like walking), planted or trailing into the swing: the leg is
       // never overstretched
@@ -437,6 +450,7 @@ function leg(S, ch, ctx, sd, s) {
       else if (pe < 0) { const o = onBall(pe); Rf = o.R2; A = o.A2; }
       foot = frameR(A, Rf);
       if (pe < 0) foot.toeFlat = Rf0;
+      if (onBallPivot && pe < 0) (S.pivoting = S.pivoting || []).push(sd);   // on the ball, turning: the toes sweep with it
       S.support = S.support || [];
       if (lift < .05) S.support.push(sd);   // touching the floor (flat, heel strike or toe-off): can bear the keyed weight
     } else if (spec.foot === 'fixed') {                     // planted in any orientation: axes = [toes, up, lateral] (world)
@@ -557,6 +571,7 @@ function mirrorSpec(sp) {
   for (const k of ['ankle', 'ball', 'heel', 'target']) if (typeof sp[k] === 'function') o[k] = (sd, s, ch) => fz(sp[k](OTHER[sd], -s, mc(ch)));
   for (const k of ['pole', 'dir', 'normal', 'palm']) if (typeof sp[k] === 'function') o[k] = (s, ch) => fz(sp[k](-s, mc(ch)));
   if (typeof sp.axes === 'function') o.axes = (sd, s, ch) => sp.axes(OTHER[sd], -s, mc(ch)).map(fz);
+  if (typeof sp.at === 'function') o.at = (sd, s, ch, S, G) => fz(sp.at(OTHER[sd], -s, mc(ch), swapPt(S), fz(G)));
   for (const k of ['knee', 'lift']) if (typeof sp[k] === 'function') o[k] = (s, ch) => sp[k](-s, mc(ch));
   return o;
 }

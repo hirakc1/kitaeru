@@ -2,12 +2,11 @@
 // it has an animation: a v1 pose in js/anim/poses.js or a v2 clip. Without one it would render as a standing-figure
 // fallback. `?preview=traditions` shows everything for development (the gate is off in preview).
 //
-// ONE pluggable predicate: hasAnimation(animId). It checks v1 poses now. To add the anim v2 clip list when that branch
-// merges, add these two lines (V2_IDS is a Set of exercise ids in js/anim/v2/ids.js):
-//   import { V2_IDS } from '../anim/v2/ids.js';
-//   registerAnimationIds(V2_IDS);
-// A static import keeps EXERCISES (computed at load) in step with the planner.
+// ONE pluggable predicate: hasAnimation(animId): a v1 pose or a registered id. The anim v2 clip list (V2_IDS in
+// js/anim/v2/ids.js, drafts excluded) is registered below; the static import keeps EXERCISES (computed at load) in step
+// with the planner. ids.js is only the id list, so this never pulls the v2 renderer into the first load.
 import { ANIMS } from '../anim/poses.js';
+import { V2_IDS } from '../anim/v2/ids.js';   // just the id list (tiny); the v2 renderer itself loads on first use
 import { traditionPreview } from './traditions.js';
 
 const extra = new Set();
@@ -18,6 +17,8 @@ export function registerAnimationIds(ids) {
   for (const id of ids || []) extra.add(id);
   version++;
 }
+registerAnimationIds(V2_IDS);   // anim v2 clips (drafts excluded in ids.js)
+
 /** Tests only: forget ids added with registerAnimationIds. */
 export function clearRegisteredAnimationIds() { extra.clear(); version++; }
 /** Changes whenever the registered id list changes (the planner keys its library cache on it). */

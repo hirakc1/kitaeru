@@ -69,7 +69,8 @@
   import { createPlatePlayer } from './js/anim/v2/plate.js';
   import { CLIPS, CLIP_IDS } from './js/anim/v2/clips.js';
   import { qaClip } from './js/anim/v2/qa.js';
-  import { byId } from './js/data/exercises.js';
+  import { ALL_BY_ID } from './js/data/exercises.js';
+  import { ANIMS } from './js/anim/poses.js';
 
   const params = new URLSearchParams(location.search);
   const only = params.get('only');
@@ -80,16 +81,17 @@
   let three = null;
   if (params.has('b')) try { three = await import('./js/anim/v2/three-player.js'); } catch (e) { console.error(e); }
   document.documentElement.style.setProperty('--cols', three ? 3 : 2);
-  const { V2_IDS } = await import('./js/anim/v2/ids.js');
-  const drift = [...CLIP_IDS.filter(i => !V2_IDS.has(i)), ...[...V2_IDS].filter(i => !CLIPS[i])];
+  const { V2_ALL, V2_DRAFT } = await import('./js/anim/v2/ids.js');
+  const drift = [...CLIP_IDS.filter(i => !V2_ALL.has(i)), ...[...V2_ALL].filter(i => !CLIPS[i])];
   if (drift.length) console.error('ids.js and clips/*.js disagree:', drift);
   const nav = document.getElementById('nav');
   nav.innerHTML = ids.map(id => `<a href="#${id}">${CLIPS[id].name}</a>`).join(' · ');
 
   for (const id of ids) {
-    const c = CLIPS[id], ex = byId[id], m = ex ? ex.muscles : c.muscles;
+    const c = CLIPS[id], ex = ALL_BY_ID[id], m = ex ? ex.muscles : c.muscles;
     const sec = document.createElement('section'); sec.className = 'ex'; sec.id = id;
-    sec.innerHTML = `<h2>${ex ? ex.name : c.name} <small>${id} · primary: ${m.primary.join(', ')}${m.secondary.length ? ' · secondary: ' + m.secondary.join(', ') : ''}${ex?.mode === 'hold' ? ' · hold' : ''}${ex?.unilateral ? ' · unilateral' : ''}</small></h2>
+    sec.innerHTML = `<h2>${ex ? ex.name : c.name} <small>${id} · primary: ${m.primary.join(', ')}${m.secondary.length ? ' · secondary: ' + m.secondary.join(', ') : ''}${ex?.mode === 'hold' ? ' · hold' : ''}${ex?.unilateral ? ' · unilateral' : ''}${V2_DRAFT.has(id) ? ' · <b>draft (not in the app)</b>' : ''}</small></h2>
+      ${ex?.cues ? `<p class="note">Cues: ${ex.cues.map(q => q.replace(/</g, '&lt;')).join(' · ')}${ex.description ? `<br>${ex.description.replace(/</g, '&lt;')}` : ''}</p>` : ''}
       <p class="qa"></p>
       <div class="row">
         <div class="cell"><h3>Current <span>v1 (2D FK)</span></h3><div class="stage" data-v="cur"></div></div>
@@ -98,7 +100,7 @@
       </div>`;
     main.appendChild(sec);
     const cur = sec.querySelector('[data-v=cur]');
-    if (!ex) cur.innerHTML = '<p class="na">Not an exercise in v1 (no trunk rotation, no 3/4 view).</p>';
+    if (!ANIMS[id]) cur.innerHTML = '<p class="na">No v1 animation (new in v1.2, or not possible in v1: no trunk rotation, no 3/4 view).</p>';
     else players.push(createV1Player(cur, id, { primary: m.primary, secondary: m.secondary, size }));
     const pa = createPlatePlayer(sec.querySelector('[data-v=a]'), id, { primary: m.primary, secondary: m.secondary, size });
     plates.push(pa); players.push(pa);
@@ -107,7 +109,7 @@
     sec.querySelector('.qa').innerHTML = `QA ${f(q.ok ? 'pass' : 'FAIL', !q.ok)} · arm reach ${f(q.reach, q.reach > 1)} · leg reach ${f(q.reachLeg, q.reachLeg > 1)}`
       + ` · contact slide ${f(q.slide + ' cm', q.slide >= .05)}${q.slide ? ` (${q.slideAt})` : ''} · floor ${f(q.floor + ' cm', q.floor <= -.3)} (${q.floorAt})`
       + `${q.humerus ? ` · humerus stretch ${f(q.humerus + ' cm', q.humerus >= .6)}` : ''}`
-      + `${c.legs?.both?.foot === 'step' ? ` · stepping: COM outside support ${f(q.com + ' cm', q.com >= 4)} · travel ${Math.hypot(...c.travel)} cm/cycle` : ''}`
+      + `${c.stepBalance ? ` · stepping: COM outside support ${f(q.com + ' cm', q.com >= 4)}${c.travel ? ` · travel ${Math.hypot(...c.travel)} cm/cycle` : ''}` : ''}`
       + ` · ${q.ms} ms/pose · cycle ${(c._c?.T ?? 0).toFixed(2)} s`;
   }
 

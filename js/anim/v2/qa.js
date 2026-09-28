@@ -30,7 +30,8 @@ export function qaClip(clip, { n = 240, pins = clip.qaPins || [] } = {}) {
       // contact: anchored where it lands; re-anchored while it is still rising or settling (height change >= 3 mm)
       const pin = pins.includes(k), a = anc[k], side = k.slice(-1), foot = /^(heel|ball|toe)[RL]$/.test(k);
       // stepping clips: a foot is a contact only while it is down (lift < 0.5 mm), whatever its height
-      const down = S.support && foot ? S.support.includes(side) && p[1] < 1.5 : p[1] < 1.5;
+      // (a foot turning on its ball: the ball is the contact, the toes sweep round it)
+      const down = S.support && foot ? S.support.includes(side) && p[1] < 1.5 && !(k.startsWith('toe') && S.pivoting?.includes(side)) : p[1] < 1.5;
       if (down || pin) {
         if (!a || (!pin && Math.abs(p[1] - a[1]) >= .3)) anc[k] = p;
         else { const d = Math.hypot(p[0] - a[0], p[2] - a[2]); if (d > r.slide) { r.slide = d; r.slideAt = k; } }
