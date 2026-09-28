@@ -15,12 +15,14 @@ const bandPost = (x, y, z) => [rod([[x, 0, z], [x, Math.max(160, y + 25), z]], 2
 
 // Pallof press: side-on to a band at chest height (anchored on the left); press straight out, pause 2 s, return
 // without turning. Sides alternate (the band moves to the other side).
+// hands pressed straight out from the chest (horizontal, meeting at the midline; the T4 frame leans forward ~21°)
+const OUT = { handX: 52, handY: 12, handZ: 1.5 };
 const PALLOF_FEET = { R: [-6, 15, 8], L: [-6, -15, 8] };
 function pallof(f) {
   const c = stand(PALLOF_FEET, {
     cam: { az: 58, el: 9 }, swap: true, still: .2, trail: ['palmR'], _by: 122,
     base: { rootY: 87, pitch: 3, handShape: 2, palm: 90, wrist: 0, handX: 12, handY: -8, handZ: 3 },
-    keys: { chest: {}, out: { handX: 46, scapProt: 6, twist: 1.5 } },
+    keys: { chest: {}, out: { ...OUT, scapProt: 6, twist: 1.5 } },
     props: c => bandPost(4, c._by, -110),
   });
   return Object.assign(c, f(c));
@@ -34,7 +36,7 @@ const pallof_press = pallof(c => ({
 }));
 const pallof_press_overhead = pallof(c => ({
   name: 'Pallof press with overhead reach',
-  keys: { chest: {}, out: { handX: 46, scapProt: 6, twist: 1.5 }, rise: { handX: 34, handY: 30, scapProt: 3, scapUp: 10, twist: 1 },
+  keys: { chest: {}, out: { ...OUT, scapProt: 6, twist: 1.5 }, rise: { handX: 34, handY: 30, scapProt: 3, scapUp: 10, twist: 1 },
     up: { handX: 9, handY: 51, handZ: 4, scapUp: 22, scapElev: 1.5, twist: 1, thoracic: -2 } },
   timeline: [{ hold: 'chest', dur: .4, b: .8 }, { from: 'chest', to: 'out', dur: 1, r1: .25, r2: .4, breath: 'out' },
     { from: 'out', via: ['rise'], to: 'up', dur: 1.3, r1: .3, r2: .35, breath: 'in' }, { hold: 'up', dur: .4, b: 1 },
@@ -51,7 +53,7 @@ const half_kneeling_pallof_hold = (() => {
     pin: { pt: S => S.pt.kneeL, at: [-4, 5.2] },
     legs: { R: { mode: 'ik', foot: 'flat', toeOut: 6, ankle: () => [c._fx, 7.5, 13], pole: () => [1, 0, .15] } },
     arms: { both: { mode: 'ik', grip: 'free', pole: [-.3, -1, .5] } },
-    base: { pitch: 0, hipFlexL: -4, kneeL: 92, ankleL: 58, hipAbdL: 2, handShape: 2, palm: 90, wrist: 0, handX: 46, handY: -8, handZ: 3, scapProt: 6 },
+    base: { pitch: 0, hipFlexL: -4, kneeL: 92, ankleL: 58, hipAbdL: 2, handShape: 2, palm: 90, wrist: 0, ...OUT, scapProt: 6 },
     keys: { a: { twist: 1 }, b: { twist: 1.6, thoracic: -1, head: -1 } },
     timeline: hold('a', 'b', 5),
     props: c => bandPost(-4, c._by, -95),
@@ -270,7 +272,7 @@ const standing_windmill = stand({ R: [-4, 30, 4], L: [-4, -30, 40] }, {
 const side_plank_reach_through = sidePlank(() => ({
   name: 'Side plank reach-through', still: .15, trail: ['palmR'],
   arms: { R: { mode: 'ik', grip: 'free', pole: [-.3, -1, .6] } },
-  base: { yaw: -90, cervical: 2, head: 0, fingersL: 25, palmR: 0, fingersR: 10, wristR: 0, handXR: 0, handYR: 4, handZR: 55 },
+  base: { yaw: -90, cervical: 2, head: 0, fingersL: 25, palmR: 0, fingersR: 10, wristR: 0, handXR: 2, handYR: 3, handZR: 68 },   // top arm straight up (the glenoid sits 15.5 out in the T4 frame)
   keys: {
     open: { bodyAngle: 20 },
     thread: { bodyAngle: 20, twist: 30, handXR: 6, handYR: -6, handZR: -20, palmR: 90, headYaw: 24, head: 6, scapProtR: 12 },

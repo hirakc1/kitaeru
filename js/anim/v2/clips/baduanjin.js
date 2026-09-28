@@ -40,7 +40,8 @@ const baduanjin_hold_up_sky = bdj('Holding up the sky', {
   keys: {
     a: {}, belly: { ...at(20, -38, -13, { palm: 170, fingers: 60 }) },
     chest: { ...at(18, -8, -13, { palm: 170, fingers: 60 }), head: -10 },
-    up: { ...at(2, 52, -10, { palm: 0, fingers: 60, wrist: 70 }), rootY: 88, scapElev: .6, head: -2, thoracic: -2 },
+    // a full stretch: arms straight overhead, the interlaced hands meeting over the crown, palms pressing up
+    up: { ...at(-1.5, 56.6, -13.4, { palm: 0, fingers: 60, wrist: 75 }), rootY: 88.5, head: -2, thoracic: -2 },
     ...SIDES,
   },
   timeline: [ph('a', 'belly', 2, 'in'), ph('belly', 'up', 3.4, 'in', ['chest']), pause('up', 1.4, 1),
@@ -112,22 +113,25 @@ const baduanjin_sway_head_tail = bdj('Swaying the head and tail', {
   timeline: [ph('c', 'r', 2.4, 'in'), ph('r', 'l', 4.2, 'out', ['d']), ph('l', 'c', 2.4, 'in')],
 });
 
-// 6. Two hands hold the feet (两手攀足固肾腰): arms up, palms down to the chest, hands to the back under the armpits,
-// slide them down the back and legs as you fold towards the feet with soft knees, then rise slowly leading with the
-// arms (Kitaeru softens the knees; the standard keeps them straight).
-const FOLD = pitch => { const a = (pitch + 30) * Math.PI / 180; return { pitch, lumbar: 8, thoracic: 6, head: 8, rootY: 83,
-  handX: +(1.9 + 50 * Math.sin(a)).toFixed(1), handY: +(3.3 - 50 * Math.cos(a)).toFixed(1), handZ: 12, palm: 160, fingers: 5 }; };
+// 6. Two hands hold the feet (两手攀足固肾腰): the long arms rise forwards and up; they come down in front and the hands
+// go round to the back; they slide down the backs of the legs (trace) as you fold towards the feet with soft knees; then
+// rise slowly, leading with the arms, which stay long and in line with the trunk (Kitaeru softens the knees; the
+// standard keeps them straight).
+const LONG_UP = arm(172, 10, 57.3, { palm: 0, fingers: 5 });        // straight overhead (in the trunk's frame)
 const baduanjin_touch_toes = bdj('Two hands hold the feet', {
   counts: 1, trail: ['palmR'],
   keys: {
-    a: {}, up: { ...arm(170, 10, 52, { palm: 0 }), rootY: 87 },
-    chest: { ...at(18, -2, -8, { palm: 175, wrist: 10 }) },
-    armpit: { ...at(-4, -18, 0, { palm: 90, wrist: 30 }), elbowOut: .4 },
-    back: { pitch: 30, rootY: 85, ...at(-10, -44, 2, { palm: 90, wrist: 20 }), lumbar: 4 },   // hands slide down the back of the legs
-    fold: FOLD(78), front: { ...FOLD(60), handX: 45, handY: 16 },
+    a: {}, fwd: { ...arm(92, 8, 53.5, { palm: 175, fingers: 5 }) }, up: { ...LONG_UP, rootY: 87 },
+    side: { ...arm(30, 70, 50, { palm: 90 }) },                                        // down past the sides
+    waist: { ...arm(30, 70, 50, { palm: 90 }), trace: 1, traceAt: 0, pitch: 4 },       // hands on the back of the hips
+    slide: { pitch: 50, rootY: 84, lumbar: 5, trace: 1, traceAt: .2 },                  // down the backs of the thighs
+    fold: { pitch: 88, lumbar: 12, thoracic: 10, head: 8, rootY: 80, trace: 1, traceAt: .84 },   // down to the lower calves
+    feet: { pitch: 76, lumbar: 8, thoracic: 6, head: 8, rootY: 83, ...LONG_UP },       // the arms long past the head, at the feet
+    lead: { pitch: 45, lumbar: 5, thoracic: 3, head: 4, rootY: 85, ...LONG_UP },       // rising, the arms leading
   },
-  timeline: [ph('a', 'up', 2.4, 'in'), ph('up', 'chest', 1.8, 'out'), ph('chest', 'armpit', 1.4, 'in'),
-    ph('armpit', 'fold', 3.2, 'out', ['back']), pause('fold', .8, 0), ph('fold', 'up', 3.2, 'in', ['front']), ph('up', 'a', 2, 'out')],
+  timeline: [ph('a', 'up', 2.6, 'in', ['fwd']), pause('up', .6, 1), ph('up', 'side', 2.4, 'out', ['fwd']), ph('side', 'waist', 1, 'in'),
+    ph('waist', 'fold', 3.2, 'out', ['slide']), pause('fold', .8, 0), ph('fold', 'feet', 1.2, 'in'),
+    ph('feet', 'up', 3.2, 'in', ['lead']), ph('up', 'a', 2.4, 'out', ['fwd'])],
 });
 
 // 7. Punching with angry eyes (攒拳怒目增气力): in a horse stance with the fists at the waist, punch slowly forward,

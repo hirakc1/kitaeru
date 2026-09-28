@@ -19,8 +19,8 @@ const heels = up => ({ footPitchR: -up, footPitchL: -up, onBalls: 1 });   // hee
 const H = (x, y, z, extra = {}) => ({ handX: x, handY: y, handZ: z, ...extra });
 // a straight arm (r cm to the wrist) raised el degrees from hanging (90 = horizontal, 180 = overhead), in a plane turned
 // az degrees from straight ahead (0) to straight out to the side (90), as a T4-frame target for a standing trunk
-const ARM = (el, az, extra = {}, r = 52.8) => arm(el, az, r, extra);
-const UP = ARM(172, 12, { palm: 0, fingers: 5 }, 54.5);          // arms straight overhead, palms in
+const ARM = (el, az, extra = {}, r = 52.9) => arm(el, az, r, extra);
+const UP = ARM(172, 12, { palm: 0, fingers: 5 }, 56.6);          // arms straight overhead, palms in
 const FRONT = ARM(90, 8, { palm: 0, fingers: 10 });          // arms forward at shoulder height
 const SIDE = ARM(90, 88, { palm: 90, fingers: 10 });         // arms out to the sides, palms down
 // the arcs between them (targets in straight lines would pass the head with bent elbows)
