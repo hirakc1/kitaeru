@@ -29,7 +29,7 @@ import { V2_IDS, V2_DRAFT } from '../js/anim/v2/ids.js';
 import * as P from '../js/engine/planner.js';
 
 const byId = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
-// the visible push ladder above push_up
+// the visible push ladder above push_up (daṇḍ sits at 4.5 once it is animated and verified)
 const PH = familyLadder('push_horizontal').map(e => e.id), PH1 = PH[PH.indexOf('push_up') + 1], PH2 = PH[PH.indexOf('push_up') + 2];
 let pass = 0, fail = 0;
 const fails = [];
@@ -566,6 +566,7 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
 
   // ---- accuracy gate (preview off)
   ok(EXERCISES.every(e => contentVisible(e) && !e.flowOnly), 'EXERCISES hides unverified tradition items and flow-only steps');
+  ok(['dand', 'baithak', 'horse_stance'].every(id => visibleById[id]), 'verified and animated tradition items are visible (daṇḍ, baiṭhak, horse stance)');
   ok(Object.values(visibleById).every(isVisible) && ALL_EXERCISES.every(e => !!visibleById[e.id] === isVisible(e)) && !visibleById.taichi_short_flow, 'byId hides them too (library deep links, swaps)');
   ok(!FAMILIES.flow_taichi && !FAMILIES.flow_sequence && Object.keys(FAMILIES).every(f => EXERCISES.some(e => e.family === f)), 'FAMILIES lists only families with visible items');
   ok(['open_book', 'thread_the_needle', 'pallof_press', 'plank_shoulder_tap'].every(id => contentVisible(ALL_BY_ID[id])), 'generic rotation / anti-rotation need no fact-check (the animation gate still applies)');
@@ -634,7 +635,7 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   clearRegisteredAnimationIds();
   ok(!hasAnimation('open_book') && hasAnimation('push_up'), 'clearRegisteredAnimationIds restores the v1-only list');
   registerAnimationIds(V2_IDS);   // back to the app's real gate for the rest of the suite
-  ok(hasAnimation('open_book'), 'v2 clip ids registered again');
+  ok(hasAnimation('open_book') && hasAnimation('dand'), 'v2 clip ids registered again');
 
   // ---- preview on: invariants across the grid with the full library
   setTraditionPreview(true);

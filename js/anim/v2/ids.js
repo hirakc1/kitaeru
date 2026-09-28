@@ -13,6 +13,7 @@ export const V2_GROUPS = {
   rot: ['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'rt_trunk_twist', 'bodyweight_woodchop', 'rotational_lunge',
     'band_woodchop', 'standing_windmill', 'bird_dog_row', 'half_kneeling_pallof_hold', 'plank_shoulder_tap', 'pallof_press',
     'pallof_press_overhead', 'side_plank_reach_through'],
+  trad: ['dand', 'baithak', 'horse_stance'],
   flow: ['taichi_cloud_hands', 'taichi_brush_knee'],
 };
 // clips that exist (compare page) but are not yet cue-checked for the app: kept out of the animation gate
