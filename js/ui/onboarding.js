@@ -20,7 +20,7 @@ const BASELINE = [
   { key: 'plankSec', name: 'Plank hold', unit: 'sec', max: 600 },
 ];
 const JOINTS = [['wrist', 'Wrists'], ['elbow', 'Elbows'], ['shoulder', 'Shoulders'], ['neck', 'Neck'], ['lower_back', 'Lower back'], ['hip', 'Hips'], ['knee', 'Knees'], ['ankle', 'Ankles']];
-const EQUIP = [
+export const EQUIP = [
   ['wall', 'Clear wall', '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9.3h18M3 14.6h18M9 4v5.3M15 9.3v5.3M9 14.6V20"/>'],
   ['bench', 'Sturdy chair / bench', '<path d="M7 3v9h10M7 12v8M17 12v8M7 8h10"/>'],
   ['table', 'Sturdy table', '<path d="M2 8h20M4 8v12M20 8v12M4 11h16"/>'],
@@ -47,6 +47,7 @@ const PARQ = [
 ];
 const DELAY = [['unwell', 'Are you currently unwell (cold, fever, infection)?'], ['pregnant', 'Are you pregnant?'], ['changed', 'Has your health changed recently?']];
 const STRONG = [0, 1, 2, 6];
+const fmtHold = sec => (sec >= 60 ? `${Math.floor(sec / 60)} min${sec % 60 ? ` ${sec % 60} s` : ''}` : `${sec} s`);
 export const DISCLAIMER = 'Kitaeru gives general fitness guidance, not medical advice. Exercise has some risk. Start easy, keep good form, and stop if you feel chest pain, faintness, severe breathlessness or sharp pain. If you have a medical condition, are pregnant, are recovering from injury or surgery, or are unsure whether exercise is safe for you, talk to a doctor or qualified professional first. Mild muscle soreness for 1–3 days is normal. Joint pain that lasts into the next day is not: ease off that exercise.';
 
 function blankProfile() {
@@ -60,21 +61,47 @@ function blankProfile() {
 }
 
 /** Start editing the saved profile (called from Me / Plan). */
-export function beginEdit(step = 'summary') {
+function editDraft() {
   const s = getState();
   const h = s.profile.health;
   const parq = h && Array.isArray(h.parq) ? [...h.parq, !!h.unwell, !!h.pregnant, !!h.changed] : Array(PARQ.length + DELAY.length).fill(null);
-  saveDraft({ mode: 'edit', profile: structuredClone({ ...blankProfile(), ...s.profile }), parq, resetLevels: false, weightFmt: 'stlb', touched: {} });
+  return { mode: 'edit', profile: structuredClone({ ...blankProfile(), ...s.profile }), parq, resetLevels: false, weightFmt: s.settings.weightFmt || 'stlb', touched: {} };
+}
+export function beginEdit(step = 'hub') {
+  saveDraft(editDraft());
   location.hash = `#/onboarding/${step}`;
 }
 
 let d = null; // current draft
 function loadDraft() {
   d = getDraft();
-  if (!d || !d.profile) d = { mode: getState().profile ? 'edit' : 'new', profile: getState().profile ? structuredClone({ ...blankProfile(), ...getState().profile }) : blankProfile(), parq: Array(PARQ.length + DELAY.length).fill(null), resetLevels: false, weightFmt: 'stlb', touched: {} };
+  if (!d || !d.profile) d = getState().profile ? editDraft() : { mode: 'new', profile: blankProfile(), parq: Array(PARQ.length + DELAY.length).fill(null), resetLevels: false, weightFmt: 'stlb', touched: {} };
   d.touched ||= {};
 }
 const save = () => saveDraft(d);
+
+// ---------- day spreading ----------
+const MONFIRST = dw => (dw + 6) % 7;
+/** Smallest circular gap between training days (Monday-first); larger = better spread. */
+function spreadScore(days) {
+  const s = days.map(MONFIRST).sort((a, b) => a - b);
+  let min = 7;
+  for (let i = 0; i < s.length; i++) min = Math.min(min, ((s[(i + 1) % s.length] - s[i]) + 7) % 7 || 7);
+  return min * 10 - s.reduce((a, x) => a + x, 0) / 100; // tie-break towards earlier days
+}
+/** Stepper: add or remove single days, choosing whichever keeps the week most spread out. */
+function setDayCount(n) {
+  const p = d.profile;
+  let days = [...p.preferredDays];
+  while (days.length < n) {
+    const cands = [0, 1, 2, 3, 4, 5, 6].filter(x => !days.includes(x));
+    days.push(cands.sort((a, b) => spreadScore([...days, b]) - spreadScore([...days, a]))[0]);
+  }
+  while (days.length > n) {
+    days = days.map(x => days.filter(y => y !== x)).sort((a, b) => spreadScore(b) - spreadScore(a))[0];
+  }
+  p.preferredDays = days.sort((a, b) => a - b); p.daysPerWeek = n; d.dayMsg = '';
+}
 
 // ---------- validation ----------
 function valid(step) {
@@ -111,8 +138,8 @@ const T = {
     <div class="field"><span class="label">Days per week</span>${stepper({ name: 'days', value: n, min: 2, max: 6, label: 'days per week', unit: 'days' })}</div>
     <div class="field"><span class="label" id="dlab">Which days?</span>
       <div class="chips chips-days" role="group" aria-labelledby="dlab">${DOW_ORDER.map(dw => chip('day', dw, DOW_SHORT[dw], p.preferredDays.includes(dw), `aria-label="${DOW_LONG[dw]}"`)).join('')}</div>
-      <p class="hint ${sel === n ? 'ok' : ''}" aria-live="polite">${sel === n ? `${icon('check', { size: 16 })} ${n} days, nicely spread.` : `Pick ${n} days — ${sel} selected.`}
-      <button type="button" class="link" data-act="suggest">Suggest</button></p></div>
+      <p class="hint ${d.dayMsg ? 'warn' : 'ok'}" aria-live="polite">${d.dayMsg ? esc(d.dayMsg) : `${icon('check', { size: 16 })} ${sel} days a week.`}
+      <button type="button" class="link" data-act="suggest">Spread them out</button></p></div>
     <div class="field"><span class="label" id="mlab">Minutes per session</span>
       <div class="chips" role="group" aria-labelledby="mlab">${MINUTES.map(m => chip('mins', m, `${m}`, p.minutesPerSession === m, `aria-label="${m} minutes"`)).join('')}</div></div>`;
   },
@@ -137,8 +164,8 @@ const T = {
       ${imp ? num('ft', fi.ft, 'Height feet', 'ft', 'maxlength="1"') + num('in', fi.in, 'Height inches', 'in', 'maxlength="2"') : num('cm', p.heightCm ? Math.round(p.heightCm) : '', 'Height in centimetres', 'cm', 'maxlength="3"')}</div>
       <p class="hint warn" data-hint="h" ${d.touched.h && !heightOk(p.heightCm) ? '' : 'hidden'}>Enter a height between 120 and 230 cm (3′11″–7′6″).</p></div>
     <div class="field"><span class="label">Weight</span>
-      ${imp ? `<div class="seg seg-xs" role="group" aria-label="Weight format">${chip('wfmt', 'stlb', 'st & lb', d.weightFmt === 'stlb')}${chip('wfmt', 'lb', 'lb', d.weightFmt === 'lb')}</div>` : ''}
-      <div class="num-row">${!imp ? num('kg', p.weightKg ? Math.round(p.weightKg * 10) / 10 : '', 'Weight in kilograms', 'kg', 'inputmode="decimal" maxlength="5"')
+      ${imp ? `<div class="seg seg-xs" role="group" aria-label="Weight format">${chip('wfmt', 'stlb', 'st & lb', d.weightFmt === 'stlb')}${chip('wfmt', 'kg', 'kg', d.weightFmt === 'kg')}${chip('wfmt', 'lb', 'lb', d.weightFmt === 'lb')}</div>` : ''}
+      <div class="num-row">${!imp || d.weightFmt === 'kg' ? num('kg', p.weightKg ? Math.round(p.weightKg * 10) / 10 : '', 'Weight in kilograms', 'kg', 'inputmode="decimal" maxlength="5"')
         : d.weightFmt === 'lb' ? num('lb', lb, 'Weight in pounds', 'lb', 'maxlength="3"')
         : num('st', sl.st, 'Weight stones', 'st', 'maxlength="2"') + num('stlb', sl.lb, 'Weight pounds', 'lb', 'maxlength="2"')}</div>
       <p class="hint warn" data-hint="w" ${d.touched.w && !weightOk(p.weightKg) ? '' : 'hidden'}>Enter a weight between 30 and 300 kg (66–660 lb).</p></div>`;
@@ -154,9 +181,12 @@ const T = {
     <p class="muted">If you know roughly what you can do in one go, it sharpens your starting levels. Otherwise skip it.</p>
     <div class="stack">${BASELINE.map(b => {
       const v = p.baseline[b.key];
-      return `<div class="base-row card"><label class="base-name" for="bl-${b.key}">${b.name}</label>
-        <div class="base-ctl"><span class="num-field"><input id="bl-${b.key}" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="3" placeholder="—" data-num="base:${b.key}" value="${v ?? ''}"><span class="unit">${b.unit}</span></span>
-        ${chip('base-null', b.key, "Don’t know / can’t", v === null)}</div></div>`;
+      const field = (key, val, unit, label, max = 3) => `<span class="num-field"><input id="bl-${key}" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="${max}" placeholder="—" data-num="base:${key}" value="${val ?? ''}" aria-label="${label}"><span class="unit">${unit}</span></span>`;
+      const ctl = b.key === 'plankSec'
+        ? field('plankMin', v == null ? '' : Math.floor(v / 60), 'min', 'Plank minutes', 2) + field('plankS', v == null ? '' : v % 60, 's', 'Plank seconds', 2)
+        : field(b.key, v, b.unit, b.name);
+      return `<div class="base-row card"><label class="base-name" for="bl-${b.key === 'plankSec' ? 'plankMin' : b.key}">${b.name}</label>
+        <div class="base-ctl">${ctl}${chip('base-null', b.key, "Don’t know / can’t", v === null)}</div></div>`;
     }).join('')}</div>`;
   },
   injuries(p) {
@@ -200,30 +230,44 @@ const T = {
     <details class="disclaimer"><summary>Important: please read</summary><p>${DISCLAIMER}</p></details>`;
   },
   summary(p) {
-    const row = (label, val, step) => `<div class="sum-row"><dt>${label}</dt><dd>${val}</dd><button type="button" class="link" data-goto="${step}" aria-label="Edit ${label}">Edit</button></div>`;
-    const days = DOW_ORDER.filter(x => p.preferredDays.includes(x)).map(x => DOW_SHORT[x]).join(' · ');
-    const base = BASELINE.filter(b => p.baseline[b.key] != null).map(b => { const n = b.name.replace('Max ', ''); return `${n[0].toUpperCase()}${n.slice(1)} ${p.baseline[b.key]}${b.unit === 'sec' ? ' s' : ''}`; }).join(', ') || 'Skipped';
+    const row = r => `<div class="sum-row"><dt>${r.label}</dt><dd>${r.value}</dd><button type="button" class="link" data-goto="${r.step}" aria-label="Edit ${r.label}">Edit</button></div>`;
     return `<h1 class="ob-title">Ready to forge</h1><p class="muted">Check everything looks right.</p>
-    <dl class="summary card">
-      ${row('Goals', p.goals.map(g => g === p.primaryGoal ? `<strong>${goalName(g)}</strong>` : goalName(g)).join(', '), 'goals')}
-      ${row('Schedule', `${p.daysPerWeek}× a week · ${p.minutesPerSession} min<br><span class="muted">${days}</span>`, 'time')}
-      ${row('You', `${p.name ? esc(p.name) + ', ' : ''}${p.age} · ${fmtHeight(p.heightCm, p.units)} · ${fmtWeight(p.weightKg, p.units)}`, 'about')}
-      ${row('Level', EXPERIENCE.find(e => e.id === p.experience)?.name || '—', 'experience')}
-      ${row('Baseline', base, 'baseline')}
-      ${row('Avoid', p.injuries.length ? p.injuries.map(i => JOINTS.find(j => j[0] === i)[1]).join(', ') : 'Nothing', 'injuries')}
-      ${row('Kit', (p.equipment.map(e => EQUIP.find(x => x[0] === e)?.[1]).join(', ') || 'Floor only') + ` · ${p.space} space${p.lowImpact ? ' · low impact' : ''}`, 'equipment')}
-    </dl>
-    ${d.mode === 'edit' ? `<label class="switch-row card"><span><span class="opt-name">Reset my progression levels</span><span class="opt-desc">Off keeps the levels you have earned.</span></span>
-      <input type="checkbox" class="switch" data-act="resetlv" ${d.resetLevels ? 'checked' : ''}></label>` : ''}`;
+    <dl class="summary card">${summaryRows(p).filter(r => r.step !== 'health').map(row).join('')}</dl>`;
+  },
+  hub(p) {
+    return `<h1 class="ob-title">Your preferences</h1><p class="muted">Change any section, then save to update your plan.</p>
+    <ul class="hub">${summaryRows(p).map(r => `<li class="hub-row card"><div class="hub-text"><span class="hub-label">${r.label}</span><span class="hub-val">${r.value}</span></div>
+      <button type="button" class="btn btn-ghost btn-sm" data-goto="${r.step}" aria-label="Edit ${r.label}">${icon('edit', { size: 16 })} Edit</button></li>`).join('')}</ul>
+    <label class="switch-row card"><span><span class="opt-name">Reset my progression levels</span><span class="opt-desc">Off keeps the levels you have earned.</span></span>
+      <input type="checkbox" class="switch" data-act="resetlv" ${d.resetLevels ? 'checked' : ''}></label>`;
   },
 };
+
+/** One row per section, shared by the first-run summary and the edit hub. */
+function summaryRows(p) {
+  const days = DOW_ORDER.filter(x => p.preferredDays.includes(x)).map(x => DOW_SHORT[x]).join(' · ');
+  const base = BASELINE.filter(b => p.baseline[b.key] != null).map(b => { const n = b.name.replace('Max ', ''); const v = p.baseline[b.key]; return `${n[0].toUpperCase()}${n.slice(1)} ${b.key === 'plankSec' ? fmtHold(v) : v}`; }).join(', ') || 'Skipped';
+  const q = d.parq || [];
+  const health = q.some(a => a == null) ? 'Not answered' : STRONG.some(i => q[i]) ? 'Doctor check advised' : q.some(Boolean) ? 'Some flags noted' : 'All clear';
+  return [
+    { label: 'Goals', step: 'goals', value: p.goals.map(g => (g === p.primaryGoal ? `<strong>${goalName(g)}</strong>` : goalName(g))).join(', ') || '—' },
+    { label: 'Schedule', step: 'time', value: `${p.daysPerWeek}× a week · ${p.minutesPerSession} min<br><span class="muted">${days}</span>` },
+    { label: 'About you', step: 'about', value: `${p.name ? esc(p.name) + ', ' : ''}${p.age ?? '—'} · ${fmtHeight(p.heightCm, p.units)} · ${fmtWeight(p.weightKg, p.units, d.weightFmt)}` },
+    { label: 'Experience', step: 'experience', value: EXPERIENCE.find(e => e.id === p.experience)?.name || '—' },
+    { label: 'Baseline', step: 'baseline', value: base },
+    { label: 'Injuries', step: 'injuries', value: p.injuries.length ? p.injuries.map(i => JOINTS.find(j => j[0] === i)[1]).join(', ') : 'None' },
+    { label: 'Kit & space', step: 'equipment', value: (p.equipment.map(e => EQUIP.find(x => x[0] === e)?.[1]).join(', ') || 'Floor only') + ` · ${p.space} space${p.lowImpact ? ' · low impact' : ''}` },
+    { label: 'Health check', step: 'health', value: health },
+  ];
+}
 
 // ---------- render ----------
 let rootEl = null, ctxRef = null;
 export function render(root, ctx) {
   rootEl = root; ctxRef = ctx;
   loadDraft();
-  const step = STEPS.includes(ctx.params[0]) ? ctx.params[0] : 'goals';
+  const want = ctx.params[0];
+  const step = d.mode === 'edit' ? (STEPS.includes(want) && want !== 'summary' || want === 'hub' ? want : 'hub') : (STEPS.includes(want) ? want : 'goals');
   // Don't allow deep links past an invalid step.
   const firstBad = STEPS.slice(0, STEPS.indexOf(step)).find(s => !valid(s));
   if (firstBad && d.mode === 'new') { history.replaceState(null, '', `#/onboarding/${firstBad}`); return render(root, { ...ctx, params: [firstBad] }); }
@@ -237,7 +281,9 @@ export function render(root, ctx) {
 
 let curStep = 'goals';
 let lastDrawn = null;
-function draw(step, { keepFocus = false } = {}) {
+function draw(step, opts = {}) {
+  if (d.mode === 'edit') return drawEdit(step, opts);
+  const { keepFocus = false } = opts;
   const entering = lastDrawn !== step;
   lastDrawn = curStep = step;
   const i = STEPS.indexOf(step);
@@ -261,11 +307,39 @@ function draw(step, { keepFocus = false } = {}) {
   if (fkey) rootEl.querySelector(fkey)?.focus({ preventScroll: true });
 }
 
+const focusKey = () => { const a = document.activeElement?.closest('[data-act]'); return a ? `[data-act="${a.dataset.act}"][data-val="${a.dataset.val}"]` : null; };
+/** Edit mode: a hub of sections; each section opens alone and returns with Done. */
+function drawEdit(step, { keepFocus = false } = {}) {
+  const entering = lastDrawn !== step;
+  lastDrawn = curStep = step;
+  const fkey = keepFocus ? focusKey() : null;
+  const hub = step === 'hub';
+  rootEl.innerHTML = `
+  <div class="ob ob-edit">
+    <header class="ob-head">
+      <button class="icon-btn" data-nav="back" aria-label="${hub ? 'Cancel editing' : 'Back to all preferences'}">${icon(hub ? 'close' : 'back')}</button>
+      <span class="ob-edit-title">${hub ? 'Edit preferences' : 'Edit section'}</span>
+    </header>
+    <form class="ob-body ${entering ? 'enter' : ''}" novalidate onsubmit="return false">${T[step](d.profile)}</form>
+    <footer class="ob-foot">
+      ${hub ? `<button type="button" class="btn btn-ghost" data-nav="back">Cancel</button>
+        <button type="button" class="btn btn-primary" data-nav="next" ${STEPS.filter(x => x !== 'summary').every(valid) ? '' : 'disabled'}>${seal('鍛', { size: 22, cls: 'seal-inline' })} Save & update plan</button>`
+      : `<button type="button" class="btn btn-primary btn-block" data-nav="next" ${valid(step) ? '' : 'disabled'}>${icon('check', { size: 18 })} Done</button>`}
+    </footer>
+  </div>`;
+  if (fkey) rootEl.querySelector(fkey)?.focus({ preventScroll: true });
+}
+
 function refreshNext() {
   const b = rootEl.querySelector('[data-nav="next"]'); if (b) b.disabled = !valid(curStep);
 }
 
 function nav(dir) {
+  if (d.mode === 'edit') {
+    if (curStep === 'hub') { if (dir < 0) { clearDraft(); location.hash = '#/me'; } else if (STEPS.filter(x => x !== 'summary').every(valid)) forge(); return; }
+    if (dir > 0 && !valid(curStep)) return;
+    location.hash = '#/onboarding/hub'; return;
+  }
   const i = STEPS.indexOf(curStep);
   if (dir < 0) {
     if (i === 0) { if (d.mode === 'edit') { clearDraft(); location.hash = '#/me'; } else location.hash = '#/welcome'; return; }
@@ -284,7 +358,7 @@ function onClick(e) {
   if (g) { location.hash = `#/onboarding/${g.dataset.goto}`; return; }
   const st = handleStepper(e);
   if (st) {
-    if (st.name === 'days') { d.profile.daysPerWeek = st.value; d.profile.preferredDays = [...SUGGEST[st.value]]; save(); draw(curStep); rootEl.querySelector(`[data-stepper="days"] [data-step-dir="${e.target.closest('[data-step-dir]').dataset.stepDir}"]`)?.focus(); return; }
+    if (st.name === 'days') { setDayCount(st.value); save(); draw(curStep); rootEl.querySelector(`[data-stepper="days"] [data-step-dir="${e.target.closest('[data-step-dir]').dataset.stepDir}"]`)?.focus(); return; }
     save(); refreshNext(); return;
   }
   const a = e.target.closest('[data-act]'); if (!a || a.type === 'checkbox') return;
@@ -293,8 +367,14 @@ function onClick(e) {
   switch (a.dataset.act) {
     case 'goal': p.goals = toggle(p.goals, v); if (!p.goals.includes(p.primaryGoal)) p.primaryGoal = p.goals[0] || null; if (p.goals.length === 1) p.primaryGoal = p.goals[0]; break;
     case 'primary': p.primaryGoal = v; break;
-    case 'day': p.preferredDays = toggle(p.preferredDays, +v).sort((x, y) => x - y); break;
-    case 'suggest': p.preferredDays = [...SUGGEST[p.daysPerWeek]]; break;
+    case 'day': {
+      // Chips and the count always agree: toggling a day changes days-per-week (kept within 2–6).
+      const next = toggle(p.preferredDays, +v).sort((x, y) => x - y);
+      if (next.length < 2) { d.dayMsg = 'Two days a week is the minimum for progress.'; break; }
+      if (next.length > 6) { d.dayMsg = 'Keep at least one full rest day.'; break; }
+      d.dayMsg = ''; p.preferredDays = next; p.daysPerWeek = next.length; break;
+    }
+    case 'suggest': p.preferredDays = [...SUGGEST[p.daysPerWeek]]; d.dayMsg = ''; break;
     case 'mins': p.minutesPerSession = +v; break;
     case 'sex': p.sex = v; break;
     case 'units': p.units = v; break;
@@ -323,9 +403,14 @@ function onInput(e) {
   if (t.dataset.text === 'name') { p.name = t.value.trim(); save(); return; }
   const k = t.dataset.num; if (!k) return;
   if (k.startsWith('base:')) {
-    const key = k.slice(5), max = BASELINE.find(b => b.key === key).max;
+    let key = k.slice(5);
     const c = t.value.replace(/\D/g, ''); if (c !== t.value) t.value = c;
-    p.baseline[key] = c === '' ? null : Math.min(max, +c);
+    if (key === 'plankMin' || key === 'plankS') {
+      // Plank is entered as min + s, stored as plankSec.
+      const mi = rootEl.querySelector('[data-num="base:plankMin"]').value, se = rootEl.querySelector('[data-num="base:plankS"]').value;
+      key = 'plankSec';
+      p.baseline.plankSec = mi === '' && se === '' ? null : Math.min(600, (+mi || 0) * 60 + Math.min(59, +se || 0));
+    } else p.baseline[key] = c === '' ? null : Math.min(BASELINE.find(b => b.key === key).max, +c);
     const nullChip = rootEl.querySelector(`[data-act="base-null"][data-val="${key}"]`);
     if (nullChip) nullChip.setAttribute('aria-pressed', String(p.baseline[key] === null));
     save(); return;
@@ -369,7 +454,7 @@ function forge() {
   const q = d.parq;
   p.health = { parq: q.slice(0, PARQ.length), unwell: !!q[PARQ.length], pregnant: !!q[PARQ.length + 1], changed: !!q[PARQ.length + 2], checkedAt: toISO() };
   if (STRONG.some(i => q[i]) || p.health.pregnant) p.lowImpact = true;
-  const mode = d.mode, reset = d.resetLevels;
+  const mode = d.mode, reset = d.resetLevels, wfmt = d.weightFmt;
   const overlay = document.createElement('div');
   overlay.className = 'forge-overlay';
   overlay.setAttribute('role', 'status');
@@ -383,6 +468,7 @@ function forge() {
     // New plans (and edits before any training) start on the Monday given by planStartDate, never in the past.
     if (!(mode === 'edit' && s.plan?.startDate && !isFirstTimer())) { const start = computePlanStart(toISO(), p.preferredDays); s.plan = { startDate: start, blockStart: start, createdOn: toISO() }; }
     s.settings.units = p.units;
+    if (p.units === 'imperial') s.settings.weightFmt = wfmt;
   });
   clearDraft();
   setTimeout(() => {

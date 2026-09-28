@@ -10,8 +10,11 @@ export function render(root, ctx) {
     <p class="welcome-sub">to forge the body and mind</p>
     <div class="ink-rule" aria-hidden="true"></div>
     <p class="welcome-promise">Your bodyweight, forged daily.<br>Free forever. No account, no ads, your data stays on your phone.</p>
-    <button class="btn btn-primary btn-lg" data-begin>Begin</button>
-    <p class="small muted welcome-foot">About three minutes to set up.</p>
+    <div class="welcome-actions">
+      <button class="btn btn-primary btn-lg" data-begin>Build my plan<span class="btn-sub">about 3 minutes</span></button>
+      <button class="btn btn-ghost btn-lg btn-accent-outline" data-quick>Quick workout<span class="btn-sub">no setup — start now</span></button>
+    </div>
   </section>`;
   root.querySelector('[data-begin]').addEventListener('click', () => ctx.go('#/onboarding/goals'));
+  root.querySelector('[data-quick]').addEventListener('click', () => ctx.go('#/quick'));
 }

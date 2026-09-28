@@ -1,5 +1,6 @@
 // Today (home) tab.
 import { getState, getActiveWorkout, clearActiveWorkout, getCurrentWeekIndex, todayISO } from '../store.js';
+import { inviteHTML } from './plan.js';
 import { esc, icon, seal, mountAnims, DOW_LONG, plural, confirmSheet, exName, fmtDate } from './components.js';
 import { getWeek, sessionForDow, sessionMinutes, getStreak, weekDays, sessionItems, mobilityFlow, startWorkout,
   weeklyTarget, sessionsThisWeek, freezesBanked, isFirstTimer } from './model.js';
@@ -48,9 +49,32 @@ function thumbs(session, n = 5) {
     ${items.length > n ? `<li class="thumb thumb-more">+${items.length - n}</li>` : ''}</ul>`;
 }
 
+export function quickCard(compact = false) {
+  const last = getState().settings.quick;
+  return `<a class="card quick-card ${compact ? 'compact' : ''}" href="#/quick">
+    <span class="quick-mark" aria-hidden="true">即</span>
+    <span class="quick-text"><span class="opt-name">Quick workout</span><span class="muted small">${last ? `Last time: ${last.minutes} min · ${last.mode === 'goal' ? esc(last.goal) : last.muscles?.length ? 'targeted muscles' : esc(last.focus || 'full body')}` : 'Short on time? Pick minutes and a focus. No setup.'}</span></span>
+    ${icon('chevron', { size: 20 })}</a>`;
+}
+
+function renderLite(root, ctx) {
+  const s = getState();
+  const [jp, en] = greeting();
+  const recent = [...s.logs].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  root.innerHTML = `<div class="screen today">
+    <header class="screen-head"><p class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+      <h1 class="title"><span class="jp" lang="ja">${jp}</span> ${en}</h1></header>
+    ${quickCard()}
+    ${s.logs.length ? streakCard(getStreak()) : ''}
+    ${recent.length ? `<section class="section"><h2 class="section-title">Recent</h2><ul class="list card card-flush">${recent.map(l => `<li class="list-item"><span><span class="opt-name">${esc(l.name || 'Quick workout')}</span><span class="small muted">${fmtDate(l.date)} · ${l.durationMin} min</span></span><span class="tick" aria-label="Done">${icon('check', { size: 16 })}</span></li>`).join('')}</ul></section>` : ''}
+    ${inviteHTML('Ready for a real plan?')}
+  </div>`;
+}
+
 export function render(root, ctx) {
   const s = getState();
   const p = s.profile;
+  if (!p) return renderLite(root, ctx);
   const week = getWeek();
   const now = new Date();
   const planStart = s.plan?.startDate || '';
@@ -108,6 +132,7 @@ export function render(root, ctx) {
     ${active ? `<section class="card resume-card" role="region" aria-label="Workout in progress"><div><p class="opt-name">Workout in progress</p><p class="muted small">${esc(active.session.name)} · exercise ${Math.min(active.idx + 1, active.items.length)} of ${active.items.length}</p></div>
       <div class="btn-row"><button class="btn btn-quiet btn-sm" data-discard>Discard</button><a class="btn btn-primary btn-sm" href="#/workout">Resume</a></div></section>` : ''}
     ${todayCard}
+    ${quickCard(true)}
     ${streakCard(streak)}
     <section class="section"><h2 class="section-title">${planStart > todayISO() ? 'Your first week' : 'This week'}</h2>${weekStrip(weekDays(now))}
       ${early.length ? `<p class="small early-note">${icon('check', { size: 14 })} Early start: ${early.length === 1 ? `${esc(early[0].name || 'a session')} on ${fmtDate(early[0].date, { weekday: 'long' })}` : `${early.length} sessions`} before your plan began.</p>` : ''}</section>

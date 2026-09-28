@@ -3,6 +3,7 @@ import { getState, update, exportJSON, validateImport, replaceState, resetAll, t
 import { esc, icon, seal, openSheet, confirmSheet, toast, downloadFile, fmtHeight, fmtWeight, DOW_SHORT, DOW_ORDER } from './components.js';
 import { goalName, levelsFor } from './model.js';
 import { beginEdit, DISCLAIMER } from './onboarding.js';
+import { inviteHTML } from './plan.js';
 
 const EXP = { new: 'New to this', some: 'Some experience', regular: 'Trains regularly', advanced: 'Advanced' };
 const seg = (key, val, opts) => `<div class="seg seg-sm" role="group" aria-label="${esc(key)}">${opts.map(([v, l]) => `<button type="button" class="chip" data-set="${key}" data-val="${v}" aria-pressed="${val === v}">${l}</button>`).join('')}</div>`;
@@ -12,8 +13,8 @@ export function render(root, ctx) {
     const s = getState(), p = s.profile, st = s.settings;
     root.innerHTML = `
     <div class="screen me">
-      <header class="screen-head"><p class="eyebrow">私 · Me</p><h1 class="title">${p.name ? esc(p.name) : 'You'}</h1></header>
-      <section class="card profile-card">
+      <header class="screen-head"><p class="eyebrow">私 · Me</p><h1 class="title">${p?.name ? esc(p.name) : 'You'}</h1></header>
+      ${p ? `<section class="card profile-card">
         <dl class="kv">
           <div><dt>Goals</dt><dd>${p.goals.map(g => (g === p.primaryGoal ? `<strong>${goalName(g)}</strong>` : goalName(g))).join(', ')}</dd></div>
           <div><dt>Schedule</dt><dd>${p.daysPerWeek}× · ${p.minutesPerSession} min · ${DOW_ORDER.filter(d => p.preferredDays.includes(d)).map(d => DOW_SHORT[d]).join(' ')}</dd></div>
@@ -22,7 +23,7 @@ export function render(root, ctx) {
           <div><dt>Kit</dt><dd>${p.equipment.length} item${p.equipment.length === 1 ? '' : 's'} · ${p.space} space${p.lowImpact ? ' · low impact' : ''}</dd></div>
         </dl>
         <button class="btn btn-ghost btn-block" data-edit>${icon('edit', { size: 18 })} Edit profile & plan</button>
-      </section>
+      </section>` : inviteHTML('No plan yet')}
 
       <section class="section"><h2 class="section-title">Settings</h2><div class="card settings">
         <div class="set-row"><span>Units</span>${seg('units', st.units, [['metric', 'Metric'], ['imperial', 'Imperial']])}</div>
@@ -35,7 +36,7 @@ export function render(root, ctx) {
         <div class="stack">
           <button class="btn btn-ghost btn-block" data-export>${icon('download', { size: 18 })} Export data (JSON)</button>
           <label class="btn btn-ghost btn-block file-btn">${icon('upload', { size: 18 })} Import data<input type="file" accept="application/json,.json" data-import class="sr-only"></label>
-          <button class="btn btn-quiet btn-block" data-relevel>Reset progression levels</button>
+          ${p ? '<button class="btn btn-quiet btn-block" data-relevel>Reset progression levels</button>' : ''}
           <button class="btn btn-quiet btn-block danger-text" data-reset>${icon('trash', { size: 18 })} Reset all data</button>
         </div></div></section>
 
@@ -57,7 +58,7 @@ export function render(root, ctx) {
       draw(); root.querySelector(`[data-set="${k}"][data-val="${val}"]`)?.focus();
       return;
     }
-    if (e.target.closest('[data-edit]')) { beginEdit('goals'); return; }
+    if (e.target.closest('[data-edit]')) { beginEdit('hub'); return; }
     if (e.target.closest('[data-export]')) { downloadFile(`kitaeru-backup-${todayISO()}.json`, exportJSON()); toast('Backup downloaded'); return; }
     if (e.target.closest('[data-relevel]')) {
       if (await confirmSheet({ title: 'Reset progression levels?', body: 'Every exercise family goes back to the recommended starting level for your profile. History and streaks are kept.', ok: 'Reset levels' })) {

@@ -4,7 +4,7 @@ export { MUSCLES, MUSCLE_IDS } from '../data/muscles.js';
 export { EXERCISES, FAMILIES, byId } from '../data/exercises.js';
 export { createSkeletonPlayer } from '../anim/skeleton.js';
 export { renderBodyMap, bodyMapSVG } from '../anim/bodymap.js';
-export { initialLevels, generateWeek, applySessionLog, computeStreak, explainPlan, estimateMinutes } from '../engine/planner.js';
+export { initialLevels, generateWeek, applySessionLog, computeStreak, explainPlan, estimateMinutes, generateQuickSession } from '../engine/planner.js';
 
 // Optional (non-contract) helper: the planner's own availability rule, so the UI agrees with the plan.
 import * as planner from '../engine/planner.js';

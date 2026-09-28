@@ -158,6 +158,26 @@ SessionLog = { id, date: 'YYYY-MM-DD', weekIndex, sessionId, durationMin, feel: 
   items: [ { exerciseId, family, sets: [ { reps?: number, sec?: number, done: true } ], rating: 'easy'|'good'|'hard' } ] }
 ```
 
+## Quick workout (v1.1) — `js/engine/planner.js`
+
+This is a one-off session. The user can start one with no setup at all, or with a profile.
+
+```js
+export function generateQuickSession(request, profile /* or null */, levels /* or null */, library) // -> Session (id 'Q')
+request = {
+  minutes: 20,                    // 5..90
+  goal: 'strength',               // optional: strength | muscle | endurance | flexibility | skill | health (default 'health')
+  focus: 'upper',                 // optional: full | upper | lower | core | push | pull | legs | mobility (default 'full')
+  muscles: ['glutes','hamstrings'], // optional: specific muscle ids (from tapping the body map); overrides focus when present
+  equipment: [], space: 'medium', lowImpact: false, // used when profile is null; profile values win otherwise
+  date: 'YYYY-MM-DD'              // seed for deterministic variety (same request same day → same session)
+}
+```
+- If there's no profile or levels, assume experience 'some', no injuries, no baseline, and levels from `initialLevels` of a default profile.
+- Honour the profile's injuries, equipment and levels when present.
+- A 'Q' session log counts toward the day streak and the weekly target, like any session. applySessionLog progresses the families it trained.
+- The session's `name` is descriptive, e.g. "20-min Lower body · Strength" or "15-min Glutes & hamstrings".
+
 ## Store (`js/store.js`)
 
 The key is `kitaeru.v1` in localStorage:

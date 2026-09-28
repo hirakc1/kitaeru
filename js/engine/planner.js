@@ -42,7 +42,7 @@ const BANDS = {
 };
 // §2.2 time allocation rows: [fromMinutes, warm, cool, skillMax, condMax, format]
 const TIME_TABLE = [
-  [10, 2, 1.5, 0, 0, 'circuit'], [15, 3, 2, 0, 2, 'circuit'], [20, 3, 2.5, 3, 3, 'superset'],
+  [5, 1, 1, 0, 0, 'circuit'], [10, 2, 1.5, 0, 0, 'circuit'], [15, 3, 2, 0, 2, 'circuit'], [20, 3, 2.5, 3, 3, 'superset'],
   [30, 5, 4, 5, 5, 'superset'], [45, 6, 5, 5, 6, 'straight'], [60, 8, 7, 8, 8, 'straight'], [75, 10, 9, 10, 10, 'straight'],
 ];
 
@@ -131,7 +131,7 @@ function derive(profile) {
     concurrent: (w.strength || 0) >= 0.2 && (w.muscle || 0) >= 0.2,
     bmiCaps: bmi != null && bmi >= 30 && !relax, bmi35: bmi != null && bmi >= 35 && !relax,
     lowImpact: !!profile.lowImpact || lowReasons.length > 0, lowReasons, lowInj,
-    days: clamp(profile.daysPerWeek || 3, 2, 6), M: clamp(profile.minutesPerSession || 30, 10, 90),
+    days: clamp(profile.daysPerWeek || 3, 2, 6), M: clamp(profile.minutesPerSession || 30, profile._quick ? 5 : 10, 90),
   };
 }
 
@@ -311,7 +311,7 @@ export function initialLevels(profile, library) {
         idx -= 1;
         if (fam === 'push_horizontal') idx = Math.min(idx, idxOf(D.exp === 'new' ? 'wall_push_up' : 'incline_push_up'));
       }
-      if (profile.sex !== 'male' && ['new', 'some'].includes(D.exp) && ['push_horizontal', 'pull_vertical'].includes(fam)) idx -= 1;
+      if (!profile._noSexPrior && profile.sex !== 'male' && ['new', 'some'].includes(D.exp) && ['push_horizontal', 'pull_vertical'].includes(fam)) idx -= 1;
     }
     if (D.bmiCaps) { // §5 start caps
       const cap = { push_horizontal: D.bmi35 || !known(b.pushUps) || b.pushUps < 5 ? 'incline_push_up' : 'knee_push_up', pull_vertical: 'negative_pull_up', squat: 'split_squat' }[fam];
@@ -649,6 +649,7 @@ function mkUnit(parts, fmt, ctx) {
     parts, rests, fmt, sets: 0,
     ess: parts.some(p => p.ess), tier: Math.min(...parts.map(p => p.tier ?? 3)), pri: Math.min(...parts.map(p => p.pri)), order: Math.min(...parts.map(p => p.order)),
     min: Math.max(...parts.map(p => p.min)), base: Math.max(...parts.map(p => p.base)), max: Math.min(...parts.map(p => p.max)),
+    hardMax: Math.min(...parts.map(p => p.hardMax ?? 99)),
     load: parts.reduce((m, p) => { for (const [k, v] of Object.entries(muscleLoad(p.ex))) m[k] = (m[k] || 0) + v; return m; }, {}),
   };
 }
@@ -695,12 +696,12 @@ function fillMain(parts, fmt, ctx, sess, budget) {
   const muscleOk = (u, extra) => Object.entries(u.load).every(([m, v]) =>
     (sess.muscle[m] || 0) + v * extra <= (sess.capOf ? sess.capOf(m) : CONFIG.maxSetsPerMuscleSession));
   const apply = (u, extra) => { for (const [m, v] of Object.entries(u.load)) sess.muscle[m] = (sess.muscle[m] || 0) + v * extra; };
-  const tryAdd = u => {
+  const tryAdd = (u, slack = 0) => {
     if (chosen.includes(u)) return true;
     const floorSets = u.tier >= 2 && u.parts.some(p => p.role === 'main') && u.min >= 2 ? 2 : 1;
     for (let s = u.min; s >= floorSets; s--) {
       const c = unitSec(u, s, info);
-      if (t + c <= budget && (muscleOk(u, s) || u.ess)) { u.sets = s; chosen.push(u); t += c; apply(u, s); return true; }
+      if (t + c <= budget + slack && (muscleOk(u, s) || u.ess)) { u.sets = s; chosen.push(u); t += c; apply(u, s); return true; }
     }
     return false;
   };
@@ -716,13 +717,17 @@ function fillMain(parts, fmt, ctx, sess, budget) {
     }
   };
   const drop = u => { chosen.splice(chosen.indexOf(u), 1); t -= unitSec(u, u.sets, info); apply(u, -u.sets); };
-  for (const u of units.filter(x => x.tier === 1)) tryAdd(u);
+  for (const u of units.filter(x => x.tier === 1)) {
+    if (tryAdd(u) || u.parts.length < 2) continue;
+    for (const p of u.parts) { const one = mkUnit([p], 'straight', ctx); one.tier = 1; tryAdd(one); } // pair too long: keep what fits
+  }
+  if (!chosen.length) { const u = units.find(x => x.tier === 1 && x.parts.length === 1); if (u) tryAdd(u, 45); } // very short: never lose the main lift
   // §2.3 step 4: never keep a push slot without a horizontal pull
   const hasHP = () => chosen.some(u => u.parts.some(p => HPULL.includes(p.ex.family)));
   const hpUnit = units.find(u => !chosen.includes(u) && u.parts.some(p => HPULL.includes(p.ex.family)));
   const hasPush = () => chosen.some(u => u.parts.some(p => p.pattern === 'push'));
   const vOk = ctx.barOnly && chosen.some(u => u.parts.some(p => p.ex.family === 'pull_vertical'));
-  if (hasPush() && !hasHP() && hpUnit && !vOk) {
+  if (!ctx.quick && hasPush() && !hasHP() && hpUnit && !vOk) {
     while (!tryAdd(hpUnit)) { // squeeze other lifts (not below 2 sets), then drop pushes as a last resort
       const big = [...chosen].sort((a, b) => b.sets - a.sets || b.pri - a.pri)[0];
       if (big && big.sets > 2) { const d = unitSec(big, big.sets, info) - unitSec(big, big.sets - 1, info); big.sets--; t -= d; apply(big, -1); continue; }
@@ -732,15 +737,21 @@ function fillMain(parts, fmt, ctx, sess, budget) {
     }
   }
   // Primary compounds reach their goal sets before anything else is added (QA #2), then tier 2, then accessories.
+  // Targeted quick sessions go breadth-first instead: 3-5 on-target exercises, then ~3 sets each.
+  if (!sess.targeted) raise(u => u.base);
+  for (const u of units.filter(x => x.tier === 2)) {
+    if (tryAdd(u) || !sess.targeted || u.parts.length < 2) continue;
+    for (const p of u.parts) { const one = mkUnit([p], 'straight', ctx); one.tier = 2; tryAdd(one); }
+  }
   raise(u => u.base);
-  for (const u of units.filter(x => x.tier === 2)) tryAdd(u);
-  raise(u => u.base);
-  for (const u of units.filter(x => x.tier >= 3)) tryAdd(u);
+  for (const u of units.filter(x => x.tier === 3)) tryAdd(u);
+  raise(u => u.max);
+  for (const u of units.filter(x => x.tier >= 4)) tryAdd(u); // extra variations (quick sessions with time to fill)
   raise(u => u.max);
   return {
     units: chosen,
     get t() { return t; },
-    topUp(newBudget) { budget = newBudget; raise(u => Math.min(6, u.max + 1)); return t; },
+    topUp(newBudget, extra = 1, cap = 6) { budget = newBudget; raise(u => Math.min(cap, u.max + extra, u.hardMax)); return t; },
   };
 }
 
@@ -762,6 +773,11 @@ function unitsToItems(units, sess) {
   return items;
 }
 
+const WARMUP_REGION = {
+  upper: ['arm_circles', 'scapular_push_up', 'thoracic_opener', 'wrist_prep'],
+  lower: ['leg_swings', 'hip_circles', 'worlds_greatest_stretch'],
+  full: ['arm_circles', 'leg_swings', 'hip_circles', 'scapular_push_up', 'worlds_greatest_stretch'],
+};
 const WARMUP_ORDER = {
   upper: ['marching_in_place', 'arm_circles', 'scapular_push_up', 'wrist_prep', 'thoracic_opener', 'cat_cow', 'inchworm', 'hip_circles'],
   lower: ['marching_in_place', 'leg_swings', 'hip_circles', 'worlds_greatest_stretch', 'cat_cow', 'arm_circles', 'inchworm'],
@@ -806,7 +822,7 @@ function fillFlat(block, cands, target, limit, mk, maxSets, used, info) {
 }
 
 function mobilityItem(ctx) {
-  const hold = ctx.D.band === 'a65' ? [30, 45] : [20, 30]; // §1.1 flexibility (65+: 30-60 s, trimmed to 45 for time)
+  const hold = ctx.longHolds === 2 ? [45, 60] : ctx.D.band === 'a65' || ctx.longHolds ? [30, 45] : [20, 30]; // §1.1 flexibility (65+: 30-60 s, trimmed to 45 for time)
   return (ex, sets = 1) => flatItem(ex, { reps: [6, 10], hold, sets, rest: 10 });
 }
 
@@ -815,19 +831,21 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const D = ctx.D, info = ctx.info, M = D.M, T = M * 60;
   const key = slot.key || ctx.lightKeys[slot.lightIdx];
   const variant = slot.variant || 0;
-  const tpl = template(key, variant, weekIndex);
+  const tpl = slot.tpl || template(key, variant, weekIndex);
+  const Q = slot.quick || null;
   const row = [...TIME_TABLE].reverse().find(r => M >= r[0]);
   const fmt = tpl.kind === 'hard' ? row[5] : 'straight';
-  const sess = { patternSeen: new Set(), muscle: {}, groups: 0,
+  const sess = { patternSeen: new Set(), muscle: {}, groups: 0, targeted: !!tpl.targeted,
     capOf: m => tpl.kind !== 'hard' ? CONFIG.maxSetsPerMuscleSession
       : Math.min(CONFIG.maxSetsPerMuscleSession, D.B.weeklyCap / Math.max(1, ctx.hitCount[MUSCLE_REGION[m] || 'core'] || 1)) };
   const used = new Set();
-  const region = regionOf(tpl.focus);
+  const region = tpl.region || regionOf(tpl.focus);
 
   // --- balance (§4): 40-54 one item on 2 sessions/week, 55-64 >= 2 min, 65+ >= 3 min in every session
   const bal = D.B.balance;
   let balanceSec = 0;
-  if (bal === 'two' && tpl.kind === 'hard' && tpl.focus.includes('legs') && ctx.balanceSessions < 2) balanceSec = 90;
+  if (Q && Q.noBalance) { /* mobility-only quick session */ }
+  else if (bal === 'two' && tpl.kind === 'hard' && tpl.focus.includes('legs') && ctx.balanceSessions < 2) balanceSec = 90;
   else if (typeof bal === 'number') balanceSec = bal;
 
   // --- block targets (seconds)
@@ -860,13 +878,34 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
     if (over > 0) { const cut = Math.min(over, tcond); tcond -= cut; tskill = Math.max(0, tskill - Math.max(0, over - cut)); }
   }
 
+  if (Q) {
+    if (Q.warm != null) tw = Q.warm;
+    if (Q.cool != null) tcool = Math.max(Q.coolIsMin ? tcool : 0, Q.cool);
+    if (Q.cond != null) tcond = Q.cond;
+    if (tpl.kind === 'hard') { const over = tw + tcool + tskill + tcond - 0.6 * T; if (over > 0) { const c = Math.min(over, tcond); tcond -= c; tskill = Math.max(0, tskill - (over - c)); } }
+  }
   const blocks = [];
   // --- warm-up
   const warm = { kind: 'warmup', title: 'Warm-up', items: [] };
   const wo = WARMUP_ORDER[region];
   const wk = (sessIdx + weekIndex) % (wo.length - 1);
-  fillFlat(warm, candidates([wo[0], ...wo.slice(1 + wk), ...wo.slice(1, 1 + wk)], ctx, ['warmup']), tw, tw + 30,
-    ex => flatItem(ex, { reps: [8, 12], hold: ex.family === 'conditioning' ? [45, 60] : [20, 30] }), 2, used, info);
+  const rel = WARMUP_REGION[region];
+  const rk = (sessIdx + weekIndex) % rel.length;
+  const relRot = [...rel.slice(rk), ...rel.slice(0, rk)].filter(id => ctx.isAvail(ctx.byId[id]));
+  // a drill for the session's region first (short warm-ups may hold only one item), then the pulse raiser
+  const warmOrder = [...relRot.slice(0, 1), wo[0], ...relRot.slice(1), ...wo.slice(1 + wk), ...wo.slice(1, 1 + wk)];
+  let warmCands = candidates([...new Set(warmOrder)], ctx, ['warmup']);
+  if (Q && Q.noBalance) warmCands = warmCands.filter(e => e.family !== 'mobility'); // keep the stretches for the flow itself
+  const warmMk = ex => flatItem(ex, { reps: [8, 12], hold: ex.family === 'conditioning' ? [45, 60] : [20, 30] });
+  fillFlat(warm, warmCands, tw, tw + 30, warmMk, 2, used, info);
+  if (relRot.length && !warm.items.some(i => rel.includes(i.exerciseId))) { // short warm-ups still prepare the region
+    const ex = ctx.byId[relRot[0]];
+    if (!used.has(ex.id)) {
+      const it = warmMk(ex); if (it.reps) it.reps = [5, 8];
+      if (tw <= 120) { warm.items.forEach(i => used.delete(i.exerciseId)); warm.items = [it]; } else warm.items.unshift(it);
+      used.add(ex.id);
+    }
+  }
   blocks.push(warm);
 
   // --- skill (first, while fresh)
@@ -881,12 +920,20 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   // --- main
   const parts = [];
   let order = 0;
-  const addPart = (ex, role, pri, ess, tier) => { used.add(ex.id); parts.push(makePart(ex, role, ctx, sess, pri, tier === 1, order++, tier)); };
+  let curSlot = null;
+  const addPart = (ex, role, pri, ess, tier) => {
+    used.add(ex.id);
+    const pt = makePart(ex, role, ctx, sess, pri, tier === 1, order++, tier);
+    if (curSlot && curSlot.maxSets) { pt.max = Math.min(pt.max, curSlot.maxSets); pt.base = Math.min(pt.base, pt.max); pt.min = Math.min(pt.min, pt.max); pt.hardMax = curSlot.maxSets; }
+    if (tpl.targeted && pt.max >= 3) { pt.base = Math.max(pt.base, 3); pt.min = Math.min(pt.min, 2); } // targeted days: breadth at 2 sets, then ~3 each
+    parts.push(pt);
+  };
   const hasPV = ctx.avail.pull_vertical.length > 0;
   const tierOf = s => s.tier ?? (s.pv ? (hasPV ? 1 : 3) : s.hp2 ? (hasPV ? 2 : 1) : !s.ess ? 3 : s.role === 'main' ? 1 : s.role === 'core' ? 2 : 3);
   const slots = [...tpl.slots];
   if (balanceSec > 0) slots.splice(Math.min(slots.length, tpl.kind === 'hard' ? 4 : 1), 0, S([], 'balance', 1, { balance: true }));
   for (const s of slots) {
+    curSlot = s;
     if (s.balance) {
       const ex = ['single_leg_rdl', 'split_squat', 'bird_dog', 'single_leg_glute_bridge'].map(id => ctx.byId[id]).find(e => e && ctx.isAvail(e) && !used.has(e.id));
       if (!ex) continue;
@@ -900,7 +947,8 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
       continue;
     }
     if (s.pv && !hasPV) continue; // no bar: the horizontal-pull slot carries the pulling (§7)
-    const ex = resolveSlot(s, ctx, used);
+    curSlot = s;
+    const ex = s.fixed ? (used.has(s.fixed.id) ? null : s.fixed) : resolveSlot(s, ctx, used);
     if (!ex) continue;
     addPart(ex, s.role, (PRI[ex.family] ?? 9) + (s.variant ? 10 : 0) + (s.ess ? 0 : 20) - (s.hp2 ? 5 : 0), s.ess, tierOf(s));
   }
@@ -912,7 +960,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const main = { kind: 'main', title: tpl.kind === 'hard' ? 'Main' : 'Strength, core & balance', items: unitsToItems(fm.units, sess) };
   blocks.push(main);
   // core did not fit after the primary lifts: keep the session's core pattern as a short warm-up activation
-  if (tpl.kind === 'hard' && !main.items.some(i => CORE.includes(i.family))) {
+  if (tpl.kind === 'hard' && !ctx.quick && !main.items.some(i => CORE.includes(i.family))) {
     const cp = parts.find(p => p.role === 'core');
     if (cp) warm.items.push(flatItem(cp.ex, { reps: [8, 12], hold: [20, 30], sets: 1, notes: 'Core activation.' }));
   }
@@ -949,8 +997,8 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
 
   // --- cool-down / mobility absorbs what is left
   const cool = { kind: tpl.kind === 'hard' ? 'cooldown' : 'mobility', title: tpl.kind === 'flow' ? 'Mobility flow' : tpl.kind === 'hard' ? 'Cool-down' : 'Mobility', items: [] };
-  const mobOrder = MOBILITY_ORDER[tpl.kind === 'hard' ? region : 'full'];
-  const rotBy = (weekIndex + sessIdx * 3) % mobOrder.length;
+  const mobOrder = (Q && Q.mobOrder) || MOBILITY_ORDER[tpl.kind === 'hard' ? region : 'full'];
+  const rotBy = Q && Q.mobOrder ? 0 : (weekIndex + sessIdx * 3) % mobOrder.length;
   const mobCands = candidates([...mobOrder.slice(rotBy), ...mobOrder.slice(0, rotBy)], ctx, ['mobility']);
   const mk = mobilityItem(ctx);
   const flexSets = tpl.kind !== 'hard' || (D.w.flexibility || 0) >= 0.2 ? 2 : 1;
@@ -962,7 +1010,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   let total = others() + blockSec(cool, info) - blockSec(cool, info);
   total = blocks.reduce((t, b) => t + blockSec(b, info), 0);
   if (total < (1 - 0.04) * T) {
-    fm.topUp(mainBudget + (T - total));
+    fm.topUp(fm.t + (T - total), Q ? 4 : 1, Q ? 8 : 6);
     main.items = unitsToItems(fm.units, { groups: 0 });
     total = blocks.reduce((t, b) => t + blockSec(b, info), 0);
     if (cond && total < 0.96 * T) {
@@ -972,7 +1020,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
     }
     if (total < 0.96 * T) {
       const base = total - blockSec(cool, info);
-      fillFlat(cool, mobCands, T - base, T - base + 15, ex => mk(ex, 1), 4, used, info);
+      fillFlat(cool, mobCands, T - base, T - base + 15, ex => mk(ex, 1), Q ? (M >= 60 ? 10 : 8) : 4, used, info);
     }
   }
   if (cond) delete cond._u;
@@ -1100,10 +1148,7 @@ function reduceVolume(sessions, factor, kind) {
 // =============================================================================================
 // generateWeek
 // =============================================================================================
-export function generateWeek(profile, levels, library, requestedWeek = 0, opts = {}) {
-  const weekIndex = Math.max(0, requestedWeek | 0); // early starts (before startDate) use plan week 1
-  const ctx = buildCtx(profile, library);
-  const D = ctx.D;
+function resolveLevels(ctx, profile, levels, library) {
   const init = initialLevels(profile, library);
   ctx.levelsEx = {};
   for (const fam of LEVEL_FAMILIES) {
@@ -1114,6 +1159,13 @@ export function generateWeek(profile, levels, library, requestedWeek = 0, opts =
       ctx.levelsEx[fam] = avail.includes(given) ? given : (stepDown(ctx.fam[fam], ctx.fam[fam].indexOf(given), ctx.isAvail) || nearest(avail, given.level));
     } else if (init[fam]) ctx.levelsEx[fam] = ctx.byId[init[fam]];
   }
+}
+
+export function generateWeek(profile, levels, library, requestedWeek = 0, opts = {}) {
+  const weekIndex = Math.max(0, requestedWeek | 0); // early starts (before startDate) use plan week 1
+  const ctx = buildCtx(profile, library);
+  const D = ctx.D;
+  resolveLevels(ctx, profile, levels, library);
   ctx.phase = opts._forceBuild ? { phase: 'build', blockWeek: 3, reentry: null, calibration: false, cycleLen: 5, blockStart: 0 } : phaseInfo(profile, weekIndex, opts);
   const eqp = profile.equipment || [];
   ctx.barOnly = eqp.includes('pullup_bar') && !eqp.includes('rings') && !eqp.includes('table') && ctx.avail.pull_vertical.length > 0; // doorway bar: rows may be impractical
@@ -1164,6 +1216,12 @@ export function generateWeek(profile, levels, library, requestedWeek = 0, opts =
 const logWeek = log => Math.max(0, log.weekIndex ?? 0); // early-start logs belong to week 1
 
 function prescribed(profile, levels, library, log, exerciseId, cache) {
+  if (log.sessionId === 'Q' && log.request) { // quick session: rebuild it from the stored request for exact ranges
+    const qk = 'Q' + JSON.stringify(log.request);
+    if (!cache.has(qk)) cache.set(qk, { sessions: [generateQuickSession(log.request, profile, levels, library)] });
+    const hit = cache.get(qk).sessions[0].blocks.flatMap(b => b.items).find(it => it.exerciseId === exerciseId);
+    if (hit) return hit;
+  }
   const key = logWeek(log);
   if (!cache.has(key)) cache.set(key, generateWeek(profile, levels, library, key, { _forceBuild: true }));
   const wk = cache.get(key);
@@ -1190,6 +1248,8 @@ function judge(item, rx, fallback) {
  * (blockStart/startDate/logs) so deload and re-entry weeks can be recognised.
  */
 export function applySessionLog(levels, profile, sessionLog, library, history = [], opts = {}) {
+  profile = profile || QUICK_DEFAULT;
+  levels = levels || initialLevels(profile, library);
   const ctx = buildCtx(profile, library);
   const out = { ...levels };
   const changes = [];
@@ -1231,7 +1291,7 @@ export function applySessionLog(levels, profile, sessionLog, library, history = 
       if (it) { prev = it; prevLog = prevLogs[i]; break; }
     }
     const before = prev && prev.exerciseId === item.exerciseId ? judge(prev, prescribed(profile, levels, library, prevLog, prev.exerciseId, cache), fb) : null;
-    const calibration = logWeek(sessionLog) <= 1;
+    const calibration = sessionLog.weekIndex != null && logWeek(sessionLog) <= 1; // Q logs without a plan week are not calibration
     // fast-track (§8.4)
     if (calibration && now.vals.length && now.vals.every(v => v >= now.hi + 6) && !now.hard
       && move(fam, cur, 2, to => `Calibration: every set was well past ${now.hi}${unit}, so you jump two levels to ${name(to)}.`)) continue;
@@ -1452,4 +1512,173 @@ export function explainPlan(profile, week) {
 
   const who = 'For full health benefit, also aim for 150-300 min/week of moderate aerobic activity such as brisk walking (WHO).';
   return [...out.slice(0, 7), who];
+}
+
+// =============================================================================================
+// Quick workout (v1.1)
+// =============================================================================================
+const QUICK_DEFAULT = { goals: ['health'], primaryGoal: 'health', daysPerWeek: 3, minutesPerSession: 30, preferredDays: [1, 3, 5], age: 30, sex: 'unspecified',
+  experience: 'some', baseline: {}, injuries: [], equipment: ['wall'], space: 'medium', lowImpact: false, _noSexPrior: true };
+const FOCUS_LABEL = { full: 'Full body', upper: 'Upper body', lower: 'Lower body', core: 'Core', push: 'Push', pull: 'Pull', legs: 'Legs', mobility: 'Mobility flow' };
+const MUSCLE_LABEL = { front_delts: 'front shoulders', side_delts: 'side shoulders', rear_delts: 'rear shoulders', upper_back: 'upper back', lower_back: 'lower back', hip_flexors: 'hip flexors', abs: 'abs' };
+function hashStr(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+function muscleScore(ex, muscles) {
+  let prim = 0, sec = 0;
+  for (const m of muscles) { if ((ex.muscles?.primary || []).includes(m)) prim++; else if ((ex.muscles?.secondary || []).includes(m)) sec++; }
+  return { prim, sec, score: 2 * prim + sec };
+}
+
+function quickTemplate(focus, muscles, ctx, seed, minutes) {
+  const T = (fams, role, tier, extra = {}) => S(fams, role, tier <= 2, { tier, ...extra });
+  const core = [CORE[seed % 3], CORE[(seed + 1) % 3], CORE[(seed + 2) % 3]];
+  const hard = (f, slots) => ({ kind: 'hard', name: '', focus: f, slots });
+  switch (focus) {
+    case 'mobility': return { kind: 'flow', name: '', focus: ['mobility'], slots: [] };
+    case 'core': return hard(['core'], [T([core[0]], 'core', 1), T([core[1]], 'core', 1), T([core[2]], 'core', 2),
+      T([core[0]], 'core', 3, { variant: true }), T([core[1]], 'core', 3, { variant: true }), T([core[2]], 'core', 3, { variant: true })]);
+    case 'upper': return { ...hard(['push', 'pull'], [T(['push_horizontal'], 'main', 1), T(HPULL, 'main', 1), T(['push_vertical', 'dip'], 'main', 2),
+      T(['pull_vertical'], 'main', 2), T(['pull_horizontal'], 'main', 3, { variant: true }), T(['push_horizontal'], 'main', 3, { variant: true })]), region: 'upper' };
+    case 'lower': case 'legs': return { ...hard(['legs'], [T(['squat'], 'main', 1), T(['hinge'], 'main', 1), T(['squat'], 'main', 2, { variant: true, unilateral: true }),
+      T(['calves'], 'acc', 2), T(['hinge'], 'main', 3, { variant: true })]), region: 'lower' };
+    case 'push': return { ...hard(['push'], [T(['push_horizontal'], 'main', 1), T(['push_vertical', 'dip'], 'main', 1), T(['dip', 'push_vertical'], 'main', 2),
+      T(['push_horizontal'], 'main', 2, { variant: true }), ...(minutes >= 30 ? [T(HPULL, 'main', 3, { maxSets: 2 })] : [])]), region: 'upper' };
+    case 'pull': return { ...hard(['pull'], [T(['pull_vertical'], 'main', 1), T(HPULL, 'main', 1), T(['pull_noequip', 'pull_horizontal'], 'main', 2, { variant: true }),
+      T(['pull_vertical'], 'main', 2, { variant: true })]), region: 'upper' };
+    case 'muscles': {
+      // A real targeted day: several variations per family around the user's level (level ±1), ranked by
+      // primary match, then secondary; 2-6 exercises by length, at most 3 per family.
+      const N = minutes < 15 ? 2 : minutes < 25 ? 3 : minutes < 35 ? 4 : minutes < 50 ? 5 : 6;
+      let pool = [];
+      const far = [];
+      for (const fam of [...PUSH, ...PULL, ...LEGS, ...CORE]) {
+        const av = ctx.avail[fam];
+        if (!av.length) continue;
+        const cur = ctx.levelsEx[fam] || av[0];
+        const hits = av.map(ex => ({ fam, ex, ...muscleScore(ex, muscles), d: Math.abs(ex.level - cur.level) })).filter(c => c.prim > 0);
+        const win = hits.filter(c => c.d <= 1);
+        pool.push(...(win.length ? win : hits.sort((a, b) => a.d - b.d).slice(0, 1)));
+        far.push(...hits.filter(c => !pool.includes(c)));
+      }
+      if (pool.length < N) pool.push(...far.sort((a, b) => a.d - b.d || a.ex.level - b.ex.level).slice(0, N - pool.length)); // few options: widen the level window
+      const nonCore = c => CORE.includes(c.fam) && !muscles.every(m => MUSCLE_REGION[m] === 'core') ? 0 : 1;
+      const famRel = {}; // how many picked muscles a family trains as prime mover (hinge > squat for glutes + hamstrings)
+      for (const c of [...pool, ...far]) famRel[c.fam] = new Set([...(famRel[c.fam] || []), ...muscles.filter(m => (c.ex.muscles?.primary || []).includes(m))]);
+      const rel = c => (famRel[c.fam] || new Set()).size;
+      const key = c => minutes <= 10 ? [nonCore(c), c.ex.unilateral ? 0 : 1, c.prim, rel(c), c.sec, -c.d, -(PRI[c.fam] ?? 9)]
+        : [c.prim, nonCore(c), rel(c), c.sec, -c.d, -(PRI[c.fam] ?? 9)];
+      const cmp = (a, b) => { const ka = key(a), kb = key(b); for (let q = 0; q < ka.length; q++) if (ka[q] !== kb[q]) return kb[q] - ka[q]; return 0; };
+      pool = pool.sort(cmp);
+      if (!pool.length) return null;
+      const chosen = [];
+      const perFam = {};
+      const take = c => { chosen.push(c); perFam[c.fam] = (perFam[c.fam] || 0) + 1; };
+      const left = new Set(muscles);
+      const coverList = [...pool, ...far.sort((a, b) => a.d - b.d)]; // a muscle may need a move outside the level window
+      for (;;) { // first make sure every picked muscle has a primary mover
+        let pick = null, gain = 0;
+        for (const c of coverList) {
+          if (minutes <= 10 && c.ex.unilateral && chosen.length) continue;
+          if (chosen.includes(c)) continue;
+          const g = (c.ex.muscles?.primary || []).filter(m => left.has(m)).length;
+          if (g > gain) { pick = c; gain = g; }
+        }
+        if (!pick) break;
+        take(pick);
+        for (const m of pick.ex.muscles?.primary || []) left.delete(m);
+      }
+      for (const c of pool) { // then the best remaining variations, spread across families
+        if (chosen.length >= N) break;
+        if (!chosen.includes(c) && (perFam[c.fam] || 0) < 3 && !chosen.some(x => x.fam === c.fam && x.ex.unilateral === c.ex.unilateral && x.ex.level === c.ex.level)) take(c);
+      }
+      const role = f => CORE.includes(f) ? 'core' : f === 'calves' ? 'acc' : 'main';
+      const slots = chosen.map((c, i) => T([c.fam], role(c.fam), i < 3 ? 1 : 2, { fixed: c.ex, target: true }));
+      for (const c of pool.filter(c => !chosen.includes(c)).slice(0, 6)) slots.push(T([c.fam], role(c.fam), 4, { fixed: c.ex, target: true }));
+      // balanced antagonist only for broad picks with time to spare
+      const regions = muscles.map(m => MUSCLE_REGION[m]);
+      if (muscles.length >= 3 && minutes >= 30) {
+        const push = regions.filter(r => r === 'push').length, pull = regions.filter(r => r === 'pull').length;
+        if (push > pull) slots.push(T(HPULL, 'main', 3, { maxSets: 2 }));
+        else if (pull > push) slots.push(T(['push_horizontal'], 'main', 3, { maxSets: 2 }));
+      }
+      const focusTags = [...new Set(chosen.map(c => patternOf(c.fam)))].filter(x => ['push', 'pull', 'legs', 'core'].includes(x));
+      const cnt = r => regions.filter(x => x === r).length;
+      const region = cnt('legs') >= Math.max(cnt('push') + cnt('pull'), 1) ? 'lower' : cnt('push') + cnt('pull') > 0 ? 'upper' : 'full';
+      return { ...hard(focusTags.length ? focusTags : ['core'], slots), targeted: true, region };
+    }
+    default: return hard(['push', 'pull', 'legs', 'core'], [T(['push_horizontal'], 'main', 1), T(HPULL, 'main', 1), T(['squat'], 'main', 1),
+      T(['hinge'], 'main', 2), T([core[0]], 'core', 2), T(['pull_vertical'], 'main', 3), T(['push_vertical', 'dip'], 'main', 3), T(['calves'], 'acc', 3), T([core[1]], 'core', 3)]);
+  }
+}
+
+function quickName(minutes, focus, muscles, goal, goalGiven) {
+  let label;
+  if (muscles.length) {
+    const n = muscles.map(m => MUSCLE_LABEL[m] || m.replace(/_/g, ' '));
+    label = n.length === 1 ? n[0] : n.length === 2 ? `${n[0]} & ${n[1]}` : n.length === 3 ? `${n[0]}, ${n[1]} & ${n[2]}` : `${n[0]}, ${n[1]} & ${n.length - 2} more`;
+    label = label.charAt(0).toUpperCase() + label.slice(1);
+  } else label = FOCUS_LABEL[focus];
+  return `${minutes}-min ${label}${goalGiven && focus !== 'mobility' ? ` · ${GOAL_LABEL[goal]}` : ''}`;
+}
+
+/**
+ * One-off session (id 'Q'). request = { minutes 5-90, goal?, focus?, muscles?, equipment?, space?, lowImpact?, date }.
+ * Without profile/levels: a 'some experience' adult, floor + wall only unless request.equipment is given.
+ * Deterministic: seeded from request.date and the request fields.
+ */
+export function generateQuickSession(request = {}, profile = null, levels = null, library) {
+  const minutes = clamp(Math.round(Number(request.minutes) || 20), 5, 90);
+  const goalGiven = ALL_GOALS.includes(request.goal);
+  const goal = goalGiven ? request.goal : 'health';
+  const muscles = [...new Set((request.muscles || []).filter(m => MUSCLE_REGION[m]))];
+  let focus = muscles.length ? 'muscles' : (FOCUS_LABEL[request.focus] ? request.focus : 'full');
+  const base = profile ? { ...profile } : { ...QUICK_DEFAULT, equipment: Array.isArray(request.equipment) ? request.equipment : ['wall'],
+    space: request.space || 'medium', lowImpact: !!request.lowImpact };
+  const qp = { ...base, goals: [goal], primaryGoal: goal, minutesPerSession: minutes, _quick: true };
+  const ctx = buildCtx(qp, library);
+  resolveLevels(ctx, qp, profile ? levels : null, library);
+  ctx.phase = { phase: 'build', blockWeek: 3, reentry: null, calibration: false, cycleLen: 5, blockStart: 0 };
+  const eqp = qp.equipment || [];
+  ctx.barOnly = eqp.includes('pullup_bar') && !eqp.includes('rings') && !eqp.includes('table') && ctx.avail.pull_vertical.length > 0;
+  ctx.balanceSessions = 0;
+  ctx.hitCount = { core: 1, push: 1, pull: 1, legs: 1 };
+  ctx.lightKeys = [];
+  const seed = hashStr(JSON.stringify([request.date || '', minutes, goal, focus, muscles, request.equipment || null, request.space || null, !!request.lowImpact])) % 9973;
+
+  let tpl = quickTemplate(focus, muscles, ctx, seed, minutes);
+  if (!tpl) { // nothing trains those muscles here: fall back to the body region
+    const r = MUSCLE_REGION[muscles[0]];
+    focus = r === 'legs' ? 'lower' : r === 'core' ? 'core' : 'upper';
+    tpl = quickTemplate(focus, [], ctx, seed, minutes);
+  }
+  const T = minutes * 60;
+  const quick = { noBalance: focus === 'mobility' };
+  quick.warm = minutes <= 5 ? 45 : minutes <= 10 ? Math.max(60, Math.round(0.15 * T)) : minutes < 20 ? 150 : null; // always a warm-up, scaled down when short
+  if (minutes <= 10) quick.cool = muscles.length ? 95 : 60;
+  if (minutes < 15) quick.cond = 0;
+  if (focus === 'muscles' || ['upper', 'lower', 'legs', 'push', 'pull'].includes(focus)) quick.cond = goal === 'endurance' && minutes >= 30 ? 180 : 0; // targeted time stays on target
+  ctx.quick = true;
+  ctx.longHolds = focus === 'mobility' ? (minutes >= 60 ? 2 : minutes >= 30 ? 1 : 0) : minutes >= 60 ? 1 : 0;
+  if (['upper', 'lower', 'legs', 'push', 'pull'].includes(focus)) tpl.targeted = true;
+  if (tpl.kind === 'hard' && minutes >= 30 && focus !== 'muscles') { // more variations of the same families, used only if time is left after the prescription
+    const fams = [...new Set(tpl.slots.map(x => x.fixed ? x.fixed.family : x.fams[0]))];
+    for (let k = 0; k < 2; k++) for (const f of fams) tpl.slots.push(S([f], CORE.includes(f) ? 'core' : f === 'calves' ? 'acc' : 'main', false, { tier: 4, variant: true }));
+    if (minutes >= 45 && !tpl.targeted) for (let k = 0; k < 2; k++) for (const f of CORE) tpl.slots.push(S([f], 'core', false, { tier: 4, variant: true })); // long narrow sessions: complementary core work
+  }
+  const targeted = focus === 'muscles' || ['upper', 'lower', 'legs', 'push', 'pull'].includes(focus);
+  if (targeted && minutes >= 15 && minutes < 30) quick.warm = 120; // lean warm-up so the targeted work gets the time
+  if (focus === 'muscles' && minutes >= 15) { quick.cool = minutes < 30 ? 95 : 120; quick.coolIsMin = minutes >= 30; }
+  if (focus === 'mobility') quick.cond = 0;
+  if (muscles.length) { // stretches for the chosen areas first
+    const ranked = [...ctx.avail.mobility].map((ex, i) => ({ ex, i, sc: muscleScore(ex, muscles).score })).sort((a, b) => b.sc - a.sc || a.i - b.i);
+    quick.mobOrder = ranked.map(x => x.ex.id);
+  }
+  const sess = buildSession({ key: 'quick', tpl, quick, hardIdx: 0, variant: 0 }, ctx, seed, 0);
+  delete sess._tpl; delete sess._key;
+  sess.id = 'Q';
+  sess.name = quickName(minutes, focus === 'muscles' ? 'muscles' : focus, focus === 'muscles' ? muscles : [], goal, goalGiven);
+  if (focus === 'mobility') sess.focus = ['mobility'];
+  if (muscles.length) sess.muscles = muscles;
+  sess.estMinutes = estimateMinutes(sess, library);
+  return sess;
 }

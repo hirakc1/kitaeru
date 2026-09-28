@@ -77,7 +77,9 @@ export function logsByDate(logs = getState().logs) {
 
 export function getStreak() {
   const s = getState();
-  try { return computeStreak(s.logs, s.profile, new Date(), { createdOn: s.plan?.createdOn, startDate: s.plan?.startDate }); } catch (e) { console.error(e); return { current: 0, best: 0, weekly: { current: 0, best: 0 }, freezeAvailable: 0 }; }
+  // Quick-only users have no profile: a neutral one lets their logs still count.
+  const prof = s.profile || { daysPerWeek: 3, preferredDays: [1, 3, 5], goals: ['health'] };
+  try { return computeStreak(s.logs, prof, new Date(), { createdOn: s.plan?.createdOn, startDate: s.plan?.startDate }); } catch (e) { console.error(e); return { current: 0, best: 0, weekly: { current: 0, best: 0 }, freezeAvailable: 0 }; }
 }
 
 /** Weekly target per research §10.2: daysPerWeek if ≤3, else max(2, days−1). */
@@ -144,9 +146,9 @@ export async function startWorkout(session, { weekIndex = getCurrentWeekIndex(),
     if (!ok) return;
   }
   const items = sessionItems(session).map(it => ({ ...it, origExerciseId: it.exerciseId, sets: Math.max(1, it.sets || 1) }));
-  const week = sessionId === 'M' ? null : getWeek(weekIndex);
+  const week = sessionId === 'M' || sessionId === 'Q' ? null : getWeek(weekIndex);
   saveActiveWorkout({
-    v: 1, session: { id: session.id, name: session.name, blocks: session.blocks }, sessionId, weekIndex,
+    v: 1, session: { id: session.id, name: session.name, blocks: session.blocks, ...(session.request && { request: session.request }) }, sessionId, weekIndex,
     weekPhase: week?.phase || 'build', reentry: week?.meta?.reentry ?? null,
     date: toISO(), startedAt: Date.now(), items, idx: 0, phase: 'set',
     logs: items.map(it => ({ exerciseId: it.exerciseId, family: it.family, sets: [], rating: null, skipped: false })),

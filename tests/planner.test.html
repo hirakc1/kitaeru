@@ -367,6 +367,129 @@ grid.forEach((p, gi) => {
   ok(s.current === 1 || s.current === 0 || s.current < 3, 'rest-day mobility (M) logs do not count');
 }
 
+// ---- quick sessions (v1.1)
+let quickChecked = 0;
+{
+  const GOALS = [undefined, 'strength', 'muscle', 'endurance', 'flexibility', 'skill', 'health'];
+  const FOCI = ['full', 'upper', 'lower', 'core', 'push', 'pull', 'legs', 'mobility'];
+  const PICKS = [['glutes', 'hamstrings'], ['chest'], ['lats', 'biceps'], ['abs', 'obliques'], ['quads', 'glutes', 'calves'], ['chest', 'front_delts', 'triceps'], ['hip_flexors'], ['lower_back'], ['rear_delts', 'upper_back', 'traps']];
+  const MINS = [5, 10, 15, 20, 30, 45, 60, 90];
+  const RANGE = { strength: [4, 8], muscle: [6, 20], endurance: [15, 30], health: [8, 15], flexibility: [8, 15], skill: [8, 15] };
+  const injured = mk({ injuries: ['wrist', 'knee'], equipment: ['pullup_bar', 'bench', 'wall'], age: 50 });
+  const qa = mk({ age: 42, experience: 'some', baseline: { pushUps: 10, pullUps: 3, squats: 20, plankSec: 30 }, injuries: ['wrist'], equipment: ['wall', 'pullup_bar', 'bench'] });
+  const noProf = (req) => ({ ...mk({}), sex: 'unspecified', equipment: req.equipment ?? ['wall'], space: req.space || 'medium', lowImpact: !!req.lowImpact });
+  const check = (req, prof, tag) => {
+    let q;
+    try { q = P.generateQuickSession(req, prof, prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES); } catch (e) { ok(false, `${tag}: threw ${e.stack}`); return null; }
+    quickChecked++;
+    const eff = prof || noProf(req);
+    const items = allItems(q);
+    ok(q.id === 'Q' && /^\d+-min \S/.test(q.name), `${tag}: id/name ${q.id} ${q.name}`);
+    ok(q.estMinutes === P.estimateMinutes(q, EXERCISES), `${tag}: estMinutes`);
+    ok(q.blocks[0] && q.blocks[0].kind === 'warmup' && q.blocks[0].items.length > 0, `${tag}: no warm-up first`);
+    const ids = items.map(i => i.exerciseId);
+    ok(new Set(ids).size === ids.length, `${tag}: duplicate ${ids}`);
+    for (const it of items) ok(byId[it.exerciseId] && P.isAvailable(byId[it.exerciseId], eff), `${tag}: unavailable ${it.exerciseId}`);
+    const est = P.estimateSeconds(q, EXERCISES) / 60, M = req.minutes;
+    ok(Math.abs(est - M) <= (M <= 10 ? 2 : 0.1 * M), `${tag}: ${est.toFixed(1)} min vs ${M}`);
+    const main = q.blocks.filter(b => b.kind === 'main').flatMap(b => b.items);
+    if (req.focus === 'mobility' && !req.muscles) {
+      ok(!main.length && items.every(i => ['mobility', 'warmup', 'conditioning'].includes(i.family)), `${tag}: mobility focus has strength work`);
+      ok(q.blocks.some(b => b.kind === 'mobility' || b.kind === 'cooldown'), `${tag}: mobility flow missing`);
+    }
+    if (req.focus === 'core' && !req.muscles) ok(main.length && main.every(i => i.family.startsWith('core_')), `${tag}: core focus has ${main.map(i => i.family)}`);
+    if ((req.focus === 'upper' || req.focus === 'push' || req.focus === 'pull') && !req.muscles) ok(!main.some(i => ['squat', 'hinge', 'calves'].includes(i.family)), `${tag}: upper focus has legs`);
+    if ((req.focus === 'lower' || req.focus === 'legs') && !req.muscles) ok(!main.some(i => [...PUSH, ...PULL].includes(i.family)), `${tag}: lower focus has upper work`);
+    if (req.muscles) {
+      const anyAvail = EXERCISES.some(e => e.category !== 'mobility' && e.category !== 'warmup' && (e.muscles.primary || []).some(m => req.muscles.includes(m)) && P.isAvailable(e, eff) && !['conditioning', 'skill_balance'].includes(e.family));
+      const hits = main.filter(i => (byId[i.exerciseId].muscles.primary || []).some(m => req.muscles.includes(m)));
+      if (anyAvail) ok(hits.length > 0 && (byId[main[0].exerciseId].muscles.primary || []).some(m => req.muscles.includes(m)), `${tag}: first exercise misses ${req.muscles} (${main.map(i => i.exerciseId)})`);
+      const cool = q.blocks.find(b => b.kind === 'cooldown');
+      const mobHit = EXERCISES.some(e => e.family === 'mobility' && P.isAvailable(e, eff) && [...e.muscles.primary, ...e.muscles.secondary].some(m => req.muscles.includes(m)));
+      if (cool && mobHit) ok([...byId[cool.items[0].exerciseId].muscles.primary, ...byId[cool.items[0].exerciseId].muscles.secondary].some(m => req.muscles.includes(m)), `${tag}: cool-down not targeted`);
+    }
+    // targeted coaching: >= 70% of main sets on the picked muscles, >= 3 exercises at 20+ min, region warm-up drill
+    const REG = { push: ['chest', 'front_delts', 'side_delts', 'triceps'], pull: ['rear_delts', 'lats', 'upper_back', 'traps', 'biceps', 'forearms'],
+      legs: ['quads', 'glutes', 'hamstrings', 'adductors', 'calves', 'hip_flexors'] };
+    REG.upper = [...REG.push, ...REG.pull]; REG.lower = REG.legs;
+    const targets = req.muscles || REG[req.focus];
+    if (targets && main.length) {
+      const regionOfM = m => REG.legs.includes(m) ? 'lower' : (REG.upper.includes(m) ? 'upper' : null);
+      const reg = req.muscles ? regionOfM(req.muscles[0]) : (['lower', 'legs'].includes(req.focus) ? 'lower' : 'upper');
+      const onTarget = main.filter(i => (byId[i.exerciseId].muscles.primary || []).some(m => targets.includes(m))).reduce((t2, i) => t2 + i.sets, 0);
+      const total = main.reduce((t2, i) => t2 + i.sets, 0);
+      if (M >= 15) ok(onTarget >= 0.7 * total, `${tag}: only ${onTarget}/${total} main sets on target (${main.map(i => i.exerciseId + ':' + i.sets)})`);
+      const pool = EXERCISES.filter(e => [...PUSH, ...PULL, 'squat', 'hinge', 'calves', 'core_anterior', 'core_lateral', 'core_posterior'].includes(e.family)
+        && (e.muscles.primary || []).some(m => targets.includes(m)) && P.isAvailable(e, eff)).length;
+      if (M >= 20 && pool >= 3) ok(new Set(main.map(i => i.exerciseId)).size >= 3, `${tag}: fewer than 3 main exercises (${main.map(i => i.exerciseId)})`);
+      const DRILL = { lower: ['leg_swings', 'hip_circles', 'worlds_greatest_stretch'], upper: ['arm_circles', 'scapular_push_up', 'thoracic_opener', 'wrist_prep'] };
+      if (reg && DRILL[reg].some(id => P.isAvailable(byId[id], eff))) ok(q.blocks[0].items.some(i => DRILL[reg].includes(i.exerciseId)), `${tag}: warm-up has no ${reg}-body drill (${q.blocks[0].items.map(i => i.exerciseId)})`);
+    }
+    const g = req.goal || 'health';
+    for (const it of main) if (it.reps && [...PUSH, ...PULL, 'squat', 'hinge'].includes(it.family) && !/Balance/.test(it.notes)) ok(it.reps.join() === RANGE[g].join(), `${tag}: ${it.exerciseId} reps ${it.reps} for ${g}`);
+    ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${tag}: not deterministic`);
+    return q;
+  };
+  let n = 0;
+  for (const minutes of MINS) for (const goal of GOALS) for (const focus of FOCI) {
+    const req = { minutes, goal, focus, date: '2026-09-28' };
+    const prof = [null, injured, qa][n++ % 3];
+    check(req, prof, `Q ${minutes}m ${goal} ${focus} ${prof ? prof.injuries : 'noprofile'}`);
+  }
+  for (const minutes of MINS) for (const muscles of PICKS) for (const goal of [undefined, 'strength', 'endurance']) {
+    const req = { minutes, goal, muscles, date: '2026-09-28' };
+    check(req, null, `Q ${minutes}m ${goal} ${muscles} noprofile`);
+    check({ ...req, equipment: ALL_EQ, space: 'large' }, null, `Q ${minutes}m ${goal} ${muscles} noprofile+kit`);
+    check(req, injured, `Q ${minutes}m ${goal} ${muscles} injured`);
+  }
+  // names and specifics
+  const q1 = P.generateQuickSession({ minutes: 20, goal: 'strength', focus: 'lower', date: '2026-09-28' }, null, null, EXERCISES);
+  ok(q1.name === '20-min Lower body · Strength', `name: ${q1.name}`);
+  const q2 = P.generateQuickSession({ minutes: 15, muscles: ['glutes', 'hamstrings'], date: '2026-09-28' }, null, null, EXERCISES);
+  ok(q2.name === '15-min Glutes & hamstrings', `name: ${q2.name}`);
+  const gh = P.generateQuickSession({ minutes: 20, muscles: ['glutes', 'hamstrings'], date: '2026-09-28' }, null, null, EXERCISES);
+  const ghMain = gh.blocks.find(b => b.kind === 'main').items;
+  ok(ghMain.length >= 3 && ghMain.every(i => i.sets >= 2) && ghMain.reduce((t2, i) => t2 + i.sets, 0) >= 2.5 * ghMain.length && ghMain.filter(i => i.family === 'hinge').length >= 2
+    && ghMain.some(i => i.exerciseId === 'single_leg_rdl' || i.exerciseId === 'nordic_curl_negative'), `PM case glutes/hams 20 min: ${ghMain.map(i => i.exerciseId + ':' + i.sets)}`);
+  ok(!gh.blocks[0].items.some(i => i.exerciseId === 'arm_circles'), 'PM case: no arm circles before a glute day');
+  const noKit = P.generateQuickSession({ minutes: 30, focus: 'upper', date: '2026-09-28' }, null, null, EXERCISES);
+  ok(allItems(noKit).every(i => byId[i.exerciseId].equipment.every(e => e === 'wall')), 'no profile: floor + wall only');
+  const inj = P.generateQuickSession({ minutes: 30, focus: 'full', date: '2026-09-28' }, injured, null, EXERCISES);
+  ok(!allItems(inj).some(i => byId[i.exerciseId].stress.includes('knee') && i.exerciseId !== 'split_squat'), 'profile injuries honoured');
+  const dates = new Set(['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']
+    .map(d => JSON.stringify(P.generateQuickSession({ minutes: 30, focus: 'full', date: d }, null, null, EXERCISES).blocks)));
+  ok(dates.size >= 2, `variety across dates (${dates.size} distinct of 7)`);
+  // Q logs: streaks and progression
+  const p = mk({ daysPerWeek: 3, preferredDays: [1, 3, 5], equipment: ALL_EQ });
+  const day = s2 => { const [y, m, d] = s2.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+  let st = P.computeStreak([{ id: 'q', date: '2026-09-28', sessionId: 'Q', items: [] }], p, day('2026-09-28'));
+  ok(st.current === 1, `Q log counts for the day streak (${st.current})`);
+  st = P.computeStreak(['2026-09-28', '2026-09-30', '2026-10-02'].map((d, i) => ({ id: 'q' + i, date: d, sessionId: i === 1 ? 'Q' : 'A', items: [] })), p, day('2026-10-04'));
+  ok(st.weekly.current === 1 && st.current === 3, `Q log counts toward the weekly target (${JSON.stringify(st)})`);
+  st = P.computeStreak(['2026-09-28', '2026-09-30', '2026-10-02'].map((d, i) => ({ id: 'm' + i, date: d, sessionId: i === 1 ? 'M' : 'A', items: [] })), p, day('2026-10-04'));
+  ok(st.weekly.current === 0, 'M flow still excluded');
+  const lv = { ...P.initialLevels(p, EXERCISES), push_horizontal: 'push_up' };
+  const req = { minutes: 20, goal: 'strength', focus: 'push', date: '2026-09-28' };
+  const qs = P.generateQuickSession(req, p, lv, EXERCISES);
+  const rx = allItems(qs).find(i => i.exerciseId === 'push_up');
+  ok(!!rx, 'quick push session uses the profile level (push_up)');
+  if (rx) {
+    const mkLog = (id, date, reps, rating) => ({ id, date, sessionId: 'Q', request: req, feel: 3, items: [{ exerciseId: 'push_up', family: 'push_horizontal', sets: reps.map(r => ({ reps: r, done: true })), rating }] });
+    const hi = rx.reps[1];
+    let r = P.applySessionLog(lv, p, mkLog('b', '2026-09-30', [hi, hi, hi], 'good'), EXERCISES, [mkLog('a', '2026-09-28', [hi, hi, hi], 'good')]);
+    ok(r.levels.push_horizontal === 'decline_push_up', `Q logs progress families (${r.levels.push_horizontal})`);
+    r = P.applySessionLog(lv, p, mkLog('c', '2026-09-30', [hi + 6, hi + 6, hi + 6], 'easy'), EXERCISES, []);
+    ok(r.levels.push_horizontal === 'decline_push_up', `Q log without plan week: fast-track +1, not calibration +2 (${r.levels.push_horizontal})`);
+    const mixed = [mkLog('a', '2026-09-28', [hi, hi, hi], 'good'), { id: 'w', date: '2026-09-29', weekIndex: 0, sessionId: 'A', feel: 3, items: [{ exerciseId: 'push_up', family: 'push_horizontal', sets: [hi, hi, hi].map(x => ({ reps: x, done: true })), rating: 'good' }] }];
+    r = P.applySessionLog(lv, p, mixed[1], EXERCISES, [mixed[0]]);
+    ok(r.levels.push_horizontal === 'decline_push_up', 'Q log + plan log are consecutive exposures');
+  }
+  r0: {
+    let threw = null; try { P.generateQuickSession({ minutes: 20 }, mk({ age: 12 }), null, EXERCISES); } catch (e) { threw = e.code; }
+    ok(threw === 'AGE_UNDER_13', 'quick session refuses under 13');
+  }
+}
+
 // ---- sample
 {
   const p = grid[0 + 13];
@@ -380,9 +503,9 @@ grid.forEach((p, gi) => {
 }
 
 const el = document.getElementById('summary');
-el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}%`;
+el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions`;
 document.getElementById('fails').textContent = fails.join('\n') || 'All tests passed.';
-window.__results = { pass, fail, fails, sessionsChecked, worstDev };
+window.__results = { pass, fail, fails, sessionsChecked, worstDev, quickChecked };
 </script>
 </body>
 </html>

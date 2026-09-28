@@ -331,7 +331,7 @@ function finish() {
   });
   const sessionLog = {
     id: `${w.date}-${w.sessionId}-${Date.now().toString(36)}`, date: w.date, weekIndex: w.weekIndex, sessionId: w.sessionId,
-    name: w.session.name, durationMin: w.durationMin || elapsedMin(), feel: w.feel, items,
+    name: w.session.name, durationMin: w.durationMin || elapsedMin(), feel: w.feel, items, ...(w.session.request && { request: w.session.request }),
   };
   if (w.weekPhase) sessionLog.phase = w.weekPhase;
   if (w.reentry != null) sessionLog.reentry = true;
@@ -339,7 +339,7 @@ function finish() {
   update(s => {
     const history = s.logs.slice();
     s.logs.push(sessionLog);
-    if (w.sessionId !== 'M') {
+    if (w.sessionId !== 'M' && s.profile) {
       try {
         const res = applySessionLog(s.levels, s.profile, sessionLog, EXERCISES, history, planOpts());
         if (res && res.levels) { s.levels = res.levels; changes = res.changes || []; }

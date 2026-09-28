@@ -161,9 +161,15 @@ export const lbToKg = lb => lb / 2.20462;
 export function cmToFtIn(cm) { const inch = cm / 2.54; let ft = Math.floor(inch / 12); let i = Math.round(inch - ft * 12); if (i === 12) { ft++; i = 0; } return { ft, in: i }; }
 export const ftInToCm = (ft, i) => (ft * 12 + i) * 2.54;
 export function kgToStLb(kg) { const lb = kgToLb(kg); let st = Math.floor(lb / 14); let l = Math.round(lb - st * 14); if (l === 14) { st++; l = 0; } return { st, lb: l }; }
-export function fmtWeight(kg, units = getState().settings.units) {
+/** 'kg' or 'lb': the unit body weight is typed and charted in. */
+export const weightUnit = (units = getState().settings.units, fmt = getState().settings.weightFmt) => (units === 'imperial' && fmt !== 'kg' ? 'lb' : 'kg');
+export function fmtWeight(kg, units = getState().settings.units, fmt = getState().settings.weightFmt) {
   if (kg == null) return '—';
-  return units === 'imperial' ? `${Math.round(kgToLb(kg) * 10) / 10} lb` : `${Math.round(kg * 10) / 10} kg`;
+  if (units !== 'imperial') return `${Math.round(kg * 10) / 10} kg`;
+  const f = fmt; // imperial users may prefer kg or st & lb for body weight
+  if (f === 'kg') return `${Math.round(kg * 10) / 10} kg`;
+  if (f === 'stlb') { const x = kgToStLb(kg); return `${x.st} st ${x.lb} lb`; }
+  return `${Math.round(kgToLb(kg) * 10) / 10} lb`;
 }
 export function fmtHeight(cm, units = getState().settings.units) {
   if (cm == null) return '—';

@@ -15,8 +15,19 @@ export function sessionPreviewHTML(session) {
       ${it.notes ? `<span class="small pv-note">${esc(it.notes)}</span>` : ''}</div></li>`; }).join('')}</ul></section>`).join('')}</div>`;
 }
 
+export function inviteHTML(title = 'Build your plan') {
+  return `<section class="card invite"><div class="invite-top">${seal('鍛', { size: 52 })}<div><h2 class="card-title">${title}</h2>
+    <p class="muted small">Answer a few questions (about 3 minutes) and Kitaeru forges a weekly plan that progresses with you. Your quick workouts are kept.</p></div></div>
+    <a class="btn btn-primary btn-block" href="#/onboarding/goals">Build my plan</a></section>`;
+}
+
 export function render(root, ctx) {
   const s = getState();
+  if (!s.profile) {
+    root.innerHTML = `<div class="screen plan"><header class="screen-head"><p class="eyebrow">計画 · Plan</p><h1 class="title">No plan yet</h1></header>${inviteHTML()}
+      <a class="btn btn-ghost btn-block" href="#/quick">${icon('play', { size: 18 })} Or do a quick workout</a></div>`;
+    return;
+  }
   const wi = getCurrentWeekIndex();
   const week = getWeek(wi);
   let bullets = [];
@@ -72,6 +83,6 @@ export function render(root, ctx) {
         },
       });
     }
-    if (e.target.closest('[data-edit]')) beginEdit('summary');
+    if (e.target.closest('[data-edit]')) beginEdit('hub');
   });
 }

@@ -9,8 +9,9 @@ import * as progress from './ui/progress.js';
 import * as library from './ui/library.js';
 import * as me from './ui/me.js';
 import * as workout from './ui/workout.js';
+import * as quick from './ui/quick.js';
 
-const ROUTES = { welcome, onboarding, today, plan, progress, library, me, workout };
+const ROUTES = { welcome, onboarding, today, plan, progress, library, me, workout, quick };
 const TABS = new Set(['today', 'plan', 'progress', 'library', 'me']);
 const view = $('#view');
 const tabbar = $('#tabbar');
@@ -41,8 +42,9 @@ export function go(hash, { replace = false } = {}) {
 
 function guard(r) {
   const s = getState();
-  const hasProfile = !!s.profile;
-  if (!hasProfile && !['welcome', 'onboarding'].includes(r.name)) return '#/welcome';
+  // Quick-only users (no profile yet) get the app too; they just don't have a plan.
+  const hasProfile = !!s.profile || !!s.settings.quickUser || s.logs.length > 0;
+  if (!hasProfile && !['welcome', 'onboarding', 'quick', 'workout'].includes(r.name)) return '#/welcome';
   if (hasProfile && (r.name === '' || r.name === 'welcome')) return '#/today';
   if (r.name === 'workout' && !getActiveWorkout()) return '#/today';
   if (r.name && !ROUTES[r.name]) return hasProfile ? '#/today' : '#/welcome';

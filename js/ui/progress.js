@@ -2,7 +2,7 @@
 import { FAMILIES, byId, MUSCLES } from './deps.js';
 import { getState, update, toISO, fromISO, weekStart, addDays, todayISO } from '../store.js';
 import { esc, icon, openSheet, confirmSheet, exName, muscleName, familyName, ladder, isAvailable, PROGRESSION_EXCLUDE,
-  fmtDate, fmtWeight, kgToLb, lbToKg, plural, toast } from './components.js';
+  fmtDate, fmtWeight, kgToLb, lbToKg, plural, toast, weightUnit } from './components.js';
 import { getStreak, freezesBanked } from './model.js';
 
 const WEEKS = 16;
@@ -105,7 +105,8 @@ function history(logs, all) {
 function weightChart(bw, units) {
   const pts = [...bw].sort((a, b) => a.date.localeCompare(b.date)).slice(-30);
   if (pts.length < 2) return `<p class="muted small">${pts.length ? 'Add another entry to see a trend.' : 'Log your weight now and then to see a trend. Optional.'}</p>`;
-  const conv = kg => (units === 'imperial' ? kgToLb(kg) : kg);
+  const lb = weightUnit() === 'lb';
+  const conv = kg => (lb ? kgToLb(kg) : kg);
   const vals = pts.map(p => conv(p.kg));
   const lo = Math.floor(Math.min(...vals) - 1), hi = Math.ceil(Math.max(...vals) + 1);
   const W = 320, H = 130, px = 34, py = 12;
@@ -113,7 +114,7 @@ function weightChart(bw, units) {
   const x = d => px + ((fromISO(d).getTime() - t0) / Math.max(1, t1 - t0)) * (W - px - 10);
   const y = v => py + (1 - (v - lo) / Math.max(1, hi - lo)) * (H - py * 2);
   const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.date).toFixed(1)} ${y(conv(p.kg)).toFixed(1)}`).join(' ');
-  return `<svg class="wchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Body weight trend from ${vals[0].toFixed(1)} to ${vals[vals.length - 1].toFixed(1)} ${units === 'imperial' ? 'lb' : 'kg'}">
+  return `<svg class="wchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Body weight trend from ${vals[0].toFixed(1)} to ${vals[vals.length - 1].toFixed(1)} ${lb ? 'lb' : 'kg'}">
     <line x1="${px}" x2="${W - 10}" y1="${y(hi)}" y2="${y(hi)}" class="grid"/><line x1="${px}" x2="${W - 10}" y1="${y(lo)}" y2="${y(lo)}" class="grid"/>
     <text x="0" y="${y(hi) + 4}" class="hm-lab">${hi}</text><text x="0" y="${y(lo) + 4}" class="hm-lab">${lo}</text>
     <path d="${path}" class="wline"/>${pts.map(p => `<circle cx="${x(p.date).toFixed(1)}" cy="${y(conv(p.kg)).toFixed(1)}" r="3" class="wdot"><title>${fmtDate(p.date)}: ${fmtWeight(p.kg, units)}</title></circle>`).join('')}</svg>`;
@@ -134,7 +135,7 @@ export function render(root, ctx) {
     const st = getStreak();
     const totalMin = s.logs.reduce((a, l) => a + (l.durationMin || 0), 0);
     const cons = consistency(s);
-    const units = s.settings.units;
+    const units = s.settings.units, wu = weightUnit();
     root.innerHTML = `
     <div class="screen progress">
       <header class="screen-head"><p class="eyebrow">進歩 · Progress</p><h1 class="title">Your forging</h1></header>
@@ -153,7 +154,7 @@ export function render(root, ctx) {
       <section class="section"><h2 class="section-title">Body weight</h2><div class="card">
         ${weightChart(s.bodyweights, units)}
         <form class="bw-form" data-bw novalidate>
-          <label class="num-field"><span class="sr-only">Weight</span><input type="text" inputmode="decimal" name="w" placeholder="${units === 'imperial' ? '165' : '75.0'}" aria-label="Weight in ${units === 'imperial' ? 'pounds' : 'kilograms'}" maxlength="5"><span class="unit">${units === 'imperial' ? 'lb' : 'kg'}</span></label>
+          <label class="num-field"><span class="sr-only">Weight</span><input type="text" inputmode="decimal" name="w" placeholder="${wu === 'lb' ? '165' : '75.0'}" aria-label="Weight in ${wu === 'lb' ? 'pounds' : 'kilograms'}" maxlength="5"><span class="unit">${wu}</span></label>
           <input type="date" name="d" class="input" value="${todayISO()}" max="${todayISO()}" aria-label="Date">
           <button class="btn btn-primary btn-sm" type="submit">${icon('plus', { size: 16 })} Add</button></form>
         ${s.bodyweights.length ? `<ul class="list bw-list">${[...s.bodyweights].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(b => `<li class="list-item"><span>${fmtDate(b.date)}</span><span>${fmtWeight(b.kg, units)}</span>
@@ -188,7 +189,7 @@ export function render(root, ctx) {
     e.preventDefault();
     const units = getState().settings.units;
     const v = parseFloat(f.w.value.replace(',', '.'));
-    const kg = units === 'imperial' ? lbToKg(v) : v;
+    const kg = weightUnit(units) === 'lb' ? lbToKg(v) : v;
     if (!Number.isFinite(kg) || kg < 25 || kg > 350) { toast('Enter a realistic weight'); f.w.focus(); return; }
     const date = /^\d{4}-\d{2}-\d{2}$/.test(f.d.value) ? f.d.value : todayISO();
     update(s => {
