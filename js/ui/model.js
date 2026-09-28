@@ -42,8 +42,10 @@ export function displayWeekStart(date = new Date()) {
   return start && fromISO(start) > t ? fromISO(start) : t;
 }
 
+/** Light logs that are not training sessions: rest-day mobility and Morning Taisō (day streak only, v1.2). */
+const NOT_A_SESSION = new Set(['M', 'T']);
 /** True until the user has logged a real (non-mobility) session. */
-export const isFirstTimer = () => !getState().logs.some(l => l.sessionId !== 'M');
+export const isFirstTimer = () => !getState().logs.some(l => !NOT_A_SESSION.has(l.sessionId));
 
 /** Options every planner call shares: plan anchors from the store. */
 export function planOpts() {
@@ -90,7 +92,7 @@ export function weeklyTarget(profile = getState().profile) {
 /** Distinct training days logged in the current Mon–Sun week. */
 export function sessionsThisWeek(date = new Date()) {
   const start = toISO(weekStart(date)), end = toISO(addDays(weekStart(date), 6));
-  return new Set(getState().logs.filter(l => l.date >= start && l.date <= end && l.sessionId !== 'M').map(l => l.date)).size;
+  return new Set(getState().logs.filter(l => l.date >= start && l.date <= end && !NOT_A_SESSION.has(l.sessionId)).map(l => l.date)).size;
 }
 /** Freezes banked (max 2). Accepts a number or boolean from the planner. */
 export function freezesBanked(streak) {
@@ -163,7 +165,8 @@ export function levelsFor(profile, oldLevels = {}, reset = false) {
   try { fresh = initialLevels(profile, EXERCISES) || {}; } catch (e) { if (e?.code !== 'AGE_UNDER_13') console.error(e); }
   if (reset) return fresh;
   const kept = {};
-  for (const [fam, id] of Object.entries(oldLevels || {})) if (byId[id] && isAvailable(byId[id], profile)) kept[fam] = id;
+  for (const [fam, id] of Object.entries(oldLevels || {})) if (typeof id === 'string' && byId[id] && isAvailable(byId[id], profile)) kept[fam] = id;
+  if (oldLevels && oldLevels.flowStages) kept.flowStages = oldLevels.flowStages; // v1.2 flow progress (stance, tempo) survives profile edits
   return { ...fresh, ...kept };
 }
 

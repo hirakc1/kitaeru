@@ -8,7 +8,7 @@ const SHELL_FILES = [
   './js/app.js', './js/store.js',
   './js/ui/deps.js', './js/ui/components.js', './js/ui/model.js', './js/ui/welcome.js', './js/ui/onboarding.js',
   './js/ui/today.js', './js/ui/plan.js', './js/ui/workout.js', './js/ui/progress.js', './js/ui/library.js', './js/ui/me.js', './js/ui/quick.js',
-  './js/data/muscles.js', './js/data/exercises.js',
+  './js/data/muscles.js', './js/data/exercises.js', './js/data/traditions.js',
   './js/anim/skeleton.js', './js/anim/poses.js', './js/anim/bodymap.js',
   './js/engine/planner.js',
   './icons/favicon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',

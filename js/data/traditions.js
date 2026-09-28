@@ -165,6 +165,13 @@ export const TRADITIONS = {
 };
 export const TRADITION_IDS = Object.keys(TRADITIONS);
 
+/**
+ * Practices Kitaeru never packages as exercise (world-movement.md §5.3), not even with ?preview=traditions:
+ * sacred or lineage-held practices, rituals, and safety exclusions (charkh spinning, headstands, shoulderstands).
+ */
+export const EXCLUDED_TRADITIONS = ['haka', 'hula', 'lua', 'wai_khru', 'devekh', 'pesrev', 'zurkhaneh_ritual', 'capoeira_roda', 'sumo_ritual',
+  'charkh', 'headstand', 'shoulderstand'];
+
 // ---------- accuracy gate ----------
 function previewFromUrl() {
   try {
@@ -185,6 +192,7 @@ export function setTraditionPreview(on) { preview = !!on; }
  */
 export function traditionVisible(id) {
   if (!id) return true;
+  if (EXCLUDED_TRADITIONS.includes(id)) return false;
   const t = TRADITIONS[id];
   if (t && t.gate === false) return true;
   if (t && t.sensitivity === 'excluded') return false;

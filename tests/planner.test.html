@@ -20,7 +20,9 @@
 <pre id="fails"></pre>
 <details><summary>Sample weeks</summary><pre id="sample"></pre></details>
 <script type="module">
-import { EXERCISES } from '../js/data/exercises.js';
+import { EXERCISES, ALL_EXERCISES, ALL_BY_ID, ALL_FAMILIES, FAMILIES, byId as visibleById, flowSeconds, flowSteps } from '../js/data/exercises.js';
+import { TRADITIONS, EXCLUDED_TRADITIONS, RADIO_TAISO_ATTRIBUTION, setTraditionPreview, traditionPreview, traditionVisible, contentVisible } from '../js/data/traditions.js';
+import { MUSCLE_IDS } from '../js/data/muscles.js';
 import * as P from '../js/engine/planner.js';
 
 const byId = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
@@ -149,7 +151,8 @@ grid.forEach((p, gi) => {
       for (const [pt, fams] of [['push', PUSH], ['pull', PULL], ['legs', ['squat', 'hinge']]]) {
         if (avail(p, fams)) ok(wk.sessions.filter(s => mainIt({ sessions: [s] }).some(i => fams.includes(i.family))).length >= 2, `${WT}: ${pt} < 2x/week`);
       }
-      ok(wk.sessions.filter(s => allItems(s).some(i => i.family.startsWith('core_'))).length >= 2, `${WT}: core < 2x/week`);
+      // v1.2: anti-rotation is core work (world-movement §4.1: it takes Full body C's core slot)
+      ok(wk.sessions.filter(s => allItems(s).some(i => i.family.startsWith('core_') || i.family === 'anti_rotation')).length >= 2, `${WT}: core < 2x/week`);
       const cools = wk.sessions.map(s => (s.blocks.find(b => b.kind === 'cooldown') || { items: [] }).items.map(i => i.exerciseId).join());
       ok(new Set(cools).size >= 2, `${WT}: identical stretches every session`);
     }
@@ -394,7 +397,8 @@ let quickChecked = 0;
     ok(Math.abs(est - M) <= (M <= 10 ? 2 : 0.1 * M), `${tag}: ${est.toFixed(1)} min vs ${M}`);
     const main = q.blocks.filter(b => b.kind === 'main').flatMap(b => b.items);
     if (req.focus === 'mobility' && !req.muscles) {
-      ok(!main.length && items.every(i => ['mobility', 'warmup', 'conditioning'].includes(i.family)), `${tag}: mobility focus has strength work`);
+      // v1.2: gentle rotation drills (rotation family, category mobility) belong in a mobility session
+      ok(!main.length && items.every(i => ['mobility', 'warmup', 'conditioning'].includes(i.family) || (i.family === 'rotation' && byId[i.exerciseId].category === 'mobility')), `${tag}: mobility focus has strength work`);
       ok(q.blocks.some(b => b.kind === 'mobility' || b.kind === 'cooldown'), `${tag}: mobility flow missing`);
     }
     if (req.focus === 'core' && !req.muscles) ok(main.length && main.every(i => i.family.startsWith('core_')), `${tag}: core focus has ${main.map(i => i.family)}`);
@@ -490,6 +494,268 @@ let quickChecked = 0;
   }
 }
 
+// =============================================================================================
+// v1.2 world movement: data, accuracy gate, flows, rotation, balance, Morning Taiso streak rule
+// =============================================================================================
+let v12Checked = 0;
+const passBeforeV12 = pass, failBeforeV12 = fail;
+{
+  const TRAD_IDS = Object.keys(TRADITIONS);
+  const isTrad = e => !!e.tradition;
+  const MODES = ['reps', 'hold', 'flow'], CATS = ['strength', 'core', 'mobility', 'conditioning', 'skill', 'warmup', 'balance', 'breath', 'flow'];
+  const EQ = [...ALL_EQ, 'club', 'stick', 'hand_weights'], INJ = ['wrist', 'elbow', 'shoulder', 'neck', 'lower_back', 'hip', 'knee', 'ankle'];
+  const PLANES = ['sagittal', 'frontal', 'transverse'];
+  const allIt = s => s.blocks.flatMap(b => b.items);
+  const optIt = s => (s.options || []).flatMap(o => o.block.items);
+  const weekItems = w => w.sessions.flatMap(s => [...allIt(s), ...optIt(s)]);
+  const radioRe = /radio\s*tais|ラジオ/i;
+  ok(!traditionPreview(), 'test page runs without ?preview=traditions');
+
+  // ---- data integrity
+  const famLv = {};
+  for (const e of ALL_EXERCISES) {
+    const T = `data ${e.id}`;
+    ok(ALL_FAMILIES[e.family], `${T}: unknown family ${e.family}`);
+    ok(MODES.includes(e.mode) && CATS.includes(e.category), `${T}: mode/category ${e.mode}/${e.category}`);
+    ok([...e.muscles.primary, ...e.muscles.secondary].every(m => MUSCLE_IDS.includes(m)), `${T}: bad muscle id`);
+    ok((e.equipment || []).every(q => EQ.includes(q)) && (e.stress || []).every(s => INJ.includes(s)), `${T}: bad equipment/stress id`);
+    ok(!e.planes || e.planes.every(x => PLANES.includes(x)), `${T}: bad plane`);
+    ok(!('review' in e) && !('reviewedBy' in e), `${T}: uses the retired review field`);
+    const k = e.family + ':' + e.level; ok(!famLv[k], `${T}: level ${e.level} not unique in ${e.family}`); famLv[k] = 1;
+    if (isTrad(e)) {
+      ok(e.verified === null, `${T}: tradition item must not be self-verified`);
+      ok(Array.isArray(e.sources) && e.sources.length >= (e.adaptation ? 1 : 2), `${T}: needs 2+ sources (${(e.sources || []).length})`);
+      ok((e.sources || []).every(s => s.label && /^https:\/\//.test(s.url) && ['official', 'reference', 'research'].includes(s.kind)), `${T}: malformed source`);
+      if (['radio_taiso', 'baduanjin'].includes(e.tradition) && !e.adaptation) ok(e.sources.some(s => s.kind === 'official'), `${T}: needs an official source`);
+      ok(e.adaptation || (e.nativeName && e.nativeName.text && e.nativeName.romanised), `${T}: native name + romanisation`);
+      ok(e.cultural && e.evidence && e.origin, `${T}: cultural / evidence / origin`);
+    }
+    if (e.mode === 'flow') {
+      ok(Array.isArray(e.sequence) && e.sequence.every(st => st.move ? ALL_BY_ID[st.move] : st.anim), `${T}: sequence step references a missing move`);
+      ok(e.estSec > 0 && e.estSec === Math.round(flowSeconds(e)), `${T}: estSec`);
+      ok(e.muscles.primary.length > 0, `${T}: flow muscles are the union of its steps`);
+    }
+    if (e.flowOnly) ok(ALL_EXERCISES.some(f => f.mode === 'flow' && (f.sequence.some(st => st.move === e.id) || Object.values(f.variants?.lowImpact?.replace || {}).includes(e.id))), `${T}: flow-only step used by no flow`);
+  }
+  for (const id of TRAD_IDS) {
+    const t = TRADITIONS[id];
+    ok(t.verified === null && !('reviewedBy' in t), `tradition ${id}: verified must be null until the fact-check, no reviewedBy`);
+    ok(Array.isArray(t.sources) && t.sources.length >= 2 && t.sources.every(s => /^https:\/\//.test(s.url)), `tradition ${id}: 2+ sources`);
+    ok(!/reviewed by/i.test(JSON.stringify(t)), `tradition ${id}: card copy must never say "Reviewed by"`);
+  }
+  ok(TRAD_IDS.length === 5 && TRADITIONS.rotation.gate === false, 'five traditions.js entries; rotation is a non-gating explainer');
+  const rt1 = ALL_BY_ID.radio_taiso_1;
+  ok(rt1.sequence.length === 13 && rt1.sequence[1].move === 'rt_arm_swing_knee_bend' && rt1.sequence[11].move === 'rt_arm_swing_knee_bend' && rt1.sequence[12].move === 'rt_deep_breath', 'Morning Taiso: 13 steps in the official order (step 12 repeats step 2)');
+  ok(rt1.estSec >= 165 && rt1.estSec <= 200, `Morning Taiso about 3 min (${rt1.estSec} s)`);
+  ok(ALL_BY_ID.baduanjin_sequence.sequence.filter(s => s.move).map(s => s.move).join() === ['hold_up_sky', 'draw_bow', 'separate_heaven_earth', 'look_back', 'sway_head_tail', 'touch_toes', 'clench_fists', 'heel_bounce'].map(x => 'baduanjin_' + x).join(), 'Baduanjin: the eight pieces in standard order');
+  ok(flowSeconds(ALL_BY_ID.baduanjin_sequence, { variant: 'short' }) < ALL_BY_ID.baduanjin_sequence.estSec, 'Baduanjin short is shorter');
+  const fs = flowSteps('radio_taiso_1', { replace: { rt_two_foot_hops: 'rt_heel_raise' } });
+  ok(fs.length === 13 && fs[10].move === 'rt_heel_raise' && fs[10].exercise === ALL_BY_ID.rt_heel_raise, 'flowSteps applies a low-impact replacement');
+  // the Radio Taiso name lives only in `attribution` (and in citations): one line blanks it
+  const scrub = o => JSON.stringify(o, (k, v) => (k === 'attribution' || k === 'sources' || k === 'evidence' ? undefined : v));
+  for (const e of ALL_EXERCISES) ok(!radioRe.test(scrub(e)), `${e.id}: user-facing text names Radio Taiso outside attribution`);
+  ok(!radioRe.test(scrub(TRADITIONS.radio_taiso)) && TRADITIONS.radio_taiso.attribution === RADIO_TAISO_ATTRIBUTION && rt1.attribution === RADIO_TAISO_ATTRIBUTION, 'radio_taiso card: name only in attribution');
+  ok(rt1.name === 'Morning Taisō', 'flow is named Morning Taisō');
+
+  // ---- accuracy gate (preview off)
+  ok(EXERCISES.every(e => !isTrad(e) && !e.flowOnly), 'EXERCISES hides unverified tradition items and flow-only steps');
+  ok(Object.values(visibleById).every(e => !isTrad(e)) && !visibleById.dand && !visibleById.taichi_short_flow, 'byId hides them too (library deep links, swaps)');
+  ok(!FAMILIES.flow_taichi && !FAMILIES.flow_sequence && !FAMILIES.stance && FAMILIES.rotation && FAMILIES.anti_rotation, 'FAMILIES lists only families with visible items');
+  ok(['open_book', 'thread_the_needle', 'pallof_press', 'plank_shoulder_tap'].every(id => visibleById[id]), 'generic rotation / anti-rotation ship without review');
+  ok(!traditionVisible('tai_chi') && !traditionVisible('unknown_tradition') && traditionVisible(null) && traditionVisible('rotation'), 'traditionVisible: unverified and unknown hidden; generic and explainer shown');
+  ok(!contentVisible({ tradition: 'tai_chi', verified: { date: '2027-01-01' } }), 'a verified item of an unverified tradition stays hidden');
+  const gateProfiles = [...grid, mk({ age: 60, primaryGoal: 'health', daysPerWeek: 3 }), mk({ primaryGoal: 'balance', goals: ['balance'], daysPerWeek: 3, minutesPerSession: 30 }),
+    mk({ primaryGoal: 'flexibility', goals: ['flexibility', 'health'], age: 62, daysPerWeek: 4, minutesPerSession: 45 })];
+  let rotSeen = 0, antiSeen = 0;
+  for (const [gi, p] of gateProfiles.entries()) {
+    const lv = P.initialLevels(p, ALL_EXERCISES);
+    ok(Object.values(lv).every(id => typeof id !== 'string' || !isTrad(ALL_BY_ID[id])), `gate #${gi}: initial level is a hidden tradition item`);
+    for (const w of [0, 2]) {
+      const wk = P.generateWeek(p, lv, ALL_EXERCISES, w);
+      const its = weekItems(wk);
+      ok(its.every(i => !isTrad(ALL_BY_ID[i.exerciseId]) && !ALL_BY_ID[i.exerciseId].flowOnly && !i.flow), `gate #${gi} w${w}: plan contains hidden items ${its.filter(i => isTrad(ALL_BY_ID[i.exerciseId])).map(i => i.exerciseId)}`);
+      ok(JSON.stringify(wk) === JSON.stringify(P.generateWeek(p, lv, EXERCISES, w)), `gate #${gi} w${w}: full library + gate = visible library`);
+      rotSeen += its.filter(i => i.family === 'rotation').length; antiSeen += its.filter(i => i.family === 'anti_rotation').length;
+    }
+    for (const focus of ['full', 'core', 'mobility', 'flow', 'balance', 'rotation']) {
+      const q = P.generateQuickSession({ minutes: 30, focus, date: '2026-10-01' }, gi % 2 ? p : null, gi % 2 ? lv : null, ALL_EXERCISES);
+      ok(allIt(q).concat(optIt(q)).every(i => !isTrad(ALL_BY_ID[i.exerciseId]) && !ALL_BY_ID[i.exerciseId].flowOnly), `gate #${gi} quick ${focus}: hidden items offered`);
+    }
+    ok(P.generateMorningTaiso(p, lv, ALL_EXERCISES) === null && P.availableFlows(p, ALL_EXERCISES).length === 0, `gate #${gi}: no Morning Taiso / flows while unverified`);
+    ok(ALL_EXERCISES.filter(isTrad).every(e => !P.isAvailable(e, p)), `gate #${gi}: isAvailable (swaps) refuses hidden items`);
+  }
+  ok(rotSeen > 0 && antiSeen > 0, `rotation (${rotSeen}) and anti-rotation (${antiSeen}) items enter real plans without preview`);
+
+  // ---- preview on: invariants across the grid with the full library
+  setTraditionPreview(true);
+  ok(traditionVisible('tai_chi') && traditionVisible('chinese_martial_arts') && EXCLUDED_TRADITIONS.every(id => !traditionVisible(id)), 'preview shows unverified traditions but never the §5.3 exclusions');
+  const LIB = ALL_EXERCISES;
+  const inv = (s, p, T, M) => {
+    const ids = allIt(s).map(i => i.exerciseId);
+    ok(new Set(ids).size === ids.length, `${T}: duplicate ${ids}`);
+    for (const it of [...allIt(s), ...optIt(s)]) {
+      const ex = ALL_BY_ID[it.exerciseId];
+      ok(ex && P.isAvailable(ex, p) && !ex.flowOnly, `${T}: unavailable ${it.exerciseId}`);
+      ok(it.sets >= 1 && (it.reps || it.holdSec) && !(it.reps && it.holdSec), `${T}: bad prescription ${JSON.stringify(it)}`);
+      if (ex && ex.mode === 'flow') ok(it.flow && it.holdSec[0] === it.flow.estSec && it.flow.estSec > 30 && !it.reps, `${T}: flow item shape ${JSON.stringify(it)}`);
+    }
+    ok(s.estMinutes === P.estimateMinutes(s, LIB), `${T}: estMinutes`);
+    if (M) { const est = P.estimateSeconds(s, LIB) / 60; ok(Math.abs(est - M) <= (M <= 15 ? 3 : 0.1 * M), `${T} ${s.name}: ${est.toFixed(1)} min vs ${M}`); }
+    v12Checked++;
+  };
+  let flowsSeen = 0, balTai = 0;
+  for (const [gi, p] of gateProfiles.entries()) {
+    const lv = P.initialLevels(p, LIB);
+    for (const w of [0, 1, 2, 3]) {
+      const wk = P.generateWeek(p, lv, LIB, w);
+      ok(wk.sessions.length === p.daysPerWeek, `preview #${gi} w${w}: sessions`);
+      for (const s of wk.sessions) inv(s, p, `preview #${gi} w${w} ${s.id}`, wk.phase === 'build' && wk.meta.reentry == null ? p.minutesPerSession : 0);
+      flowsSeen += weekItems(wk).filter(i => i.flow).length;
+      balTai += wk.sessions.filter(s => s.blocks.some(b => b.kind === 'balance' && b.items.some(i => i.exerciseId === 'taichi_short_flow'))).length;
+      ok(JSON.stringify(wk) === JSON.stringify(P.generateWeek(clone(p), clone(lv), LIB, w)), `preview #${gi} w${w}: deterministic`);
+    }
+  }
+  ok(flowsSeen > 0 && balTai > 0, `preview: flows appear in plans (${flowsSeen}), Tai Chi balance blocks (${balTai})`);
+
+  // ---- balance block (55+ and the balance goal)
+  const blocksOf = (wk, kind) => wk.sessions.filter(s => s.blocks.some(b => b.kind === kind));
+  const p60 = mk({ age: 60, primaryGoal: 'health', daysPerWeek: 3, minutesPerSession: 30 });
+  let wk = P.generateWeek(p60, P.initialLevels(p60, LIB), LIB, 2);
+  ok(blocksOf(wk, 'balance').length >= 2, `60, health: balance block in ${blocksOf(wk, 'balance').length} sessions`);
+  const tcIt = allIt(wk.sessions.find(s => s.blocks.some(b => b.kind === 'balance'))).find(i => i.exerciseId === 'taichi_short_flow');
+  ok(tcIt && tcIt.flow.stance === 'high' && tcIt.flow.support === 'chair' && /chair/.test(tcIt.notes), `60: Tai Chi at a high stance with a chair nearby (${tcIt && JSON.stringify(tcIt.flow)})`);
+  const bb = wk.sessions.find(s => s.blocks.some(b => b.kind === 'balance')).blocks.find(b => b.kind === 'balance');
+  const bbMin = P.estimateSeconds({ blocks: [bb] }, LIB) / 60;
+  ok(bbMin >= 2.5 && bbMin <= 10.5, `balance block about 5-10 min (${bbMin.toFixed(1)})`);
+  ok(P.explainPlan(p60, wk).some(b => /balance block/i.test(b)), 'explainPlan mentions the balance block');
+  ok(wk.sessions.some(s => (s.options || []).some(o => o.id === 'morning_taiso')), '60: Morning Taiso offered as an optional warm-up');
+  ok(wk.sessions.some(s => allIt(s).some(i => i.exerciseId === 'baduanjin_sequence' && i.flow.variant === 'short') || (s.options || []).some(o => o.id === 'baduanjin_cooldown')), '60: Baduanjin short as the cool-down (or offered)');
+  const pb = mk({ primaryGoal: 'balance', goals: ['balance'], daysPerWeek: 3, minutesPerSession: 30 });
+  for (const lib of [EXERCISES, LIB]) {
+    wk = P.generateWeek(pb, P.initialLevels(pb, lib), lib, 2);
+    ok(blocksOf(wk, 'balance').length >= 2, `balance goal (${lib === LIB ? 'preview' : 'gated'}): ${blocksOf(wk, 'balance').length} balance blocks`);
+    ok(wk.sessions.filter(s => s.light).length === 1, `balance goal: one light flow day (${wk.sessions.map(s => s.name)})`);
+    if (lib === EXERCISES) ok(blocksOf(wk, 'balance').every(s => s.blocks.find(b => b.kind === 'balance').items.every(i => /Balance/.test(i.notes) && !i.flow)), 'balance goal without Tai Chi: generic single-leg work with a support note');
+    else ok(blocksOf(wk, 'flow').length === 1 && allIt(blocksOf(wk, 'flow')[0]).some(i => i.exerciseId === 'taichi_short_flow'), 'balance goal light day: a Tai Chi flow');
+  }
+  const p30 = mk({ age: 30, primaryGoal: 'strength', daysPerWeek: 3 });
+  ok(blocksOf(P.generateWeek(p30, P.initialLevels(p30, LIB), LIB, 2), 'balance').length === 0, '30, strength: no balance block');
+
+  // ---- injury rules (§3.3, §4.6)
+  const everything = p => {
+    const lv = P.initialLevels(p, LIB);
+    const out = [];
+    for (const w of [0, 1, 2]) out.push(...weekItems(P.generateWeek(p, lv, LIB, w)));
+    for (const focus of ['full', 'core', 'flow', 'balance', 'rotation', 'mobility']) for (const m of [15, 30, 60]) {
+      const q = P.generateQuickSession({ minutes: m, focus, date: '2026-10-0' + (m % 7 + 1) }, p, lv, LIB);
+      out.push(...allIt(q), ...optIt(q));
+    }
+    const t = P.generateMorningTaiso(p, lv, LIB); if (t) out.push(...allIt(t));
+    return out;
+  };
+  const flowOf = (its, id) => its.find(i => i.exerciseId === id);
+  let its = everything(mk({ injuries: ['lower_back'], age: 60, primaryGoal: 'health', equipment: ALL_EQ }));
+  ok(its.every(i => i.family !== 'rotation' || ALL_BY_ID[i.exerciseId].level <= 2) && its.every(i => i.family !== 'anti_rotation' || ALL_BY_ID[i.exerciseId].level <= 4), 'lower back: rotation levels 1-2, anti-rotation 1-4 only');
+  ok(!its.some(i => i.exerciseId === 'dand'), 'lower back: no daṇḍ');
+  let rf = flowOf(its, 'radio_taiso_1'), bf = flowOf(its, 'baduanjin_sequence');
+  ok(rf && rf.flow.skip.includes('rt_trunk_circle') && /small and pain-free/.test(rf.notes), `lower back: Morning Taiso drops the trunk circle (${rf && JSON.stringify(rf.flow)})`);
+  ok(bf && bf.flow.skip.includes('baduanjin_touch_toes'), `lower back: Baduanjin drops "two hands hold the feet" (${bf && JSON.stringify(bf.flow.skip)})`);
+  its = everything(mk({ injuries: ['knee'], age: 60, primaryGoal: 'health' }));
+  ok(!its.some(i => i.exerciseId === 'baithak'), 'knee: no baiṭhak');
+  ok(its.filter(i => i.exerciseId === 'horse_stance').every(i => /High stance/.test(i.notes)), 'knee: horse stance only high');
+  ok(its.filter(i => i.flow && ALL_BY_ID[i.exerciseId].stanceLevels).every(i => i.flow.stance === 'high') && its.some(i => i.exerciseId === 'taichi_short_flow'), 'knee: every Tai Chi / Baduanjin flow at a high stance');
+  its = everything(mk({ injuries: ['neck'], age: 58, primaryGoal: 'health' }));
+  ok(!its.some(i => i.exerciseId === 'baduanjin_look_back'), 'neck: no "wise owl looks back"');
+  bf = flowOf(its, 'baduanjin_sequence'); rf = flowOf(its, 'radio_taiso_1');
+  ok(bf && bf.flow.skip.includes('baduanjin_look_back') && bf.flow.skip.includes('baduanjin_sway_head_tail'), `neck: Baduanjin drops the neck pieces (${bf && JSON.stringify(bf.flow.skip)})`);
+  ok(rf && /head turns small/.test(rf.notes), 'neck: Morning Taiso caps the neck range');
+  its = everything(mk({ injuries: ['wrist'], equipment: [] }));
+  ok(!its.some(i => ['dand', 'plank_shoulder_tap'].includes(i.exerciseId)), 'wrist: no daṇḍ, no shoulder taps');
+  its = everything(mk({ age: 67, primaryGoal: 'health' }));
+  rf = flowOf(its, 'radio_taiso_1');
+  ok(rf && rf.flow.replace.rt_two_foot_hops === 'rt_heel_raise' && /heel raises/.test(rf.notes), '65+ (low impact): hops become heel raises');
+  ok(P.generateMorningTaiso(mk({ age: 76 }), null, LIB) === null && P.generateMorningTaiso(mk({ age: 66, experience: 'new' }), null, LIB) === null, '75+ / new at 65+: no standing Morning Taiso until the seated version exists');
+  ok(!its.some(i => i.flow && i.flow.support === 'soft_gaze'), '65+: never a soft-gaze stage');
+
+  // ---- Quick focus: flow, balance, rotation
+  for (const lib of [EXERCISES, LIB]) for (const prof of [null, mk({ age: 60, primaryGoal: 'health' }), mk({ injuries: ['wrist', 'knee'], equipment: ['resistance_band'] })]) {
+    for (const minutes of [5, 10, 15, 20, 30, 45, 60, 90]) for (const focus of ['flow', 'balance', 'rotation']) {
+      const req = { minutes, focus, date: '2026-10-02' };
+      const q = P.generateQuickSession(req, prof, prof ? P.initialLevels(prof, lib) : null, lib);
+      const eff = prof || mk({ sex: 'unspecified', equipment: ['wall'] });
+      const T = `Q ${lib === LIB ? 'preview' : 'gated'} ${focus} ${minutes}m ${prof ? prof.age + prof.injuries : 'noprofile'}`;
+      inv(q, eff, T, 0);
+      const est = P.estimateSeconds(q, lib) / 60;
+      ok(Math.abs(est - minutes) <= (minutes <= 10 ? 2 : 0.1 * minutes), `${T}: ${est.toFixed(1)} min vs ${minutes}`);
+      ok(q.blocks[0].kind === 'warmup' && q.name.startsWith(`${minutes}-min ${{ flow: 'Flow', balance: 'Balance', rotation: 'Rotation' }[focus]}`), `${T}: warm-up first, name ${q.name}`);
+      const main = q.blocks.filter(b => b.kind === 'main').flatMap(b => b.items);
+      if (focus === 'rotation' && minutes >= 10) ok(main.some(i => ['rotation', 'anti_rotation'].includes(i.family)), `${T}: no rotation work (${main.map(i => i.exerciseId)})`);
+      if (focus === 'balance' && minutes >= 10) ok(q.blocks.some(b => b.kind === 'balance'), `${T}: no balance block`);
+      if (focus === 'flow') {
+        ok(!main.length, `${T}: flow focus has strength work`);
+        if (lib === LIB && minutes >= 5 && !(prof && prof.injuries.length > 1 && minutes < 10)) ok(q.blocks.some(b => b.kind === 'flow'), `${T}: no flow block in preview`);
+        if (lib === EXERCISES) ok(!q.blocks.some(b => b.kind === 'flow') && q.focus.join() === 'mobility', `${T}: gated flow focus falls back to mobility`);
+      }
+      ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, lib) : null, lib)), `${T}: deterministic`);
+    }
+  }
+
+  // ---- flows count as light days; Morning Taiso keeps the day streak but not the weekly target
+  const pf = mk({ primaryGoal: 'flexibility', goals: ['flexibility', 'health'], daysPerWeek: 4, minutesPerSession: 40 });
+  wk = P.generateWeek(pf, P.initialLevels(pf, LIB), LIB, 2);
+  const light = wk.sessions.filter(s => s.light);
+  ok(light.length >= 1 && light.every(s => s.blocks.some(b => b.kind === 'flow')) && light.every(s => s.name === 'Flow & mobility'), `flexibility: light day is a flow day (${wk.sessions.map(s => s.name)})`);
+  const ps = mk({ daysPerWeek: 3, preferredDays: [1, 3, 5] });
+  const day = s2 => { const [y, m, d] = s2.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+  const L = (arr) => arr.map(([d, sid], i) => ({ id: 'x' + i, date: d, sessionId: sid, items: [] }));
+  let st = P.computeStreak(L([['2026-09-07', 'T'], ['2026-09-09', 'T'], ['2026-09-11', 'T']]), ps, day('2026-09-12'));
+  ok(st.current === 3 && st.weekly.current === 0, `Morning Taiso on every scheduled day: day streak 3, weekly target not met (${JSON.stringify(st)})`);
+  st = P.computeStreak(L([['2026-09-07', 'A'], ['2026-09-09', 'T'], ['2026-09-11', 'B'], ['2026-09-14', 'A'], ['2026-09-16', 'B'], ['2026-09-18', 'C']]), ps, day('2026-09-20'));
+  ok(st.current === 6 && st.weekly.current === 1 && st.weekly.best === 1, `Taiso keeps the day streak alive; week 1 (2 sessions + Taiso) misses the target (${JSON.stringify(st)})`);
+  st = P.computeStreak(L([['2026-09-07', 'A'], ['2026-09-07', 'T'], ['2026-09-09', 'B'], ['2026-09-11', 'C']]), ps, day('2026-09-13'));
+  ok(st.current === 3 && st.weekly.current === 1, `Taiso on a session day adds nothing (${JSON.stringify(st)})`);
+  st = P.computeStreak(L([['2026-09-07', 'A'], ['2026-09-09', 'B'], ['2026-09-11', 'C'], ['2026-09-14', 'T']]), ps, day('2026-09-14'));
+  ok(st.current === 4 && st.weekly.current === 1, `Taiso today counts for the day streak (${JSON.stringify(st)})`);
+  const pg = mk({});
+  const glogs = [{ id: 'a', date: '2026-01-05', weekIndex: 0, sessionId: 'A', items: [] }, ...['2026-01-20', '2026-01-27', '2026-02-03'].map((d, i) => ({ id: 't' + i, date: d, sessionId: 'T', items: [] }))];
+  ok(P.generateWeek(pg, P.initialLevels(pg, LIB), LIB, 5, { startDate: '2026-01-05', logs: glogs }).meta.reentry === 0.5, 'Morning Taiso logs do not hide a training gap (re-entry still applies)');
+  const mt = P.generateMorningTaiso(null, null, LIB);
+  ok(mt && mt.id === P.MORNING_TAISO_SESSION_ID && mt.light && mt.blocks[0].items[0].exerciseId === 'radio_taiso_1' && mt.estMinutes >= 3 && mt.estMinutes <= 4, `generateMorningTaiso: a 3-4 min 'T' session (${mt && mt.estMinutes})`);
+
+  // ---- flow progression (§4.4)
+  const pt = mk({ age: 50, primaryGoal: 'health', goals: ['health', 'balance'] });
+  let lv = P.initialLevels(pt, LIB);
+  const flog = (id, date, rating, extra = {}) => ({ id, date, weekIndex: 2, sessionId: 'A', feel: 3, items: [{ exerciseId: 'taichi_short_flow', family: 'flow_sequence', sets: [{ sec: 150, done: true }], rating, ...extra }] });
+  let r = P.applySessionLog(lv, pt, flog('f1', '2026-03-02', 'easy'), LIB, []);
+  ok(r.levels.flowStages.taichi_short_flow.stage === 0 && r.levels.flowStages.taichi_short_flow.easy === 1 && !r.changes.length, 'flow: one easy rating counts, no change yet');
+  ok(!lv.flowStages, 'applySessionLog does not mutate the input levels');
+  r = P.applySessionLog(r.levels, pt, flog('f2', '2026-03-04', 'easy'), LIB, []);
+  ok(r.levels.flowStages.taichi_short_flow.stage === 1 && r.changes.length === 1 && r.changes[0].flow && r.changes[0].up && /no chair/.test(r.changes[0].reason), `flow: easy twice unlocks the next stage (${JSON.stringify(r.changes)})`);
+  let r2 = P.applySessionLog(r.levels, pt, flog('f3', '2026-03-06', 'hard'), LIB, []);
+  ok(r2.levels.flowStages.taichi_short_flow.stage === 1 && r2.levels.flowStages.taichi_short_flow.easy === 0 && !r2.changes.length, 'flow: hard keeps the stage');
+  r2 = P.applySessionLog(r.levels, pt, flog('f4', '2026-03-06', 'good', { pain: 6 }), LIB, []);
+  ok(r2.levels.flowStages.taichi_short_flow.stage === 0 && r2.changes[0] && !r2.changes[0].up, 'flow: pain > 3 steps back');
+  const at = (stage, p = pt) => { const w = P.generateWeek(p, { ...P.initialLevels(p, LIB), flowStages: { taichi_short_flow: { stage, easy: 0 } } }, LIB, 2); return weekItems(w).find(i => i.exerciseId === 'taichi_short_flow'); };
+  const s0 = at(0), s2 = at(2);
+  ok(s0 && s2 && s2.flow.stance === 'medium' && s2.flow.tempoScale > 1 && s2.holdSec[0] > s0.holdSec[0], `flow: stage 2 is a medium stance, slower and longer (${s0 && s0.holdSec[0]} -> ${s2 && s2.holdSec[0]})`);
+  const sk = at(4, mk({ age: 50, primaryGoal: 'health', goals: ['health', 'balance'], injuries: ['knee'] }));
+  ok(sk && sk.flow.stance === 'high', 'flow: a knee problem keeps the stance high at any stage');
+  const old = mk({ age: 70, primaryGoal: 'health' });
+  let lo = { ...P.initialLevels(old, LIB), flowStages: { taichi_short_flow: { stage: 4, easy: 1 } } };
+  r = P.applySessionLog(lo, old, flog('o1', '2026-03-02', 'easy'), LIB, []);
+  ok(r.levels.flowStages.taichi_short_flow.stage === 4, '65+: the soft-gaze stage is never unlocked');
+  const bdLight = P.generateWeek(pf, { ...P.initialLevels(pf, LIB), flowStages: { baduanjin_sequence: { stage: 2, easy: 0 } } }, LIB, 2);
+  const bd = weekItems(bdLight).find(i => i.exerciseId === 'baduanjin_sequence' && bdLight.sessions.some(s => s.light && allIt(s).includes(i)));
+  ok(bd && bd.flow.variant === 'full', `flow: Baduanjin stage 2 is the full version on a light day (${bd && bd.flow.variant})`);
+
+  // ---- saved state from v1.1 still works (additive schema)
+  const v11 = { push_horizontal: 'push_up', squat: 'bodyweight_squat', pull_vertical: 'dead_hang', core_anterior: 'plank' };
+  const w11 = P.generateWeek(mk({ equipment: ['pullup_bar'] }), v11, EXERCISES, 3);
+  ok(w11.sessions.length === 3 && weekItems(w11).some(i => i.exerciseId === 'push_up'), 'v1.1 levels (no rotation keys) still plan, keeping earned levels');
+  setTraditionPreview(false);
+  ok(!traditionPreview() && EXERCISES.every(e => !e.tradition), 'preview switched back off');
+}
+
 // ---- sample
 {
   const p = grid[0 + 13];
@@ -503,9 +769,9 @@ let quickChecked = 0;
 }
 
 const el = document.getElementById('summary');
-el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions`;
+el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions · ${v12Checked} v1.2 sessions`;
 document.getElementById('fails').textContent = fails.join('\n') || 'All tests passed.';
-window.__results = { pass, fail, fails, sessionsChecked, worstDev, quickChecked };
+window.__results = { pass, fail, fails, sessionsChecked, worstDev, quickChecked, v12Checked, passBeforeV12, failBeforeV12 };
 </script>
 </body>
 </html>
