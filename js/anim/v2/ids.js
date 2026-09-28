@@ -14,11 +14,15 @@ export const V2_GROUPS = {
     'bird_dog', 'crow_pose', 'wall_handstand', 'freestanding_handstand'],
   // batch 4: conditioning
   cond: ['marching_in_place', 'high_knees', 'jumping_jack', 'squat_jump', 'mountain_climber', 'bear_crawl', 'burpee'],
+  // batch 5: mobility and warm-up (thoracic_opener is in rot, with the open book)
+  mob: ['cat_cow', 'wrist_prep', 'childs_pose', 'cobra_stretch', 'deep_squat_hold', 'hip_flexor_stretch', 'standing_hamstring_stretch',
+    'pigeon_stretch', 'calf_stretch', 'doorway_chest_stretch', 'shoulder_dislocate', 'arm_circles', 'leg_swings', 'hip_circles',
+    'worlds_greatest_stretch', 'pancake_stretch', 'inchworm'],
   strength: ['prone_ytw', 'superman_pull', 'reverse_lunge', 'cossack_squat', 'pistol_squat', 'shrimp_squat', 'single_leg_rdl', 'nordic_curl_negative'],
   // v1.2: rotation / anti-rotation, then the strength traditions
   rot: ['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'bodyweight_woodchop', 'rotational_lunge',
     'band_woodchop', 'standing_windmill', 'bird_dog_row', 'half_kneeling_pallof_hold', 'plank_shoulder_tap', 'pallof_press',
-    'pallof_press_overhead', 'side_plank_reach_through'],
+    'pallof_press_overhead', 'side_plank_reach_through', 'thoracic_opener'],
   trad: ['dand', 'baithak', 'horse_stance'],
   // Morning Taisō: the 13 steps of radio_taiso_1 (stretch up, side bend and trunk twist are also standalone) + heel raise
   taiso: ['rt_stretch_up', 'rt_arm_swing_knee_bend', 'rt_arm_circles', 'rt_chest_opener', 'rt_side_bend', 'rt_forward_back_bend',

@@ -120,9 +120,9 @@ const thread_the_needle = quad(c => ({
 // ---------------------------------------------------------------------------------------------------------------
 // open book: lying on the left side, knees stacked and bent to 90° on a small cushion under the head; the top arm sweeps
 // over and the chest turns to the ceiling, the eyes following the hand; the knees and hips stay still. One side shown.
-const open_book = (() => {
+const openBook = name => {
   const c = {
-    name: 'Open book', cam: { az: 8, el: 66 }, floor: true, still: .55, trail: ['palmR'], _lx: 0, _lz: 45,
+    name, cam: { az: 8, el: 66 }, floor: true, still: .55, trail: ['palmR'], _lx: 0, _lz: 45,
     lag: .25, headLag: .5, shift: 0, shiftRoll: 0,
     pin: { pt: S => P(S.F.pelvis, [0, -2, -12.5]), at: [null, 4] },   // the lower hip on the floor
     arms: { L: { mode: 'ik', grip: 'palm', pole: [.2, -1, .1], dir: () => [.12, 0, 1], target: () => [c._lx, 0, c._lz] },
@@ -144,7 +144,9 @@ const open_book = (() => {
     },
   };
   return c;
-})();
+};
+const open_book = openBook('Open book');
+const thoracic_opener = openBook('Thoracic opener');   // the same drill (cues: side-lying, knees stacked at 90°, open the top arm)
 
 // seated trunk rotation: sitting tall on a chair (pelvis pinned on the seat), feet flat, arms crossed on the chest;
 // the ribcage turns to one side while the hips and knees keep facing forward. Sides alternate.
@@ -266,5 +268,5 @@ const side_plank_reach_through = sidePlank(() => ({
 
 Object.assign(CLIPS, {
   open_book, thread_the_needle, seated_trunk_rotation, bodyweight_woodchop, rotational_lunge, band_woodchop,
-  standing_windmill, bird_dog_row, half_kneeling_pallof_hold, plank_shoulder_tap, pallof_press, pallof_press_overhead, side_plank_reach_through,
+  standing_windmill, bird_dog_row, half_kneeling_pallof_hold, plank_shoulder_tap, pallof_press, pallof_press_overhead, side_plank_reach_through, thoracic_opener,
 });

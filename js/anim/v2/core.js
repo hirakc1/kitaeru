@@ -160,7 +160,8 @@ function gauss(A, b) {
 // footLift = heel height above the floor, footTurn = toe-out (deg), footPitch = + toes up about the heel (heel strike),
 // - heel up about the ball (toe-off)
 const SIDED = ['scapElev', 'scapProt', 'scapUp', 'shFlex', 'shAbd', 'elbow', 'wrist', 'palm', 'fingers', 'handX', 'handY', 'handZ',
-  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch', 'footPivot', 'handShape', 'release', 'elbowOut', 'trace', 'traceAt'];
+  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch', 'footPivot', 'handShape', 'release', 'elbowOut', 'trace', 'traceAt', 'plantX', 'plantY'];
+// plantX / plantY: free numbers a clip's limb spec may read (a palm spot that walks: the inchworm's hands)
 // release: a planted palm (grip 'palm') lifts off towards the free target handX/Y/Z (0 = planted, 1 = at the target)
 // footPivot: 1 = footX / footZ locate the ball and the foot turns on it (0 = heel). handShape: rounded to HAND_SHAPES
 // trace / traceAt: a free hand runs down the back of its leg (trace = how much, 0..1; traceAt = where: 0 the back of

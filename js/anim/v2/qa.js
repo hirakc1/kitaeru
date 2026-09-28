@@ -17,7 +17,8 @@ export function qaClip(clip, { n = 240, pins = clip.qaPins || [] } = {}) {
   const t0 = performance.now();
   const h = swapTime(clip);
   for (let i = 0; i < n; i++) {   // (one cycle, not the wrap: travelling clips end where they started + travel)
-    if (h && i / n * T >= h && (i - 1) / n * T < h) for (const k in anc) delete anc[k];   // side switch: new contacts
+    const sd = t => (((t % (2 * h)) + 2 * h) % (2 * h)) >= h;   // (as poseAt decides the side: no float edge at the switch)
+    if (h && i && sd(i / n * T) !== sd((i - 1) / n * T)) for (const k in anc) delete anc[k];   // side switch: new contacts
     const S = poseAt(clip, i / n * T);
     r.reach = Math.max(r.reach, S.reach || 0); r.reachLeg = Math.max(r.reachLeg, S.reachLeg || 0);
     r.humerus = Math.max(r.humerus, S.humerusErr || 0);

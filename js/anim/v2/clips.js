@@ -8,6 +8,7 @@ import './clips/trunk.js';
 import './clips/abs.js';
 import './clips/strength.js';
 import './clips/cond.js';
+import './clips/mob.js';
 import './clips/rot.js';
 import './clips/trad.js';
 import './clips/taiso.js';
