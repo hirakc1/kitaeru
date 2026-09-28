@@ -41,7 +41,9 @@
   .cell h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: .02em; display: flex; justify-content: space-between; }
   .cell h3 span { color: var(--ink-muted); font-weight: 400; }
   .stage { aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; }
-  .stage > svg, .stage > canvas, .stage > div { max-height: 100%; }
+  .stage { position: relative; }
+  .stage > svg { position: absolute; inset: 0; width: 100% !important; height: 100% !important; max-width: none !important; }
+  .stage > canvas, .stage > div { max-height: 100%; }
   .stage canvas { touch-action: none; cursor: grab; }
   .na { color: var(--ink-muted); font-size: 12px; text-align: center; padding: 20px; }
   nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; }
