@@ -250,6 +250,17 @@ An exercise with a `tradition` is **invisible** unless its tradition's `verified
 - `ALL_EXERCISES` / `ALL_BY_ID` / `ALL_FAMILIES` include hidden items. Use them only to resolve flow steps, and never to list or plan.
 - The planner applies the same gate in its own availability rule, so passing `ALL_EXERCISES` plans exactly what passing `EXERCISES` would.
 
+### Animation gate (`js/data/animated.js`)
+
+An exercise is only listed in the library, planned, offered in Quick or offered as a swap when it **has an animation**: a v1 pose in `js/anim/poses.js` or a v2 clip. Otherwise it would render as a standing-figure fallback. The rule applies to generic items too (the rotation and anti-rotation families stay hidden until their clips exist). `?preview=traditions` turns it off so development can see everything.
+```js
+export function hasAnimation(animId)            // v1 pose, or an id added with registerAnimationIds
+export function exerciseAnimated(ex, ALL_BY_ID)  // its `anim` (default id); a flow needs every step and every variant replacement
+export function registerAnimationIds(ids)       // plug in the anim v2 list: import { V2_IDS } from '../anim/v2/ids.js'; registerAnimationIds(V2_IDS);
+export function clearRegisteredAnimationIds()   // tests only
+```
+`isVisible` (and so `EXERCISES`, `byId`, `FAMILIES`) and the planner's availability rule both apply it, alongside the accuracy gate. It never bypasses the accuracy gate.
+
 **Minimum bar for setting `verified`.** The fact-check is done by a different agent from the one who wrote the content; content is never self-verified.
 1. Each move has at least **2 independent sources**. At least one must be **official or primary** where one exists. Examples:
    - Baduanjin: the Chinese Health Qigong Association / General Administration of Sport standard.

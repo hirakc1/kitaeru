@@ -23,6 +23,8 @@
 import { EXERCISES, ALL_EXERCISES, ALL_BY_ID, ALL_FAMILIES, FAMILIES, byId as visibleById, flowSeconds, flowSteps } from '../js/data/exercises.js';
 import { TRADITIONS, EXCLUDED_TRADITIONS, RADIO_TAISO_ATTRIBUTION, setTraditionPreview, traditionPreview, traditionVisible, contentVisible } from '../js/data/traditions.js';
 import { MUSCLE_IDS } from '../js/data/muscles.js';
+import { hasAnimation, exerciseAnimated, registerAnimationIds, clearRegisteredAnimationIds, animationGateVersion } from '../js/data/animated.js';
+import { ANIMS } from '../js/anim/poses.js';
 import * as P from '../js/engine/planner.js';
 
 const byId = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
@@ -560,8 +562,19 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   // ---- accuracy gate (preview off)
   ok(EXERCISES.every(e => !isTrad(e) && !e.flowOnly), 'EXERCISES hides unverified tradition items and flow-only steps');
   ok(Object.values(visibleById).every(e => !isTrad(e)) && !visibleById.dand && !visibleById.taichi_short_flow, 'byId hides them too (library deep links, swaps)');
-  ok(!FAMILIES.flow_taichi && !FAMILIES.flow_sequence && !FAMILIES.stance && FAMILIES.rotation && FAMILIES.anti_rotation, 'FAMILIES lists only families with visible items');
-  ok(['open_book', 'thread_the_needle', 'pallof_press', 'plank_shoulder_tap'].every(id => visibleById[id]), 'generic rotation / anti-rotation ship without review');
+  ok(!FAMILIES.flow_taichi && !FAMILIES.flow_sequence && !FAMILIES.stance && Object.keys(FAMILIES).every(f => EXERCISES.some(e => e.family === f)), 'FAMILIES lists only families with visible items');
+  ok(['open_book', 'thread_the_needle', 'pallof_press', 'plank_shoulder_tap'].every(id => contentVisible(ALL_BY_ID[id])), 'generic rotation / anti-rotation need no fact-check (the animation gate still applies)');
+
+  // ---- animation gate: nothing is listed, planned, offered in Quick or swapped without an animation
+  const animOf = e => e.anim || e.id;
+  ok(hasAnimation('push_up') && !hasAnimation('open_book') && !hasAnimation('no_such_anim') && !hasAnimation('') && !hasAnimation(undefined), 'hasAnimation: v1 poses yes; unanimated and empty ids no');
+  ok(EXERCISES.every(e => hasAnimation(animOf(e))), `EXERCISES lists only animated exercises (${EXERCISES.filter(e => !hasAnimation(animOf(e))).map(e => e.id)})`);
+  const v1 = ALL_EXERCISES.filter(e => !e.tradition && !e.flowOnly && ANIMS[animOf(e)]);
+  ok(v1.length >= 82 && v1.every(e => visibleById[e.id] === e), `every v1 exercise with a pose stays visible (${v1.length}, missing ${v1.filter(e => !visibleById[e.id]).map(e => e.id)})`);
+  ok(EXERCISES.length === v1.length, `no other exercise is visible without an animation (${EXERCISES.length} vs ${v1.length})`);
+  const genericNew = ALL_EXERCISES.filter(e => !e.tradition && ['rotation', 'anti_rotation'].includes(e.family) && !hasAnimation(animOf(e)));
+  ok(genericNew.length > 0 && genericNew.every(e => !visibleById[e.id]), 'unanimated generic rotation / anti-rotation items are hidden from the library');
+  ok(genericNew.every(e => !P.isAvailable(e, mk({ equipment: ALL_EQ }))), 'isAvailable (swaps) refuses unanimated items');
   ok(!traditionVisible('tai_chi') && !traditionVisible('unknown_tradition') && traditionVisible(null) && traditionVisible('rotation'), 'traditionVisible: unverified and unknown hidden; generic and explainer shown');
   ok(!contentVisible({ tradition: 'tai_chi', verified: { date: '2027-01-01' } }), 'a verified item of an unverified tradition stays hidden');
   const gateProfiles = [...grid, mk({ age: 60, primaryGoal: 'health', daysPerWeek: 3 }), mk({ primaryGoal: 'balance', goals: ['balance'], daysPerWeek: 3, minutesPerSession: 30 }),
@@ -584,10 +597,37 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     ok(P.generateMorningTaiso(p, lv, ALL_EXERCISES) === null && P.availableFlows(p, ALL_EXERCISES).length === 0, `gate #${gi}: no Morning Taiso / flows while unverified`);
     ok(ALL_EXERCISES.filter(isTrad).every(e => !P.isAvailable(e, p)), `gate #${gi}: isAvailable (swaps) refuses hidden items`);
   }
-  ok(rotSeen > 0 && antiSeen > 0, `rotation (${rotSeen}) and anti-rotation (${antiSeen}) items enter real plans without preview`);
+  ok(rotSeen === 0 && antiSeen === 0, `unanimated rotation (${rotSeen}) / anti-rotation (${antiSeen}) items stay out of real plans`);
+  // once clips exist (the v2 id list plugs into registerAnimationIds), the generic families enter real plans
+  const gv = animationGateVersion();
+  registerAnimationIds(genericNew.map(animOf));
+  ok(animationGateVersion() !== gv && genericNew.every(e => exerciseAnimated(e, ALL_BY_ID) && P.isAvailable(e, mk({ equipment: ALL_EQ }))), 'registerAnimationIds makes those items animated and available');
+  rotSeen = 0; antiSeen = 0;
+  for (const p of gateProfiles) {
+    const lv = P.initialLevels(p, ALL_EXERCISES);
+    for (const w of [0, 2]) {
+      const its = weekItems(P.generateWeek(p, lv, ALL_EXERCISES, w));
+      ok(its.every(i => !isTrad(ALL_BY_ID[i.exerciseId])), 'animated but unverified tradition items stay hidden');
+      rotSeen += its.filter(i => i.family === 'rotation').length; antiSeen += its.filter(i => i.family === 'anti_rotation').length;
+    }
+  }
+  ok(rotSeen > 0 && antiSeen > 0, `with clips, rotation (${rotSeen}) and anti-rotation (${antiSeen}) items enter real plans without preview`);
+  const q = P.generateQuickSession({ minutes: 30, focus: 'rotation', date: '2026-10-01' }, null, null, ALL_EXERCISES);
+  ok(q.blocks.filter(b => b.kind === 'main').flatMap(b => b.items).some(i => ['rotation', 'anti_rotation'].includes(i.family)), 'with clips, Quick rotation offers rotation work');
+  // a flow needs every step (and its low-impact replacement) animated; clips never bypass the accuracy gate
+  const rt = ALL_BY_ID.radio_taiso_1, rtSteps = rt.sequence.map(st => st.move ? animOf(ALL_BY_ID[st.move]) : st.anim);
+  registerAnimationIds([animOf(rt), ...rtSteps.slice(1)]);
+  ok(!exerciseAnimated(rt, ALL_BY_ID), 'a flow with one unanimated step is not animated');
+  registerAnimationIds(rtSteps);
+  ok(!exerciseAnimated(rt, ALL_BY_ID), 'a flow whose low-impact replacement is unanimated is not animated');
+  registerAnimationIds(['rt_heel_raise']);
+  ok(exerciseAnimated(rt, ALL_BY_ID) && !P.isAvailable(rt, mk({})) && P.generateMorningTaiso(null, null, ALL_EXERCISES) === null, 'a fully animated flow still waits for its fact-check');
+  clearRegisteredAnimationIds();
+  ok(!hasAnimation('open_book') && hasAnimation('push_up'), 'clearRegisteredAnimationIds restores the v1-only list');
 
   // ---- preview on: invariants across the grid with the full library
   setTraditionPreview(true);
+  ok(ALL_EXERCISES.every(e => exerciseAnimated(e, ALL_BY_ID)) && P.isAvailable(ALL_BY_ID.open_book, mk({})), 'preview shows everything: the animation gate is off');
   ok(traditionVisible('tai_chi') && traditionVisible('chinese_martial_arts') && EXCLUDED_TRADITIONS.every(id => !traditionVisible(id)), 'preview shows unverified traditions but never the §5.3 exclusions');
   const LIB = ALL_EXERCISES;
   const inv = (s, p, T, M) => {
@@ -689,7 +729,10 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
       ok(Math.abs(est - minutes) <= (minutes <= 10 ? 2 : 0.1 * minutes), `${T}: ${est.toFixed(1)} min vs ${minutes}`);
       ok(q.blocks[0].kind === 'warmup' && q.name.startsWith(`${minutes}-min ${{ flow: 'Flow', balance: 'Balance', rotation: 'Rotation' }[focus]}`), `${T}: warm-up first, name ${q.name}`);
       const main = q.blocks.filter(b => b.kind === 'main').flatMap(b => b.items);
-      if (focus === 'rotation' && minutes >= 10) ok(main.some(i => ['rotation', 'anti_rotation'].includes(i.family)), `${T}: no rotation work (${main.map(i => i.exerciseId)})`);
+      const hasRot = lib.some(e => ['rotation', 'anti_rotation'].includes(e.family));
+      if (focus === 'rotation' && minutes >= 10 && hasRot) ok(main.some(i => ['rotation', 'anti_rotation'].includes(i.family)), `${T}: no rotation work (${main.map(i => i.exerciseId)})`);
+      // without rotation clips yet (animation gate) the focus falls back to trunk work; the UI hides the chip then
+      if (focus === 'rotation' && minutes >= 10 && !hasRot) ok(main.length && main.every(i => i.family.startsWith('core_') || i.family === 'hinge'), `${T}: rotation fallback is trunk work (${main.map(i => i.exerciseId)})`);
       if (focus === 'balance' && minutes >= 10) ok(q.blocks.some(b => b.kind === 'balance'), `${T}: no balance block`);
       if (focus === 'flow') {
         ok(!main.length, `${T}: flow focus has strength work`);

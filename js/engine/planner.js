@@ -9,7 +9,8 @@
 // balance blocks, Morning Taiso and Baduanjin options. The accuracy gate (js/data/traditions.js) is applied in
 // availability, so unverified tradition items are never planned, whichever library is passed in.
 import { contentVisible, traditionPreview } from '../data/traditions.js';
-import { flowSeconds } from '../data/exercises.js';
+import { flowSeconds, ALL_BY_ID } from '../data/exercises.js';
+import { exerciseAnimated, animationGateVersion } from '../data/animated.js';
 
 // =============================================================================================
 // Tunables and tables
@@ -168,6 +169,7 @@ function availabilityFn(profile, D) {
   if (D.age >= 75 || (D.age >= 65 && D.exp === 'new')) excl.add('radio_taiso_1');
   const capOk = ex => D.inj.every(i => { const c = INJ_LEVEL_CAP[i]?.[ex.family]; return c == null || ex.level <= c; });
   return ex => contentVisible(ex) && !ex.flowOnly // accuracy gate; flow-only steps are never planned on their own
+    && exerciseAnimated(ex, ALL_BY_ID) // animation gate: nothing is planned that would render as a fallback figure
     && (ex.equipment || []).every(e => eq.has(e))
     && (SPACE_RANK[ex.space] ?? 0) <= sp
     && !excl.has(ex.id)
@@ -310,12 +312,12 @@ const infoCache = new WeakMap();
 /** Family ladders and lookups for a library, after the accuracy gate: hidden items are not rungs (per preview state). */
 function libInfo(library) {
   if (!library) return { byId: {}, fam: {}, famMax: {} };
-  const key = traditionPreview() ? 'preview' : 'gated';
+  const key = (traditionPreview() ? 'preview' : 'gated') + ':' + animationGateVersion();
   const cached = infoCache.get(library);
   if (cached && cached[key]) return cached[key];
   const byId = {}, fam = {}, famMax = {};
   for (const ex of library) {
-    if (!contentVisible(ex) || ex.flowOnly) continue;
+    if (!contentVisible(ex) || ex.flowOnly || !exerciseAnimated(ex, ALL_BY_ID)) continue;
     byId[ex.id] = ex; (fam[ex.family] ||= []).push(ex);
   }
   for (const f of Object.keys(fam)) { fam[f].sort((a, b) => a.level - b.level); famMax[f] = fam[f][fam[f].length - 1].level; }

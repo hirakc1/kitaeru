@@ -5,6 +5,7 @@
 // v1.2 adds optional world-movement fields (tradition, nativeName, planes, sequence, sources, verified...): see
 // docs/CONTRACTS.md. Tradition items stay hidden until verified (js/data/traditions.js).
 import { RADIO_TAISO_ATTRIBUTION, contentVisible } from './traditions.js';
+import { exerciseAnimated } from './animated.js';
 
 const FAMILY_DEFS = {
   push_horizontal: { name: 'Horizontal push', pattern: 'push', description: 'Push-up ladder from wall to pseudo planche: chest, triceps and front shoulders.' },
@@ -1893,8 +1894,9 @@ export const ALL_BY_ID = RAW_BY_ID;
 /**
  * Can a user see this exercise on its own (library, plans, Quick, swaps)? Flow-only steps never; tradition items only
  * once their tradition and the item are verified (or with ?preview=traditions). See js/data/traditions.js.
+ * Animation gate: only exercises with an animation (v1 pose or v2 clip; js/data/animated.js), except in preview.
  */
-export function isVisible(ex) { return !!ex && !ex.flowOnly && contentVisible(ex); }
+export function isVisible(ex) { return !!ex && !ex.flowOnly && contentVisible(ex) && exerciseAnimated(ex, RAW_BY_ID); }
 
 /** What users see. Gated at load: add ?preview=traditions to the URL to include unverified tradition items. */
 export const EXERCISES = RAW.filter(isVisible);
