@@ -219,7 +219,7 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .splash.out { opacity: 0; pointer-events: none; }
 .splash > * { animation: fadeUp .9s var(--ease) both; }
 .splash-seal { filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--accent) 35%, transparent)); animation: sealIn .9s var(--ease) both; margin-bottom: 24px; }
-.splash-name { font-family: var(--serif); font-size: 2.6rem; font-weight: 700; letter-spacing: .14em; margin: 0; animation-delay: .45s; }
+.splash-name { display: block; color: var(--ink); margin: 0; animation-delay: .45s; } /* KITAERU wordmark (paths) */
 .splash-jp { font-family: var(--serif); color: var(--accent); letter-spacing: .18em; margin: 4px 0 0; animation-delay: .75s; }
 .splash-rule { width: 56px; height: 2px; background: var(--ink); opacity: .7; margin: 22px auto; border-radius: 2px; animation-delay: 1.05s; }
 .splash-line { font-family: var(--serif); color: var(--muted); max-width: 28ch; line-height: 1.6; margin: 0; animation-delay: 1.3s; animation-duration: 1.2s; }
@@ -338,6 +338,7 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .forge-overlay.on { opacity: 1; }
 .forge-overlay.out { opacity: 0; }
 .forge-inner { text-align: center; }
+.forge-inner .seal { margin: 0 auto; }
 .forge-lines { list-style: none; padding: 0; margin: 28px 0 0; font-family: var(--serif); color: var(--muted); }
 .forge-lines li { opacity: 0; animation: lineIn .5s var(--ease) forwards; margin: 6px 0; }
 .forge-lines li:nth-child(1) { animation-delay: .5s; }
@@ -348,9 +349,9 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 /* seal & stamp */
 .seal { display: block; }
 .seal-inline { display: inline-block; vertical-align: middle; }
-.btn .seal-inline rect:first-child { fill: var(--on-accent); }
-.btn .seal-inline rect:nth-child(2) { stroke: var(--btn-bg); }
-.btn .seal-inline g { fill: var(--btn-bg); }
+/* inside a vermilion button the seal inverts: paper-coloured stone, button-coloured carving */
+.btn .seal-inline .seal-bg { fill: var(--on-accent); }
+.btn .seal-inline .seal-ink { fill: var(--btn-bg); }
 .stamp { animation: stampIn .75s cubic-bezier(.3, 1.4, .5, 1) both; transform-origin: 50% 60%; }
 @keyframes stampIn { 0% { opacity: 0; transform: scale(1.9) rotate(-14deg); filter: blur(3px); } 60% { opacity: 1; transform: scale(.94) rotate(-3deg); filter: none; } 100% { transform: scale(1) rotate(-4deg); } }
 /* The logo seal settles straight; only earned stamps (workout done) land at a hand-pressed tilt. */
