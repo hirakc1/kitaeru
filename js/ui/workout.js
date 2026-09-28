@@ -119,11 +119,11 @@ function draw() {
 function loggerHTML() {
   const it = item(), e = ex(), l = log();
   if (e.mode === 'hold' || it.holdSec) {
-    const target = it.holdSec ? it.holdSec[1] : 30;
+    const target = holdTarget();
     const running = hold && hold.idx === w.idx;
-    const sec = running ? Math.floor((Date.now() - hold.start) / 1000) : 0;
-    return `<div class="logger hold">${ring({ progress: sec / target, size: 168, label: `<span data-hold-sec>${sec}</span><small>s</small>`, sub: `target ${it.holdSec ? `${it.holdSec[0]}–${it.holdSec[1]}` : target} s`, cls: running ? 'running' : '' })}
-      <div class="btn-row">${running ? `<button class="btn btn-primary btn-lg" data-act="hold-stop">${icon('check', { size: 20 })} Stop & log</button>`
+    const v = running ? holdView() : { lead: 0, left: target };
+    return `<div class="logger hold">${ring({ progress: running ? v.done / target : 0, size: 168, label: `<span data-hold-sec>${v.lead || v.left}</span><small data-hold-unit>${v.lead ? '' : 's'}</small>`, sub: `<span data-hold-sub>${v.lead ? 'get ready' : `target ${it.holdSec ? `${it.holdSec[0]}–${it.holdSec[1]}` : target} s`}</span>`, cls: running ? 'running' : '' })}
+      <div class="btn-row">${running ? `<button class="btn btn-primary btn-lg" data-act="hold-stop">${icon('check', { size: 20 })} <span data-hold-btn>${v.lead ? 'Cancel' : 'Stop & log'}</span></button>`
         : `<button class="btn btn-primary btn-lg" data-act="hold-start">${icon('play', { size: 20 })} Start</button>
            <button class="btn btn-ghost" data-act="hold-log" aria-label="Log ${target} seconds without the timer">Log ${target}s</button>`}</div></div>`;
   }
@@ -193,16 +193,30 @@ function tick() {
     if (leftMs <= 0) { beep('go'); buzz([180, 80, 180]); endRest(); }
   }
   if (hold && hold.idx === w.idx && w.phase === 'set') {
-    const sec = Math.floor((Date.now() - hold.start) / 1000);
-    const el = root.querySelector('[data-hold-sec]');
-    if (el && el.textContent !== String(sec)) {
-      el.textContent = sec;
-      const target = item().holdSec ? item().holdSec[1] : 30;
-      const r = root.querySelector('.ring'); if (r) setRing(r, sec / target);
-      if (sec === target) { beep('done'); buzz([200, 100, 200]); }
-      else if (item().holdSec && sec === item().holdSec[0]) beep('tick');
-    }
+    const v = holdView(), target = holdTarget();
+    const key = v.lead ? `L${v.lead}` : String(v.left);
+    if (key === hold.shown) return;
+    const was = hold.shown; hold.shown = key;
+    if (v.left <= 0) { beep('done'); buzz([200, 100, 200]); hold = null; logSet({ sec: target }); return; }
+    const el = root.querySelector('[data-hold-sec]'); if (el) el.textContent = v.lead || v.left;
+    const u = root.querySelector('[data-hold-unit]'); if (u) u.textContent = v.lead ? '' : 's';
+    const sub = root.querySelector('[data-hold-sub]'); if (sub) sub.textContent = v.lead ? 'get ready' : `target ${item().holdSec ? `${item().holdSec[0]}–${item().holdSec[1]}` : target} s`;
+    const b = root.querySelector('[data-hold-btn]'); if (b) b.textContent = v.lead ? 'Cancel' : 'Stop & log';
+    const r = root.querySelector('.ring'); if (r) setRing(r, v.done / target);
+    if (v.lead) beep('tick');
+    else if (was && was[0] === 'L') { beep('go'); buzz([60]); }
+    else if (v.left <= 3) beep('tick');
   }
+}
+
+// Timed holds: a short get-ready countdown, then count down to the target and log automatically at zero.
+const LEAD_IN = 3;
+const holdTarget = () => item().holdSec ? item().holdSec[1] : 30;
+function holdView() {
+  const ms = Date.now() - hold.start;
+  if (ms < 0) return { lead: Math.ceil(-ms / 1000), done: 0, left: holdTarget() };
+  const done = Math.floor(ms / 1000);
+  return { lead: 0, done, left: Math.max(0, holdTarget() - done) };
 }
 
 function startRest(sec) {
@@ -267,8 +281,12 @@ async function onClick(e) {
   const a = e.target.closest('[data-act]'); if (!a) return;
   switch (a.dataset.act) {
     case 'log-set': { const v = +root.querySelector('[data-stepper="reps"] [data-val]').textContent; buzz([40]); logSet({ reps: v }); break; }
-    case 'hold-start': hold = { idx: w.idx, start: Date.now() }; beep('go'); draw(); break;
-    case 'hold-stop': { const sec = Math.max(1, Math.floor((Date.now() - hold.start) / 1000)); hold = null; logSet({ sec }); break; }
+    case 'hold-start': hold = { idx: w.idx, start: Date.now() + LEAD_IN * 1000, shown: null }; draw(); tick(); break;
+    case 'hold-stop': {
+      const ms = Date.now() - hold.start; hold = null;
+      if (ms < 1000) { draw(); break; } // cancelled during the get-ready countdown
+      logSet({ sec: Math.min(holdTarget(), Math.floor(ms / 1000)) }); break;
+    }
     case 'hold-log': { const it = item(); logSet({ sec: it.holdSec ? it.holdSec[1] : 30 }); break; }
     case 'rest-add': w.restEndsAt += 15000; w.restTotal += 15; save(); tick(); break;
     case 'rest-skip': endRest(); break;
