@@ -8,8 +8,8 @@
 // v1.2 world movement (docs/world-movement.md §3-4): flows as session items, rotation / anti-rotation families,
 // balance blocks, Morning Taiso and Baduanjin options. The accuracy gate (js/data/traditions.js) is applied in
 // availability, so unverified tradition items are never planned, whichever library is passed in.
-import { contentVisible, traditionPreview } from '../data/traditions.js';
-import { flowSeconds, ALL_BY_ID } from '../data/exercises.js';
+import { contentVisible, traditionPreview, TRADITIONS } from '../data/traditions.js';
+import { flowSeconds, ALL_BY_ID, ALL_FAMILIES } from '../data/exercises.js';
 import { exerciseAnimated, animationGateVersion } from '../data/animated.js';
 
 // =============================================================================================
@@ -278,6 +278,7 @@ function flowBlock(ctx, target, used, order, info) {
 
 // §4.6.1 balance block: Tai Chi when its content is verified, otherwise single-leg and anti-rotation work.
 const BALANCE_GENERIC = ['single_leg_rdl', 'bird_dog', 'split_squat', 'single_leg_calf_raise', 'single_leg_glute_bridge', 'bird_dog_row', 'reverse_lunge'];
+const BALANCE_QUICK = ['taichi_golden_rooster', 'single_leg_rdl', 'bird_dog', 'single_leg_glute_bridge', 'bird_dog_row', 'single_leg_calf_raise'];
 const BAL_NOTE = 'Balance: stand near a wall or sturdy chair for support.';
 const injNotes = (ex, D) => (ex.stress || []).filter(s => D.inj.includes(s) && INJ_ALLOW[s]?.[ex.id]).map(s => INJ_ALLOW[s][ex.id]);
 function balanceBlock(ctx, target, used, info) {
@@ -298,8 +299,12 @@ function balanceBlock(ctx, target, used, info) {
       return block;
     }
   }
-  const cands = BALANCE_GENERIC.map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !used.has(e.id));
-  fillFlat(block, cands, target, target + 30, ex => flatItem(ex, { reps: [6, 10], hold: [20, 40], sets: 2, rest: 30, notes: [BAL_NOTE, ...injNotes(ex, D)].join(' ') }), 3, used, info);
+  // Quick: the one-leg hold leads when visible, and short blocks use single sets so something always fits
+  const order = ctx.quick ? BALANCE_QUICK : BALANCE_GENERIC;
+  const sets = ctx.quick && target < 180 ? 1 : 2;
+  const cands = order.map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !used.has(e.id));
+  fillFlat(block, cands, target, target + 30, ex => flatItem(ex, { reps: [6, 10], hold: ex.id === 'taichi_golden_rooster' ? [5, 15] : [20, 40], sets, rest: ex.id === 'taichi_golden_rooster' ? 15 : 30,
+    notes: [BAL_NOTE, ...injNotes(ex, D)].join(' ') }), 3, used, info);
   return block.items.length ? block : null;
 }
 /** Flows to prefer on light days: Tai Chi first for balance (55+ or the balance goal), otherwise Baduanjin. */
@@ -490,6 +495,7 @@ function repSec(it, info) {
   if (/^negative_|nordic_curl_negative/.test(it.exerciseId)) return CONFIG.secPerRepNegative;
   if (it.family === 'conditioning') return CONFIG.secPerRepConditioning;
   const ex = info.byId[it.exerciseId];
+  if (ex && /^flow_/.test(ex.family) && ex.tempo?.secPerRep) return ex.tempo.secPerRep; // Tai Chi / Qigong single forms are slow
   if ((it.reps && it.reps[1] <= 8) || (ex && PROGRESSION_FAMILIES.includes(ex.family) && ex.level >= info.famMax[ex.family] - 1)) return CONFIG.secPerRepStrength;
   return CONFIG.secPerRep;
 }
@@ -804,7 +810,7 @@ function mkUnit(parts, fmt, ctx) {
     r = Math.ceil(r / 5) * 5;
     rests = [r, r];
   } else { // circuit: 15 s hops, 60-90 s between rounds
-    const roundRest = ctx.D.band === 'a65' ? 90 : ctx.D.M < 15 ? 60 : 75;
+    const roundRest = ctx.D.band === 'a65' ? 90 : ctx.roundRest || (ctx.D.M < 15 ? 60 : 75);
     rests = parts.map((_, i) => i === parts.length - 1 ? roundRest : CONFIG.circuitHopSec);
   }
   return {
@@ -883,7 +889,11 @@ function fillMain(parts, fmt, ctx, sess, budget) {
     if (tryAdd(u) || u.parts.length < 2) continue;
     for (const p of u.parts) { const one = mkUnit([p], 'straight', ctx); one.tier = 1; tryAdd(one); } // pair too long: keep what fits
   }
-  if (!chosen.length) { const u = units.find(x => x.tier === 1 && x.parts.length === 1); if (u) tryAdd(u, 45); } // very short: never lose the main lift
+  if (!chosen.length) { // very short: never lose the main lift (Quick: the first part of a pair that did not fit)
+    let u = units.find(x => x.tier === 1 && x.parts.length === 1);
+    if (!u && ctx.quick) { const first = units.find(x => x.tier === 1); if (first) { u = mkUnit([first.parts[0]], 'straight', ctx); u.tier = 1; } }
+    if (u) tryAdd(u, 45);
+  }
   // §2.3 step 4: never keep a push slot without a horizontal pull
   const hasHP = () => chosen.some(u => u.parts.some(p => HPULL.includes(p.ex.family)));
   const hpUnit = units.find(u => !chosen.includes(u) && u.parts.some(p => HPULL.includes(p.ex.family)));
@@ -996,7 +1006,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const tpl = slot.tpl || template(key, variant, weekIndex);
   const Q = slot.quick || null;
   const row = [...TIME_TABLE].reverse().find(r => M >= r[0]);
-  const fmt = tpl.kind === 'hard' ? row[5] : 'straight';
+  const fmt = tpl.fmt || (tpl.kind === 'hard' ? row[5] : 'straight');
   const sess = { patternSeen: new Set(), muscle: {}, groups: 0, targeted: !!tpl.targeted,
     capOf: m => tpl.kind !== 'hard' ? CONFIG.maxSetsPerMuscleSession
       : Math.min(CONFIG.maxSetsPerMuscleSession, D.B.weeklyCap / Math.max(1, ctx.hitCount[MUSCLE_REGION[m] || 'core'] || 1)) };
@@ -1006,7 +1016,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   // --- balance (§4): 40-54 one item on 2 sessions/week, 55-64 >= 2 min, 65+ >= 3 min in every session
   const bal = D.B.balance;
   let balanceSec = 0;
-  if (Q && Q.noBalance) { /* mobility-only quick session */ }
+  if (Q && (Q.noBalance || Q.pool)) { /* mobility-only or pool quick session */ }
   else if (bal === 'two' && tpl.kind === 'hard' && tpl.focus.includes('legs') && ctx.balanceSessions < 2) balanceSec = 90;
   else if (typeof bal === 'number') balanceSec = bal;
   // world-movement §4.6.1: a 5-10 min balance block (55+ or the balance goal) on chosen sessions replaces the in-main item there
@@ -1023,7 +1033,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const skillEx = ctx.levelsEx.skill_balance;
   let tskill = 0;
   const skillGoal = (D.w.skill || 0) >= 0.2;
-  if (skillEx && tpl.kind === 'hard' && skillGoal && (D.days <= 3 || slot.hardIdx < 3)) {
+  if (skillEx && tpl.kind === 'hard' && skillGoal && !(Q && Q.skill) && (D.days <= 3 || slot.hardIdx < 3)) {
     tskill = M < 20 ? (D.primary === 'skill' && M >= 15 ? 180 : 0) : M < 30 ? 180 : M < 60 ? 300 : (D.primary === 'skill' ? 600 : 480);
   }
   if (tpl.kind === 'skillmob' && skillEx) tskill = clamp(0.35 * T, 180, 900);
@@ -1052,7 +1062,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
     if (Q.warm != null) tw = Q.warm;
     if (Q.cool != null) tcool = Math.max(Q.coolIsMin ? tcool : 0, Q.cool);
     if (Q.cond != null) tcond = Q.cond;
-    if (tpl.kind === 'hard') {
+    if (tpl.kind === 'hard' && !Q.keepBlocks) {
       const over = tw + tcool + tskill + tcond + tbal - 0.6 * T;
       if (over > 0) { const c = Math.min(over, tcond); tcond -= c; const c2 = Math.min(tskill, over - c); tskill -= c2; tbal = Math.max(Math.min(tbal, 120), tbal - (over - c - c2)); }
     }
@@ -1069,12 +1079,13 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   // world-movement §4.1: one gentle rotation (levels 1-3) in the warm-up
   const rotW = ctx.avail.rotation.filter(e => e.level <= Math.max(1, Math.min(3, ctx.levelsEx.rotation?.level ?? 1)));
   const rotWarm = rotW.length ? [rotW[(sessIdx + weekIndex) % rotW.length].id] : [];
-  const warmOrder = [...relRot.slice(0, 1), wo[0], ...rotWarm, ...relRot.slice(1), ...wo.slice(1 + wk), ...wo.slice(1, 1 + wk)];
+  const warmOrder = [...((Q && Q.warmFirst) || []), ...relRot.slice(0, 1), wo[0], ...rotWarm, ...relRot.slice(1), ...wo.slice(1 + wk), ...wo.slice(1, 1 + wk)];
   let warmCands = candidates([...new Set(warmOrder)], ctx, ['warmup']);
+  if (Q && Q.warmAvoid) warmCands = warmCands.filter(e => !Q.warmAvoid.has(e.id)); // kept for the main block
   if (Q && Q.noBalance) warmCands = warmCands.filter(e => e.family !== 'mobility'); // keep the stretches for the flow itself
   const warmMk = ex => flatItem(ex, { reps: [8, 12], hold: ex.family === 'conditioning' ? [45, 60] : [20, 30] });
-  fillFlat(warm, warmCands, tw, tw + 30, warmMk, 2, used, info);
-  if (relRot.length && !warm.items.some(i => rel.includes(i.exerciseId))) { // short warm-ups still prepare the region
+  if (!(Q && Q.noWarm)) fillFlat(warm, warmCands, tw, tw + 30, warmMk, 2, used, info);
+  if (relRot.length && !(Q && Q.noWarm) && !warm.items.some(i => rel.includes(i.exerciseId))) { // short warm-ups still prepare the region
     const ex = ctx.byId[relRot[0]];
     if (!used.has(ex.id)) {
       const it = warmMk(ex); if (it.reps) it.reps = [5, 8];
@@ -1092,6 +1103,27 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
     used.add(skillEx.id);
     blocks.push({ kind: 'skill', title: 'Skill practice', items: [it] });
   }
+  if (Q && Q.skill) { // Quick skill goal: practice first while fresh (research §1.1: holds 5-30 s, 3-6 quality sets, RIR >= 3)
+    const block = { kind: 'skill', title: 'Skill practice', items: [] };
+    const target = Q.skill.sec;
+    for (const ex of Q.skill.list) {
+      if (block.items.length >= Q.skill.max) break;
+      if (used.has(ex.id) || !ctx.isAvail(ex)) continue;
+      const it = flatItem(ex, { reps: [3, 5], hold: SKILL_HOLD[ex.id] || [5, 20], sets: 2, rest: M <= 10 ? 60 : 90, rir: 3,
+        notes: ['Quality attempts only: stop before form fades.', ...injNotes(ex, D)].join(' ') });
+      if (block.items.length && blockSec({ items: [...block.items, it] }, info) > target) continue;
+      block.items.push(it); used.add(ex.id);
+    }
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const it of block.items) {
+        if (it.sets >= 5) continue;
+        it.sets++;
+        if (blockSec(block, info) > target) it.sets--; else changed = true;
+      }
+    }
+    if (block.items.length) blocks.push(block);
+  }
 
   // --- main
   const parts = [];
@@ -1100,6 +1132,8 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const addPart = (ex, role, pri, ess, tier) => {
     used.add(ex.id);
     const pt = makePart(ex, role, ctx, sess, pri, tier === 1, order++, tier);
+    if (curSlot && curSlot.hold && pt.item.holdSec) pt.item.holdSec = curSlot.hold;
+    if (curSlot && curSlot.note) pt.item.notes = [pt.item.notes, curSlot.note].filter(Boolean).join(' ');
     if (curSlot && curSlot.maxSets) { pt.max = Math.min(pt.max, curSlot.maxSets); pt.base = Math.min(pt.base, pt.max); pt.min = Math.min(pt.min, pt.max); pt.hardMax = curSlot.maxSets; }
     if (tpl.targeted && pt.max >= 3) { pt.base = Math.max(pt.base, 3); pt.min = Math.min(pt.min, 2); } // targeted days: breadth at 2 sets, then ~3 each
     parts.push(pt);
@@ -1129,12 +1163,14 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
     if (s.pv && !hasPV) continue; // no bar: the horizontal-pull slot carries the pulling (§7)
     if (s.minLevel && !((ctx.levelsEx[s.fams[0]]?.level ?? 0) >= s.minLevel)) continue; // e.g. loaded rotation only from level 4
     curSlot = s;
-    const ex = s.fixed ? (used.has(s.fixed.id) ? null : s.fixed) : resolveSlot(s, ctx, used);
+    const ex = s.fixed ? (used.has(s.fixed.id) ? null : s.fixed) : s.prefer && !used.has(s.prefer.id) && ctx.isAvail(s.prefer) ? s.prefer : resolveSlot(s, ctx, used);
     if (!ex) continue;
     addPart(ex, s.role, (PRI[ex.family] ?? 9) + (s.variant ? 10 : 0) + (s.ess ? 0 : 20) - (s.hp2 ? 5 : 0), s.ess, tierOf(s));
   }
   // --- balance and flow blocks: in plans, built after the main slots so they never take a main exercise
   addBalance();
+  let poolBlk = null;
+  if (Q && Q.pool && Q.pool.sec > 0) { poolBlk = poolBlock(ctx, Q.pool, used, info, M); if (poolBlk) blocks.push(poolBlk); }
   const tflow = Q ? (Q.flow || 0) : tpl.kind === 'flow' ? Math.round(0.4 * T) : 0;
   if (tflow > 0) {
     flowBlk = flowBlock(ctx, tflow, used, (Q && Q.flowOrder) || flowOrder(D), info);
@@ -1142,10 +1178,10 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   }
   const tWarm = blockSec(warm, info);
   const tSkill = blocks.filter(b => b.kind === 'skill').reduce((t, b) => t + blockSec(b, info), 0);
-  const tExtra = [balBlk, flowBlk].filter(Boolean).reduce((t, b) => t + blockSec(b, info), 0);
+  const tExtra = [balBlk, flowBlk, poolBlk].filter(Boolean).reduce((t, b) => t + blockSec(b, info), 0);
   const mainBudget = Math.max(0, T - tWarm - tSkill - tExtra - tcond - tcool);
   const fm = fillMain(parts, fmt, ctx, sess, mainBudget);
-  if (mainBudget - fm.t > 120) fm.topUp(mainBudget);
+  if (mainBudget - fm.t > 120) fm.topUp(mainBudget, tpl.pool ? 3 : 1, tpl.pool ? 8 : 6); // a pool session keeps its own moves rather than long stretching
   const main = { kind: 'main', title: tpl.kind === 'hard' ? 'Main' : 'Strength, core & balance', items: unitsToItems(fm.units, sess) };
   blocks.push(main);
   // core did not fit after the primary lifts: keep the session's core pattern as a short warm-up activation
@@ -1156,7 +1192,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   // volume caps reached with time to spare: add an easy conditioning finisher rather than a very long stretch
   let finisher = false;
   const slack = mainBudget - fm.t;
-  if (slack > 300 && condAvail && tpl.kind === 'hard') { finisher = tcond === 0; tcond += Math.min(slack, 900); }
+  if (slack > 300 && condAvail && tpl.kind === 'hard' && !(Q && Q.pool)) { finisher = tcond === 0; tcond += Math.min(slack, 900); }
 
   // --- conditioning circuit
   let cond = null;
@@ -1190,7 +1226,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const rotBy = Q && Q.mobOrder ? 0 : (weekIndex + sessIdx * 3) % mobOrder.length;
   const mobCands = candidates([...mobOrder.slice(rotBy), ...mobOrder.slice(0, rotBy)], ctx, ['mobility']);
   const mk = mobilityItem(ctx);
-  const flexSets = tpl.kind !== 'hard' || (D.w.flexibility || 0) >= 0.2 ? 2 : 1;
+  const flexSets = (Q && Q.mobSets) || (tpl.kind !== 'hard' || (D.w.flexibility || 0) >= 0.2 ? 2 : 1);
   const others = () => blocks.reduce((t, b) => t + blockSec(b, info), 0);
   // world-movement §4.1: Baduanjin (short) as the cool-down when it fits and suits the goal; otherwise offered as an option
   const options = [];
@@ -1198,7 +1234,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   if (tpl.kind === 'hard' && bdj && !used.has(bdj.id) && ctx.isAvail(bdj)) {
     const it = flowItem(bdj, ctx, { variant: 'short' });
     // (a Quick session aimed at chosen areas keeps its targeted stretches; Baduanjin is then only offered)
-    const calm = (['health', 'flexibility', 'balance'].includes(D.primary) || D.age >= 55) && !(Q && Q.mobOrder);
+    const calm = (['health', 'flexibility', 'balance'].includes(D.primary) || D.age >= 55) && !(Q && (Q.mobOrder || Q.pool));
     if (calm && blockSec({ items: [it] }, info) <= T - others() + 15) { cool.items.push(it); used.add(bdj.id); cool.title = 'Cool-down: Baduanjin'; }
     else options.push({ id: 'baduanjin_cooldown', replaces: 'cooldown', title: 'Baduanjin cool-down', block: { kind: 'cooldown', title: 'Baduanjin', items: [it] } });
   }
@@ -1863,6 +1899,213 @@ function quickTemplate(focus, muscles, ctx, seed, minutes) {
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Goal-led Quick sessions ("Train for: a goal"). The goal chooses the main content, not only the dose:
+// balance = single-leg and balance work, skill = practice first, flexibility = mobility-led, endurance = a circuit.
+// strength, muscle and health keep the full-body patterns (research §1.1: the goal sets reps, sets and rest).
+// ---------------------------------------------------------------------------------------------
+const GOAL_QUICK_LABEL = { balance: 'Balance', skill: 'Skill practice', flexibility: 'Flexibility', endurance: 'Endurance circuit' };
+const SKILL_HOLD = { wall_handstand: [15, 45], freestanding_handstand: [5, 20], crow_pose: [5, 20], l_sit: [5, 15], hollow_body_hold: [15, 30], taichi_golden_rooster: [5, 15] };
+// when no handbalance is possible (wrist, shoulder, neck ...): other skill holds, then a one-leg balance skill
+const SKILL_ALT = ['l_sit', 'hollow_body_hold', 'taichi_golden_rooster'];
+// flexibility (research §1.1 flexibility, world-movement §4.2): dynamic mobility and gentle rotation (levels 1-3) first, then held stretches
+const FLEX_DYNAMIC = ['cat_cow', 'open_book', 'worlds_greatest_stretch', 'thread_the_needle', 'thoracic_opener', 'seated_trunk_rotation'];
+const FLEX_HOLDS = ['hip_flexor_stretch', 'standing_hamstring_stretch', 'doorway_chest_stretch', 'pigeon_stretch', 'childs_pose', 'deep_squat_hold', 'cobra_stretch',
+  'calf_stretch', 'pancake_stretch', 'shoulder_dislocate'];
+const rotate = (arr, k) => arr.length ? [...arr.slice(k % arr.length), ...arr.slice(0, k % arr.length)] : arr;
+const SLOW_NOTE = 'Slow and controlled: 3 s down, a brief pause, then up.';
+
+function goalTemplate(goal, ctx, seed, minutes, quick) {
+  const T = (fams, role, tier, extra = {}) => S(fams, role, tier <= 2, { tier, ...extra });
+  const pick = ids => ids.map(id => ctx.byId[id]).find(e => e && ctx.isAvail(e)) || null;
+  const secs = minutes * 60;
+  switch (goal) {
+    case 'balance': { // world-movement §4.6.1: a balance block (Tai Chi and the one-leg hold when visible), then single-leg strength, slowly
+      quick.balance = minutes <= 5 ? 150 : Math.max(150, Math.round(0.35 * secs)); // at 5 min the block is the session: single sets of two holds
+      if (minutes > 10) quick.cool = Math.round(Math.min(0.15 * secs, 300));
+      if (minutes >= 20) quick.warm = Math.round(Math.min(0.15 * secs, 300));
+      quick.cond = 0;
+      quick.keepBlocks = true; // the balance block is the point of the session: never trimmed for main work
+      const slow = { note: SLOW_NOTE };
+      return { kind: 'hard', name: '', focus: ['legs', 'core'], region: 'lower', slots: [
+        T(['squat'], 'main', 1, { variant: true, unilateral: true, ...slow }),
+        T(['hinge'], 'main', 1, { variant: true, unilateral: true, prefer: pick(['single_leg_rdl']), ...slow }),
+        T(['calves'], 'acc', 2, { variant: true, unilateral: true, prefer: pick(['single_leg_calf_raise']), ...slow }),
+        T(['anti_rotation', 'core_posterior'], 'core', 2), T(['core_lateral'], 'core', 3)] };
+    }
+    case 'skill': { // research §1.1 skill: practice at the start while fresh, 5-10 min, then short supporting strength
+      const av = ctx.avail.skill_balance;
+      const cur = ctx.levelsEx.skill_balance && ctx.isAvail(ctx.levelsEx.skill_balance) ? ctx.levelsEx.skill_balance : nearest(av, ctx.levelsEx.skill_balance?.level ?? 1);
+      const near = cur ? av.filter(e => e !== cur && Math.abs(e.level - cur.level) <= 1).sort((a, b) => b.level - a.level) : [];
+      const list = [cur, ...near, ...SKILL_ALT.map(id => ctx.byId[id])].filter((e, i, a) => e && ctx.isAvail(e) && a.indexOf(e) === i);
+      quick.skill = { list, max: minutes <= 5 ? 1 : minutes < 30 ? 2 : 3, sec: minutes <= 5 ? 135 : minutes <= 10 ? 240 : clamp(Math.round(0.35 * secs), 300, 600) };
+      quick.warmFirst = ['wrist_prep']; // hands and wrists carry the handbalances
+      quick.cond = 0;
+      return { kind: 'hard', name: '', focus: ['skill', 'push', 'core'], region: 'upper', slots: [
+        T(['push_vertical', 'dip'], 'main', 1, { maxSets: 3, prefer: ctx.levelsEx.push_vertical || ctx.avail.push_vertical[0] || null }), T(['core_anterior'], 'core', 1, { maxSets: 3 }),
+        T(HPULL, 'main', 2, { maxSets: 3 }), T(['pull_vertical'], 'main', 3, { maxSets: 3 }), T(['core_posterior'], 'core', 3, { maxSets: 3 })] };
+    }
+    case 'flexibility': { // mobility-led: rotation openers and dynamic mobility, a flow when visible (15+ min), then held stretches
+      quick.noBalance = true;
+      quick.cond = 0;
+      if (minutes >= 15) { quick.flow = Math.round(0.4 * secs); quick.flowOrder = ['baduanjin_sequence', 'taichi_short_flow']; }
+      const nDyn = minutes <= 5 ? 1 : 2;
+      if (minutes <= 5) quick.mobSets = 1; // 5 min: more areas, one hold each
+      const dyn = rotate(FLEX_DYNAMIC.filter(id => ctx.isAvail(ctx.byId[id])), seed), holds = rotate(FLEX_HOLDS.filter(id => ctx.isAvail(ctx.byId[id])), seed >> 3);
+      quick.mobOrder = [...dyn.slice(0, nDyn), ...holds, ...dyn.slice(nDyn)];
+      return { kind: 'flow', name: '', focus: ['mobility'], slots: [] };
+    }
+    case 'endurance': { // research §1.1 endurance: circuits, 15-30 reps or 30-45 s efforts, short rests
+      const av = ctx.avail.conditioning;
+      const lvl = ctx.levelsEx.conditioning?.level ?? 2;
+      const close = [...av].sort((a, b) => Math.abs(a.level - lvl) - Math.abs(b.level - lvl) || a.level - b.level).slice(0, 5);
+      const n = minutes <= 5 ? 2 : minutes <= 10 ? 3 : 4;
+      const chosen = rotate(close, seed).slice(0, n).sort((a, b) => a.level - b.level);
+      quick.warmAvoid = new Set(chosen.map(e => e.id));
+      quick.cond = 0;
+      if (minutes <= 5) quick.cool = 45;
+      ctx.roundRest = 45;
+      const hold = [30, 45];
+      return { kind: 'hard', name: '', focus: ['conditioning', 'core'], fmt: 'circuit', slots: [
+        ...chosen.map(ex => T(['conditioning'], 'main', 1, { fixed: ex, hold })),
+        T(['core_anterior'], 'core', 2, { hold }), T(['push_horizontal'], 'main', 2, { variant: true }),
+        T(['squat'], 'main', 3, { alt: true }), T(['anti_rotation', 'core_lateral'], 'core', 3, { hold })] };
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pool sessions: a workout of a chosen length from one Library filter (a tradition, a category and/or a family).
+// The request carries the filter; later modes (e.g. `moment`) plug in the same way: request field -> pool + filler.
+// ---------------------------------------------------------------------------------------------
+const CATEGORY_LABEL = { strength: 'Strength', core: 'Core', skill: 'Skill', conditioning: 'Cardio', mobility: 'Mobility', warmup: 'Warm-up', flow: 'Flow',
+  balance: 'Balance', breath: 'Breath' };
+const LOAD_CATS = ['strength', 'core', 'conditioning'];
+// What fills the time when a pool is small: `slots` = load families (from the user's levels), `ids` = gentle items; `what` names it in the note.
+const POOL_FILL = {
+  'tradition:horse_stance': { slots: ['squat', 'hinge', 'calves'], ids: ['hip_flexor_stretch', 'deep_squat_hold', 'hip_circles'], note: 'Horse stance is a single hold, so we’ve added leg and hip work around it.' },
+  'tradition:pehlwani': { slots: ['squat', 'push_horizontal', 'core_anterior', 'hinge'], note: 'Pehlwani has two moves here (daṇḍ and baiṭhak), so we’ve added push, squat and core work around them.' },
+  'tradition:radio_taiso': { ids: ROTATION_MOBILITY, note: flows => flows ? 'Morning Taisō takes about 3 minutes, so it repeats and we’ve added gentle mobility around it.'
+    : 'We’ve added gentle mobility around the Morning Taisō moves.' },
+  'tradition:tai_chi': { ids: [...BALANCE_QUICK, ...ROTATION_MOBILITY], note: 'We’ve added balance and mobility work around the Tai Chi forms.' },
+  'tradition:baduanjin': { ids: [...FLEX_DYNAMIC, ...FLEX_HOLDS], note: 'We’ve added gentle mobility and stretches around the Baduanjin.' },
+  'tradition:rotation': { slots: ['core_lateral', 'core_anterior', 'core_posterior'], ids: ROTATION_MOBILITY, note: 'We’ve added core and mobility work around the rotation moves.' },
+  'category:balance': { ids: [...BALANCE_QUICK, ...BALANCE_GENERIC], note: 'There are few balance holds, so we’ve added single-leg work around them.' },
+  'category:skill': { slots: ['push_vertical', 'core_anterior', 'pull_horizontal'], skillAlt: true, note: 'Skill practice is short by design (quality attempts while you’re fresh), so we’ve added supporting strength.' },
+  'category:warmup': { ids: [...FLEX_DYNAMIC, 'marching_in_place'], note: 'We’ve added dynamic mobility to fill the time.' },
+  'category:flow': { ids: [...FLEX_DYNAMIC, ...FLEX_HOLDS], note: 'We’ve added mobility and stretches around the flows.' },
+  'category:conditioning': { slots: ['squat', 'push_horizontal', 'core_anterior'] },
+};
+const GENTLE_KIND = { mobility: 'mobility', balance: 'balance', warmup: 'warmup', flow: 'flow', breath: 'mobility' };
+
+/** Items (visible, available to this profile) matching every given filter. Unknown ids match nothing. */
+function poolItems(filter, ctx, library) {
+  const tr = filter.tradition ? TRADITIONS[filter.tradition] : null;
+  if (filter.tradition && !tr) return [];
+  const seen = new Set();
+  return (library || []).map(e => ctx.byId[e.id]).filter(ex => {
+    if (!ex || seen.has(ex.id) || !ctx.isAvail(ex)) return false;
+    seen.add(ex.id);
+    if (tr && (tr.kind === 'explainer' ? !(tr.families || []).includes(ex.family) || !!ex.tradition : ex.tradition !== filter.tradition)) return false;
+    if (filter.category && ex.category !== filter.category) return false;
+    if (filter.family && ex.family !== filter.family) return false;
+    // tradition single forms belong to their tradition (or a gentle category), not to a strength or core session
+    if (!filter.tradition && LOAD_CATS.includes(filter.category) && /^flow_/.test(ex.family)) return false;
+    return true;
+  });
+}
+
+/** Ids of what a pool session would draw from (UI: hide a "make a workout" button when empty). */
+export function quickPoolIds(filter = {}, profile = null, library) {
+  const p = profile ? { ...profile } : { ...QUICK_DEFAULT, equipment: Array.isArray(filter.equipment) ? filter.equipment : ['wall'], lowImpact: !!filter.lowImpact };
+  return poolItems(filter, buildCtx(p, library), library).map(e => e.id);
+}
+
+const isLoad = ex => ex.mode !== 'flow' && LOAD_CATS.includes(ex.category) && !/^flow_/.test(ex.family) && ex.family !== 'skill_balance';
+function poolSingle(ex, ctx, sets) {
+  const hold = ex.id === 'taichi_golden_rooster' ? [5, 15] : ex.category === 'mobility' ? mobilityItem(ctx)(ex).holdSec : [20, 30];
+  const tempo = ex.tempo?.secPerRep || 0;
+  const reps = /^flow_/.test(ex.family) ? (tempo >= 10 ? [3, 4] : [4, 6]) : ex.category === 'warmup' ? [8, 12] : [6, 10];
+  const notes = [ex.category === 'balance' ? BAL_NOTE : '', ...injNotes(ex, ctx.D)].filter(Boolean).join(' ');
+  return flatItem(ex, { reps, hold, sets, rest: ex.mode === 'hold' ? 10 : 15, notes });
+}
+
+/** The gentle part of a pool: whole flows first (with their rounds), then single forms and stretches, then filler. */
+function poolBlock(ctx, P, used, info, M) {
+  const block = { kind: P.kind, title: P.title, items: [] };
+  const target = P.sec;
+  for (const ex of P.flows) {
+    if (used.has(ex.id)) continue;
+    const left = target - blockSec(block, info);
+    if (left < 60) break;
+    let it = flowItem(ex, ctx);
+    if (blockSec({ items: [it] }, info) > left + 30 && ex.variants?.short) it = flowItem(ex, ctx, { variant: 'short' });
+    if (blockSec({ items: [it] }, info) > left + 30) continue;
+    block.items.push(it); used.add(ex.id);
+  }
+  for (const it of block.items) addRounds(block, it, target, info);
+  const sets = M <= 5 ? 1 : 2;
+  fillFlat(block, [...P.singles, ...P.filler], target, target + 30, ex => poolSingle(ex, ctx, sets), 3, used, info);
+  return block.items.length ? block : null;
+}
+
+/** Template and Quick settings for a pool session; sets quick.pool (the gentle block) and returns the load template. */
+function poolTemplate(filter, ctx, seed, minutes, quick, library) {
+  const secs = minutes * 60;
+  const key = filter.tradition ? `tradition:${filter.tradition}` : filter.category ? `category:${filter.category}` : `family:${filter.family}`;
+  const fill = POOL_FILL[key] || (filter.family && FALLBACK[filter.family] ? { slots: FALLBACK[filter.family] } : { ids: [...FLEX_DYNAMIC, ...FLEX_HOLDS] });
+  const items = poolItems(filter, ctx, library);
+  const flows = items.filter(e => e.mode === 'flow');
+  let skills = items.filter(e => e.family === 'skill_balance');
+  if (fill.skillAlt && !skills.length) skills = SKILL_ALT.map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e)); // no handbalance possible: other skill holds
+  const load = items.filter(isLoad);
+  const gentle = items.filter(e => !flows.includes(e) && !skills.includes(e) && !load.includes(e));
+  const byT = (a, b) => (a.mode === 'hold') - (b.mode === 'hold') || a.level - b.level;
+  quick.warm = filter.category === 'warmup' ? 0 : minutes <= 5 ? 45 : minutes <= 10 ? 60 : Math.round(Math.min(0.1 * secs, 180));
+  quick.noWarm = filter.category === 'warmup';
+  quick.cool = minutes <= 5 ? 45 : minutes <= 10 ? 60 : Math.round(Math.min(0.1 * secs, 240));
+  quick.cond = 0;
+  let content = secs - quick.warm - quick.cool;
+  if (skills.length) { // skill practice first, capped at 10 min (research §1.1)
+    const cur = ctx.levelsEx.skill_balance && skills.includes(ctx.levelsEx.skill_balance) ? ctx.levelsEx.skill_balance : nearest(skills, ctx.levelsEx.skill_balance?.level ?? 1);
+    quick.skill = { list: [cur, ...skills.filter(e => e !== cur && Math.abs(e.level - cur.level) <= 1)], max: minutes <= 5 ? 1 : 3, // never more than a level ahead
+      sec: Math.min(600, load.length || gentle.length || flows.length ? Math.round(0.5 * content) : content) };
+    content -= quick.skill.sec;
+    quick.warmFirst = ['wrist_prep'];
+  }
+  const gentleShare = !load.length ? 1 : !(gentle.length + flows.length) ? 0 : clamp((gentle.length + flows.length * 3) / (gentle.length + flows.length * 3 + load.length), 0.3, 0.7);
+  const fillIds = (fill.ids || []).map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !items.includes(e));
+  if (gentle.length || flows.length || (!load.length && !skills.length)) {
+    const kind = filter.tradition ? (flows.length ? 'flow' : 'mobility') : items.length ? GENTLE_KIND[filter.category] || 'mobility' : 'mobility';
+    const title = filter.tradition ? TRADITIONS[filter.tradition].name : CATEGORY_LABEL[filter.category] || ALL_FAMILIES[filter.family]?.name || 'Practice';
+    quick.pool = { kind, title, flows: [...flows].sort((a, b) => a.level - b.level), singles: rotate([...gentle].sort(byT), 0), filler: rotate(fillIds, seed),
+      sec: Math.round(gentleShare * content) };
+  }
+  const T = (fams, role, tier, extra = {}) => S(fams, role, tier <= 2, { tier, ...extra });
+  const role = f => CORE.includes(f) || ROT.includes(f) ? 'core' : f === 'calves' || f === 'stance' ? 'acc' : 'main';
+  const slots = [];
+  // load items: per family, the one nearest the user's level first (families in the usual priority), then its neighbours
+  const fams = [...new Set(load.map(e => e.family))].sort((a, b) => (PRI[a] ?? 9) - (PRI[b] ?? 9));
+  const cond = load.length && load.every(e => e.family === 'conditioning' || e.category === 'conditioning');
+  const hold = cond ? [30, 45] : undefined;
+  let n = 0;
+  for (const f of fams) {
+    const fl = load.filter(e => e.family === f);
+    const lvl = ctx.levelsEx[f]?.level ?? fl[0].level;
+    const ranked = [...fl].sort((a, b) => Math.abs(a.level - lvl) - Math.abs(b.level - lvl) || a.level - b.level);
+    // cardio: the near-level moves form one circuit (tier 1); otherwise one lead item per family
+    ranked.forEach((ex, i) => slots.push(T([f], role(f), (cond ? i < 4 && Math.abs(ex.level - lvl) <= 1.5 : i === 0) ? (n++ < (cond ? 4 : 3) ? 1 : 2) : Math.abs(ex.level - lvl) <= 1 ? 3 : 4,
+      { fixed: ex, ...(hold ? { hold } : {}) })));
+  }
+  if (cond) { quick.warmAvoid = new Set(load.map(e => e.id)); ctx.roundRest = 45; }
+  // filler strength slots (tier 4: only used once the pool's own work is in)
+  for (const f of fill.slots || []) slots.push(T([f], role(f), items.length ? 4 : 1, hold ? { hold } : {}));
+  const focus = [...new Set([...load, ...(fill.slots || []).map(f => ({ family: f }))].map(e => patternOf(e.family)))].filter(x => ['push', 'pull', 'legs', 'core'].includes(x));
+  const tpl = { kind: 'hard', name: '', focus: focus.length ? focus : ['mobility'], slots, pool: true, ...(cond ? { fmt: 'circuit' } : {}) };
+  return { tpl, items, key, fill, flows: flows.length };
+}
+
 function quickName(minutes, focus, muscles, goal, goalGiven) {
   let label;
   if (muscles.length) {
@@ -1883,7 +2126,10 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   const goalGiven = ALL_GOALS.includes(request.goal);
   const goal = goalGiven ? request.goal : 'health';
   const muscles = [...new Set((request.muscles || []).filter(m => MUSCLE_REGION[m]))];
-  let focus = muscles.length ? 'muscles' : (FOCUS_LABEL[request.focus] ? request.focus : 'full');
+  // a Library pool (tradition / category / family) wins over focus and goal; muscles win over a pool
+  const filter = muscles.length ? {} : Object.fromEntries(['tradition', 'category', 'family'].filter(k => typeof request[k] === 'string' && request[k]).map(k => [k, request[k]]));
+  const pooled = Object.keys(filter).length > 0;
+  let focus = muscles.length ? 'muscles' : pooled ? 'pool' : (FOCUS_LABEL[request.focus] ? request.focus : 'full');
   const base = profile ? { ...profile } : { ...QUICK_DEFAULT, equipment: Array.isArray(request.equipment) ? request.equipment : ['wall'],
     space: request.space || 'medium', lowImpact: !!request.lowImpact };
   const qp = { ...base, goals: [goal], primaryGoal: goal, minutesPerSession: minutes, _quick: true };
@@ -1895,9 +2141,14 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   ctx.balanceSessions = 0;
   ctx.hitCount = { core: 1, push: 1, pull: 1, legs: 1 };
   ctx.lightKeys = [];
-  const seed = hashStr(JSON.stringify([request.date || '', minutes, goal, focus, muscles, request.equipment || null, request.space || null, !!request.lowImpact])) % 9973;
+  const seed = hashStr(JSON.stringify([request.date || '', minutes, goal, focus, muscles, request.equipment || null, request.space || null, !!request.lowImpact,
+    ...(pooled ? [filter] : [])])) % 9973;
 
-  let tpl = quickTemplate(focus, muscles, ctx, seed, minutes);
+  const gq = {}; // what a content-led goal sets (applied last, over the generic Quick timing)
+  // "Train for a goal" (no area, no muscles): content-led goals choose the main block themselves
+  const goalLed = focus === 'full' && !muscles.length && GOAL_QUICK_LABEL[goal] ? goal : null;
+  const pool = pooled ? poolTemplate(filter, ctx, seed, minutes, gq, library) : null;
+  let tpl = pool ? pool.tpl : goalLed ? goalTemplate(goal, ctx, seed, minutes, gq) : quickTemplate(focus, muscles, ctx, seed, minutes);
   if (!tpl) { // nothing trains those muscles here: fall back to the body region
     const r = MUSCLE_REGION[muscles[0]];
     focus = r === 'legs' ? 'lower' : r === 'core' ? 'core' : 'upper';
@@ -1910,9 +2161,9 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   if (minutes < 15) quick.cond = 0;
   if (focus === 'muscles' || ['upper', 'lower', 'legs', 'push', 'pull'].includes(focus)) quick.cond = goal === 'endurance' && minutes >= 30 ? 180 : 0; // targeted time stays on target
   ctx.quick = true;
-  ctx.longHolds = focus === 'mobility' ? (minutes >= 60 ? 2 : minutes >= 30 ? 1 : 0) : minutes >= 60 ? 1 : 0;
+  ctx.longHolds = focus === 'mobility' || goalLed === 'flexibility' ? (minutes >= 60 ? 2 : minutes >= 30 ? 1 : 0) : minutes >= 60 ? 1 : 0;
   if (['upper', 'lower', 'legs', 'push', 'pull'].includes(focus)) tpl.targeted = true;
-  if (tpl.kind === 'hard' && minutes >= 30 && focus !== 'muscles') { // more variations of the same families, used only if time is left after the prescription
+  if (tpl.kind === 'hard' && minutes >= 30 && focus !== 'muscles' && !pool) { // more variations of the same families, used only if time is left after the prescription
     const fams = [...new Set(tpl.slots.map(x => x.fixed ? x.fixed.family : x.fams[0]))];
     for (let k = 0; k < 2; k++) for (const f of fams) tpl.slots.push(S([f], patternOf(f) === 'core' ? 'core' : f === 'calves' ? 'acc' : 'main', false, { tier: 4, variant: true }));
     if (minutes >= 45 && !tpl.targeted) for (let k = 0; k < 2; k++) for (const f of CORE) tpl.slots.push(S([f], 'core', false, { tier: 4, variant: true })); // long narrow sessions: complementary core work
@@ -1932,6 +2183,7 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   }
   if (focus === 'rotation') quick.mobOrder = ROTATION_MOBILITY;
   if (['mobility', 'flow', 'balance', 'rotation'].includes(focus)) quick.cond = 0;
+  Object.assign(quick, gq);
   if (muscles.length) { // stretches for the chosen areas first
     const ranked = [...ctx.avail.mobility].map((ex, i) => ({ ex, i, sc: muscleScore(ex, muscles).score })).sort((a, b) => b.sc - a.sc || a.i - b.i);
     quick.mobOrder = ranked.map(x => x.ex.id);
@@ -1939,8 +2191,24 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   const sess = buildSession({ key: 'quick', tpl, quick, hardIdx: 0, variant: 0 }, ctx, seed, 0);
   delete sess._tpl; delete sess._key;
   sess.id = 'Q';
-  sess.name = quickName(minutes, focus === 'muscles' ? 'muscles' : focus, focus === 'muscles' ? muscles : [], goal, goalGiven);
+  if (pool) {
+    const inPool = new Set(pool.items.map(e => e.id));
+    const label = filter.tradition ? TRADITIONS[filter.tradition]?.name || filter.tradition : filter.category ? CATEGORY_LABEL[filter.category] || filter.category
+      : ALL_FAMILIES[filter.family]?.name || filter.family;
+    sess.pool = { ...filter };
+    const warmB = filter.category === 'warmup' ? null : sess.blocks.find(b => b.kind === 'warmup');
+    const coolB = sess.blocks.find(b => b.kind === 'cooldown');
+    const added = sess.blocks.some(b => b !== warmB && b !== coolB && b.items.some(i => !inPool.has(i.exerciseId))); // filler in the content
+    const longCool = coolB && blockSec(coolB, ctx.info) > quick.cool + 120; // the stretches absorbed spare time
+    if (!pool.items.length) sess.note = `None of the ${label} moves suit you right now (kit, space or injuries), so this is a related session instead.`;
+    else if (added || longCool) sess.note = (typeof pool.fill.note === 'function' ? pool.fill.note(pool.flows) : pool.fill.note) || `There isn’t enough ${label} to fill ${minutes} minutes, so we’ve added related work around it.`;
+    sess.name = `${minutes}-min ${label}`;
+  } else sess.name = goalLed ? `${minutes}-min ${GOAL_QUICK_LABEL[goalLed]}` : quickName(minutes, focus === 'muscles' ? 'muscles' : focus, focus === 'muscles' ? muscles : [], goal, goalGiven);
   if (focus === 'mobility') sess.focus = ['mobility'];
+  if (goalLed === 'flexibility') {
+    sess.focus = sess.blocks.some(b => b.kind === 'flow') ? ['mobility', 'flow'] : ['mobility'];
+    for (const b of sess.blocks) if (b.kind === 'mobility') b.title = 'Mobility & stretching';
+  }
   if (focus === 'flow') sess.focus = sess.blocks.some(b => b.kind === 'flow') ? ['flow', 'mobility'] : ['mobility'];
   if (muscles.length) sess.muscles = muscles;
   sess.estMinutes = estimateMinutes(sess, library);
