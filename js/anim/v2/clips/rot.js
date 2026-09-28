@@ -4,7 +4,7 @@
 // side bending, + to the right. Free hands (grip 'free') are placed in the upper-chest (T4) frame: handX forward,
 // handY up the spine, handZ out to that hand's side. Every clip follows the fact-checked cues in js/data/exercises.js.
 import { P } from '../core.js';
-import { CLIPS, R, solve, dist, hold, repUp, box, rod, feet, mix, swing, stepLegs, floorPlank, straighten, palmsUnder, sidePlank, HANG, stand } from './lib.js';
+import { CLIPS, R, solve, dist, hold, repUp, box, rod, feet, mix, swing, stepLegs, floorPlank, straighten, palmsUnder, sidePlank, HANG, stand, quad } from './lib.js';
 
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
 const palms = S => mid(S.pt.palmR, S.pt.palmL);
@@ -88,24 +88,7 @@ const plank_shoulder_tap = floorPlank(c => ({
 }));
 
 // ---------------------------------------------------------------------------------------------------------------
-// all fours: both knees pinned under the hips, hands planted under the shoulders; the trunk pitch is solved so the
-// arms are straight. The right hand can lift off (release) to a free target; the left leg is free (FK).
-function quad(f) {
-  const c = {
-    floor: true, lag: .2, headLag: .3, shift: 0, shiftRoll: 0, _hx: 50, _hz: 18,
-    pin: { pt: S => S.pt.kneeR, at: [0, 6.2] },
-    arms: { both: { mode: 'ik', grip: 'palm', arc: 6, pole: [-.5, -1, .6], dir: s => [1, 0, .08 * s], target: (sd, s) => [c._hx, 0, c._hz * s] } },
-    base: { pitch: 90, hipFlex: 90, knee: 96, ankle: 86, cervical: 2, head: -6, thoracic: 0, lumbar: 1, wrist: 0 },
-    prep({ settle }) {
-      const q = c.keys.quad;   // pitch so the arm hangs straight (97%) to a hand under the shoulder
-      q.pitch = solve(75, 110, p => { const g = settle({ ...q, pitch: p }, true).pt.glenoidR; return g[1] - 2.4; }, .97 * 55);
-      const g = settle(q, true).pt.glenoidR; c._hx = g[0] + 5.2; c._hz = g[2] + 1;
-      for (const k in c.keys) if (c.keys[k].pitch == null) c.keys[k].pitch = q.pitch + (c.keys[k].dp || 0);   // dp: lower the chest
-    },
-  };
-  const o = f(c);
-  return Object.assign(c, o, { prep: c.prep });
-}
+// all fours (quad() in lib.js): knees pinned, hands under the shoulders; the right hand can lift off (release).
 // bird dog reach-through: reach the right arm forward and the left leg back; draw elbow and knee together under the
 // body; reach long again; hips level. Sides alternate.
 const bird_dog_row = quad(c => ({

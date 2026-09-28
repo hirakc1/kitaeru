@@ -237,6 +237,24 @@ export const stepLegs = { both: { mode: 'ik', foot: 'step', pole: (s, ch) => { c
 // (yaw -90, roll = bodyAngle - 90). Feet stacked (left foot on its outer edge); the elbow under the shoulder is solved
 // in prep. The right arm is the clip's (FK by default).
 // ---------------------------------------------------------------------------------------------------------------
+// all fours: the right knee pinned, hands planted under the shoulders at 97% reach (bird dog, thread the needle, cat-cow)
+export function quad(f) {
+  const c = {
+    floor: true, lag: .2, headLag: .3, shift: 0, shiftRoll: 0, _hx: 50, _hz: 18,
+    pin: { pt: S => S.pt.kneeR, at: [0, 6.2] },
+    arms: { both: { mode: 'ik', grip: 'palm', arc: 6, pole: [-.5, -1, .6], dir: s => [1, 0, .08 * s], target: (sd, s) => [c._hx, 0, c._hz * s] } },
+    base: { pitch: 90, hipFlex: 90, knee: 96, ankle: 86, cervical: 2, head: -6, thoracic: 0, lumbar: 1, wrist: 0 },
+    prep({ settle }) {
+      const q = c.keys.quad;   // pitch so the arm hangs straight (97%) to a hand under the shoulder
+      q.pitch = solve(75, 110, p => { const g = settle({ ...q, pitch: p }, true).pt.glenoidR; return g[1] - 2.4; }, .97 * 55);
+      const g = settle(q, true).pt.glenoidR; c._hx = g[0] + 5.2; c._hz = g[2] + 1;
+      for (const k in c.keys) if (c.keys[k].pitch == null) c.keys[k].pitch = q.pitch + (c.keys[k].dp || 0);   // dp: lower the chest
+    },
+  };
+  const o = f(c);
+  return Object.assign(c, o, { prep: c.prep });
+}
+
 // standing: two planted feet (stepping legs, constant), weight shared by the keyed 'weight'; free hands
 // a free hand target for an arm raised el degrees from hanging (90 = horizontal, 180 = overhead), in a plane turned az
 // degrees from straight ahead (0) to straight out to the side (90; negative: across the body), r cm from the shoulder

@@ -9,6 +9,10 @@ export const V2_GROUPS = {
   legs: ['bodyweight_squat', 'box_squat', 'split_squat', 'bulgarian_split_squat', 'calf_raise', 'single_leg_calf_raise',
     'glute_bridge', 'single_leg_glute_bridge', 'hip_thrust'],
   trunk: ['plank', 'side_plank', 'superman'],
+  // batch 3: core and skill
+  abs: ['wall_handstand_push_up', 'dead_bug', 'lying_leg_raise', 'hollow_body_hold', 'hanging_knee_raise', 'hanging_leg_raise', 'l_sit', 'side_plank_hip_dip',
+    'bird_dog', 'crow_pose', 'wall_handstand', 'freestanding_handstand'],
+  strength: ['prone_ytw', 'superman_pull', 'reverse_lunge', 'cossack_squat', 'pistol_squat', 'shrimp_squat', 'single_leg_rdl', 'nordic_curl_negative'],
   // v1.2: rotation / anti-rotation, then the strength traditions
   rot: ['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'bodyweight_woodchop', 'rotational_lunge',
     'band_woodchop', 'standing_windmill', 'bird_dog_row', 'half_kneeling_pallof_hold', 'plank_shoulder_tap', 'pallof_press',
