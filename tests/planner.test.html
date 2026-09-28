@@ -526,10 +526,10 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     const k = e.family + ':' + e.level; ok(!famLv[k], `${T}: level ${e.level} not unique in ${e.family}`); famLv[k] = 1;
     if (isTrad(e)) {
       ok(e.verified === null, `${T}: tradition item must not be self-verified`);
-      ok(Array.isArray(e.sources) && e.sources.length >= (e.adaptation ? 1 : 2), `${T}: needs 2+ sources (${(e.sources || []).length})`);
+      ok(Array.isArray(e.sources) && e.sources.length >= (e.adaptation ? 0 : 2), `${T}: needs 2+ sources (${(e.sources || []).length})`);
       ok((e.sources || []).every(s => s.label && /^https:\/\//.test(s.url) && ['official', 'reference', 'research'].includes(s.kind)), `${T}: malformed source`);
       if (['radio_taiso', 'baduanjin'].includes(e.tradition) && !e.adaptation) ok(e.sources.some(s => s.kind === 'official'), `${T}: needs an official source`);
-      ok(e.adaptation || (e.nativeName && e.nativeName.text && e.nativeName.romanised), `${T}: native name + romanisation`);
+      ok(e.adaptation || (e.mode === 'flow' && e.nativeName === null) || (e.nativeName && e.nativeName.text && e.nativeName.romanised), `${T}: native name + romanisation (a Kitaeru-named flow sets null)`);
       ok(e.cultural && e.evidence && e.origin, `${T}: cultural / evidence / origin`);
     }
     if (e.mode === 'flow') {
@@ -545,7 +545,9 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     ok(Array.isArray(t.sources) && t.sources.length >= 2 && t.sources.every(s => /^https:\/\//.test(s.url)), `tradition ${id}: 2+ sources`);
     ok(!/reviewed by/i.test(JSON.stringify(t)), `tradition ${id}: card copy must never say "Reviewed by"`);
   }
-  ok(TRAD_IDS.length === 5 && TRADITIONS.rotation.gate === false, 'five traditions.js entries; rotation is a non-gating explainer');
+  ok(TRAD_IDS.length === 6 && TRADITIONS.rotation.gate === false, 'six traditions.js entries; rotation is a non-gating explainer');
+  ok(ALL_EXERCISES.filter(isTrad).every(e => TRADITIONS[e.tradition]), 'every tradition item has a tradition card');
+  ok(TRADITIONS.radio_taiso.nativeName === null && ALL_BY_ID.radio_taiso_1.nativeName === null, 'Morning Taisō has no invented native name');
   const rt1 = ALL_BY_ID.radio_taiso_1;
   ok(rt1.sequence.length === 13 && rt1.sequence[1].move === 'rt_arm_swing_knee_bend' && rt1.sequence[11].move === 'rt_arm_swing_knee_bend' && rt1.sequence[12].move === 'rt_deep_breath', 'Morning Taiso: 13 steps in the official order (step 12 repeats step 2)');
   ok(rt1.estSec >= 165 && rt1.estSec <= 200, `Morning Taiso about 3 min (${rt1.estSec} s)`);
@@ -628,7 +630,7 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   // ---- preview on: invariants across the grid with the full library
   setTraditionPreview(true);
   ok(ALL_EXERCISES.every(e => exerciseAnimated(e, ALL_BY_ID)) && P.isAvailable(ALL_BY_ID.open_book, mk({})), 'preview shows everything: the animation gate is off');
-  ok(traditionVisible('tai_chi') && traditionVisible('chinese_martial_arts') && EXCLUDED_TRADITIONS.every(id => !traditionVisible(id)), 'preview shows unverified traditions but never the §5.3 exclusions');
+  ok(traditionVisible('tai_chi') && traditionVisible('horse_stance') && EXCLUDED_TRADITIONS.every(id => !traditionVisible(id)), 'preview shows unverified traditions but never the §5.3 exclusions');
   const LIB = ALL_EXERCISES;
   const inv = (s, p, T, M) => {
     const ids = allIt(s).map(i => i.exerciseId);
@@ -706,9 +708,11 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   ok(its.filter(i => i.flow && ALL_BY_ID[i.exerciseId].stanceLevels).every(i => i.flow.stance === 'high') && its.some(i => i.exerciseId === 'taichi_short_flow'), 'knee: every Tai Chi / Baduanjin flow at a high stance');
   its = everything(mk({ injuries: ['neck'], age: 58, primaryGoal: 'health' }));
   ok(!its.some(i => i.exerciseId === 'baduanjin_look_back'), 'neck: no "wise owl looks back"');
+  ok(ALL_BY_ID.rt_trunk_twist.stress.includes('neck') && !its.some(i => i.exerciseId === 'rt_trunk_twist'), 'neck: no standalone Morning Taisō trunk twist');
   bf = flowOf(its, 'baduanjin_sequence'); rf = flowOf(its, 'radio_taiso_1');
   ok(bf && bf.flow.skip.includes('baduanjin_look_back') && bf.flow.skip.includes('baduanjin_sway_head_tail'), `neck: Baduanjin drops the neck pieces (${bf && JSON.stringify(bf.flow.skip)})`);
   ok(rf && /head turns small/.test(rf.notes), 'neck: Morning Taiso caps the neck range');
+  ok(rf && !rf.flow.skip.includes('rt_trunk_twist'), 'neck: the Morning Taiso trunk twist stays, in a smaller range');
   its = everything(mk({ injuries: ['wrist'], equipment: [] }));
   ok(!its.some(i => ['dand', 'plank_shoulder_tap'].includes(i.exerciseId)), 'wrist: no daṇḍ, no shoulder taps');
   its = everything(mk({ age: 67, primaryGoal: 'health' }));

@@ -14,23 +14,24 @@
  * The only place the Radio Taisō name appears in user-facing data. The music is copyrighted and never ships;
  * the name's trademark status is unconfirmed. To remove the name everywhere, blank this one string.
  */
-export const RADIO_TAISO_ATTRIBUTION = 'the Radio Taisō No. 1 movements';
+export const RADIO_TAISO_ATTRIBUTION = 'The Radio Taisō No. 1 movements (NHK / Japan Post Insurance). Kitaeru is not affiliated with them.';
 
 const S = (label, url, kind) => ({ label, url, kind });
 
 export const TRADITIONS = {
   radio_taiso: {
     name: 'Morning Taisō',
-    nativeName: { text: '朝の体操', romanised: 'asa no taisō', lang: 'ja' },
+    nativeName: null, // "Morning Taisō" is Kitaeru's own name, not a Japanese title
     region: 'East Asia', countries: ['JP'],
     era: '1928–; current No. 1 sequence 1951',
-    card: 'Since 1928, Japan has started the day with the same few minutes of exercises, in schoolyards, offices and parks. '
-      + 'Thirteen brisk movements take every joint through its range. In a recent trial, frail older adults who did them daily '
-      + 'moved more quickly and confidently. Kitaeru teaches the movements with its own count; no music is used.',
+    card: 'Since 1928, Japan has started the day with a few minutes of exercises, in schoolyards, offices and parks; '
+      + 'the current sequence dates from 1951. Thirteen brisk movements take every joint through its range. In a recent trial, '
+      + 'frail older adults who did them daily, alongside a nutrition programme, improved in agility, balance and endurance. '
+      + 'Kitaeru teaches the movements with its own count; no music is used.',
     principles: ['Brisk and on the count', 'Every joint, every direction', 'Big, relaxed movements', 'Finish with a slow breath'],
     trains: { strength: 0, mobility: 2, balance: 1, breath: 1, coordination: 1 },
     evidence: [
-      { grade: 'B', claim: 'Better agility, balance and endurance in frail older adults (12-week trial)', cite: 'Osuka et al. 2024, J Epidemiol',
+      { grade: 'B', claim: 'May improve agility, balance and endurance in frail older adults (one 12-week trial)', cite: 'Osuka et al. 2024, J Epidemiol',
         url: 'https://www.jstage.jst.go.jp/article/jea/34/10/34_JE20230317/_article/-char/en' },
     ],
     safety: ['Swap the hops for heel raises if you avoid impact', 'Keep bends and twists in a comfortable range'],
@@ -38,8 +39,9 @@ export const TRADITIONS = {
     sensitivity: 'attributed',
     sources: [
       S('Japan Post Insurance: illustrated guide to the No. 1 movements', 'https://www.jp-life.japanpost.jp/radio/instruction/radio_first.html', 'official'),
+      S('NHK: radio exercise No. 1 and 2 illustrated sheet', 'https://www.nhk.or.jp/program/radio-taisou/pdf/radio.pdf', 'official'),
       S('Japan Post Insurance: music and usage rules', 'https://www.jp-life.japanpost.jp/radio/abt_csr_rdo_cr.html', 'official'),
-      S('Nippon.com: a history of the morning exercises', 'https://www.nippon.com/en/features/jg00068/', 'reference'),
+      S('Nippon.com (Japan Glances): Japan’s Radio Calisthenics', 'https://www.nippon.com/en/features/jg00068/', 'reference'),
       S('Wikipedia: Radio calisthenics', 'https://en.wikipedia.org/wiki/Radio_calisthenics', 'reference'),
       S('Osuka et al. 2024, J Epidemiol (RCT)', 'https://www.jstage.jst.go.jp/article/jea/34/10/34_JE20230317/_article/-char/en', 'research'),
     ],
@@ -61,7 +63,7 @@ export const TRADITIONS = {
     evidence: [
       { grade: 'A', claim: 'Fewer falls in older adults', cite: 'Sherrington et al. 2019, Cochrane',
         url: 'https://www.cochranelibrary.com/cdsr/doi/10.1002/14651858.CD012424.pub2/full' },
-      { grade: 'B', claim: 'Knee osteoarthritis pain improved about as much as with physical therapy', cite: 'Wang et al. 2016, Ann Intern Med',
+      { grade: 'B', claim: 'May ease knee osteoarthritis symptoms about as much as physical therapy (one trial)', cite: 'Wang et al. 2016, Ann Intern Med',
         url: 'https://pubmed.ncbi.nlm.nih.gov/27183035/' },
     ],
     safety: ['Keep your knees in line with your toes', 'Use a high stance until it feels easy', 'Keep a chair nearby for one-leg forms'],
@@ -90,7 +92,7 @@ export const TRADITIONS = {
     trains: { strength: 1, mobility: 2, balance: 1, breath: 2, coordination: 1 },
     evidence: [
       { grade: 'B', claim: 'May improve flexibility, balance, sleep quality and blood pressure', cite: 'Zou et al. 2017, eCAM (meta-analysis)',
-        url: 'https://onlinelibrary.wiley.com/doi/10.1155/2017/4548706' },
+        url: 'https://pubmed.ncbi.nlm.nih.gov/28367223/' },
     ],
     safety: ['Keep head turns small and pain-free', 'Bend your knees in forward folds'],
     attribution: 'Health Qigong Baduanjin, standardised by the Chinese Health Qigong Association (2003)',
@@ -99,7 +101,7 @@ export const TRADITIONS = {
       S('General Administration of Sport, Health Qigong Management Center: Baduanjin', 'https://www.sport.gov.cn/qgzx/n5407/c840284/content.html', 'official'),
       S('Heshan Municipal Health Bureau: Baduanjin guide', 'https://www.heshan.gov.cn/jmhswjj/gkmlpt/content/3/3043/post_3043430.html', 'official'),
       S('Wikipedia: Baduanjin qigong', 'https://en.wikipedia.org/wiki/Baduanjin_qigong', 'reference'),
-      S('Zou et al. 2017, eCAM (meta-analysis)', 'https://onlinelibrary.wiley.com/doi/10.1155/2017/4548706', 'research'),
+      S('Zou et al. 2017, eCAM (meta-analysis)', 'https://pubmed.ncbi.nlm.nih.gov/28367223/', 'research'),
     ],
     verified: null,
     learnMore: [],
@@ -108,7 +110,7 @@ export const TRADITIONS = {
   },
   pehlwani: {
     name: 'Pehlwani',
-    nativeName: { text: 'पहलवानी', romanised: 'pahalvānī', lang: 'hi', alt: [{ text: 'کشتی', lang: 'ur' }] },
+    nativeName: { text: 'पहलवानी', romanised: 'pahalvānī', lang: 'hi', alt: [{ text: 'پہلوانی', romanised: 'pahalwānī', lang: 'ur' }] },
     region: 'South Asia', countries: ['IN', 'PK'],
     era: 'Mughal era–',
     card: 'In earthen wrestling pits called akhāṛās, Pehlwani wrestlers build endurance with long sets of daṇḍs and baiṭhaks. '
@@ -117,7 +119,7 @@ export const TRADITIONS = {
     principles: ['Rhythm over speed', 'Breathe with every rep', 'Build volume patiently'],
     trains: { strength: 2, mobility: 1, balance: 0, breath: 1, coordination: 1 },
     evidence: [
-      { grade: 'C', claim: 'Trains the same muscles as push-ups and squats; the specific movements have not been trialled', cite: 'Kotarsky et al. 2018 (push-up progressions)',
+      { grade: 'C', claim: 'The daṇḍ is a push-up variant; push-up progressions build upper-body strength', cite: 'Kotarsky et al. 2018 (push-up progressions)',
         url: 'https://pubmed.ncbi.nlm.nih.gov/29466268/' },
     ],
     safety: ['Keep the cobra arc in a pain-free range', 'Skip the baiṭhak if your knees complain'],
@@ -127,10 +129,37 @@ export const TRADITIONS = {
       S('Alter, The Wrestler’s Body (UC Press, 1992)', 'https://publishing.cdlib.org/ucpressebooks/view?docId=ft6n39p104&brand=ucpress', 'reference'),
       S('Wikipedia: Pehlwani', 'https://en.wikipedia.org/wiki/Pehlwani', 'reference'),
       S('Wikipedia: The Great Gama', 'https://en.wikipedia.org/wiki/The_Great_Gama', 'reference'),
+      S('Olympics.com: Who is the Great Gama', 'https://www.olympics.com/en/news/who-is-the-great-gama-pehlwan-india-wrestler', 'reference'),
     ],
     verified: null,
     learnMore: [],
     families: ['push_horizontal', 'conditioning'],
+    since: '1.2',
+  },
+  horse_stance: {
+    name: 'Horse stance',
+    nativeName: { text: '马步', romanised: 'mǎbù', lang: 'zh-Hans', alt: [{ text: '馬步', lang: 'zh-Hant' }] },
+    region: 'East Asia', countries: ['CN'],
+    card: 'Generations of martial artists began by simply holding the horse stance. '
+      + 'It builds strong, patient legs and a steady centre, and it teaches you to breathe calmly under effort.',
+    principles: ['Hold still with good alignment', 'Stay relaxed and breathe slowly', 'Lower the stance over months'],
+    trains: { strength: 2, mobility: 0, balance: 1, breath: 1, coordination: 0 },
+    evidence: [
+      { grade: 'C', claim: 'Indirect: isometric training, with the wall squat ranked highest, lowered resting blood pressure; the horse stance itself has not been trialled',
+        cite: 'Edwards et al. 2023, BJSM (network meta-analysis)', url: 'https://pubmed.ncbi.nlm.nih.gov/37491419/' },
+    ],
+    safety: ['Deep holds load the knees: start high, knees only slightly bent', 'Go lower before you hold for longer',
+      'Never hold your breath, especially if you have high blood pressure'],
+    attribution: 'Foundation stance of Chinese martial arts (mǎbù)',
+    sensitivity: 'attributed',
+    sources: [
+      S('Wikipedia: Horse stance', 'https://en.wikipedia.org/wiki/Horse_stance', 'reference'),
+      S('Guangzhou College of Technology and Business: university wushu course plan, basic stances (马步)', 'https://www.gzgs.edu.cn/__local/7/D6/39/AB29C045F11DC31F11D99E4EC9C_E7669F1F_27A40B.pdf', 'reference'),
+      S('Edwards et al. 2023, BJSM: exercise training and resting blood pressure', 'https://pubmed.ncbi.nlm.nih.gov/37491419/', 'research'),
+    ],
+    verified: null,
+    learnMore: [],
+    families: ['stance'],
     since: '1.2',
   },
   // Not a tradition: an explainer card for the generic rotation / anti-rotation families. It never gates anything.
