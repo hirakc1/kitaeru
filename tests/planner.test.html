@@ -1006,7 +1006,7 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
     ok(its.every(i => byId[i.exerciseId] && P.isAvailable(byId[i.exerciseId], eff) && isVisible(byId[i.exerciseId])), `${T}: unavailable ${its.filter(i => !P.isAvailable(byId[i.exerciseId], eff)).map(i => i.exerciseId)}`);
     ok([...pool].every(id => P.isAvailable(byId[id], eff)), `${T}: pool lists unavailable items`);
     const est = P.estimateSeconds(q, EXERCISES) / 60;
-    ok(Math.abs(est - minutes) <= (minutes <= 10 ? 2 : 0.1 * minutes), `${T}: ${est.toFixed(1)} min (${q.blocks.map(b => b.kind + ':' + b.items.map(i => i.exerciseId + 'x' + i.sets))})`);
+    ok(Math.abs(est - minutes) <= 0.1 * minutes, `${T}: ${est.toFixed(1)} min, not within ±10% (${q.blocks.map(b => b.kind + ':' + b.items.map(i => i.exerciseId + 'x' + i.sets))})`);
     ok(q.id === 'Q' && q.name.startsWith(`${minutes}-min `) && q.estMinutes === P.estimateMinutes(q, EXERCISES), `${T}: id/name/estMinutes ${q.name}`);
     ok(JSON.stringify(q.pool) === JSON.stringify(f), `${T}: pool echo ${JSON.stringify(q.pool)}`);
     ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${T}: deterministic`);
@@ -1019,6 +1019,11 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
       const outside = content.filter(i => !pool.has(i.exerciseId));
       if (outside.length || secOf(inPool) < 0.5 * secOf(content)) ok(typeof q.note === 'string' && q.note.length > 20, `${T}: filled outside the pool without a note (${outside.map(i => i.exerciseId)})`);
       if (!q.note) ok(!outside.length, `${T}: no note but outside items`);
+      // a one-move pool (horse stance) is always filled around, with a note, at every length
+      if (pool.size === 1) ok(typeof q.note === 'string' && outside.length > 0, `${T}: one-move pool without filler and a note (${content.map(i => i.exerciseId)})`);
+      const warmB = f.category === 'warmup' ? null : q.blocks.find(b => b.kind === 'warmup');
+      const own = q.blocks.filter(b => b !== warmB && b.kind !== 'cooldown').flatMap(b => b.items).filter(i => pool.has(i.exerciseId));
+      if (secOf(own) < 0.5 * (P.estimateSeconds(q, EXERCISES) - (warmB ? P.estimateSeconds({ blocks: [warmB] }, EXERCISES) : 0))) ok(!!q.note, `${T}: pool work under half the session without a note`);
     }
   }
   // specifics the founder named

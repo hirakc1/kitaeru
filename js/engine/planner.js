@@ -2114,8 +2114,9 @@ function poolBlock(ctx, P, used, info, M) {
 function poolTemplate(filter, ctx, seed, minutes, quick, library) {
   const secs = minutes * 60;
   const key = filter.tradition ? `tradition:${filter.tradition}` : filter.category ? `category:${filter.category}` : `family:${filter.family}`;
-  const fill = POOL_FILL[key] || (filter.family && FALLBACK[filter.family] ? { slots: FALLBACK[filter.family] } : { ids: [...FLEX_DYNAMIC, ...FLEX_HOLDS] });
   const items = poolItems(filter, ctx, library);
+  const famCat = filter.family && (ctx.fam[filter.family] || [])[0]?.category; // a family pool fills like its category
+  const fill = POOL_FILL[key] || (filter.family && FALLBACK[filter.family]?.length ? { slots: FALLBACK[filter.family] } : POOL_FILL[`category:${famCat}`]) || { ids: [...FLEX_DYNAMIC, ...FLEX_HOLDS] };
   const flows = items.filter(e => e.mode === 'flow');
   let skills = items.filter(e => e.family === 'skill_balance');
   if (fill.skillAlt && !skills.length) skills = SKILL_ALT.map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e)); // no handbalance possible: other skill holds
@@ -2124,23 +2125,25 @@ function poolTemplate(filter, ctx, seed, minutes, quick, library) {
   const byT = (a, b) => (a.mode === 'hold') - (b.mode === 'hold') || a.level - b.level;
   quick.warm = filter.category === 'warmup' ? 0 : minutes <= 5 ? 45 : minutes <= 10 ? 60 : Math.round(Math.min(0.1 * secs, 180));
   quick.noWarm = filter.category === 'warmup';
-  quick.cool = minutes <= 5 ? 45 : minutes <= 10 ? 60 : Math.round(Math.min(0.1 * secs, 240));
+  quick.cool = minutes <= 5 ? 30 : minutes <= 10 ? 60 : Math.round(Math.min(0.1 * secs, 240));
   quick.cond = 0;
   let content = secs - quick.warm - quick.cool;
   if (skills.length) { // skill practice first, capped at 10 min (research §1.1)
     const cur = ctx.levelsEx.skill_balance && skills.includes(ctx.levelsEx.skill_balance) ? ctx.levelsEx.skill_balance : nearest(skills, ctx.levelsEx.skill_balance?.level ?? 1);
     quick.skill = { list: [cur, ...skills.filter(e => e !== cur && Math.abs(e.level - cur.level) <= 1)], max: minutes <= 5 ? 1 : 3, // never more than a level ahead
-      sec: Math.min(600, load.length || gentle.length || flows.length ? Math.round(0.5 * content) : content) };
+      sec: Math.min(600, load.length || gentle.length || flows.length || items.length === 1 ? Math.round(0.55 * content) : content) }; // one skill: room for support
     content -= quick.skill.sec;
     quick.warmFirst = ['wrist_prep'];
   }
   const gentleShare = !load.length ? 1 : !(gentle.length + flows.length) ? 0 : clamp((gentle.length + flows.length * 3) / (gentle.length + flows.length * 3 + load.length), 0.3, 0.7);
   // last resort for any gentle pool: easy whole-body drills, so a small pool (small space, injuries) still fills its time
-  const fillIds = [...new Set([...(fill.ids || []), ...POOL_TAIL])].map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !items.includes(e));
+  const okFill = id => ctx.byId[id] && ctx.isAvail(ctx.byId[id]) && !items.includes(ctx.byId[id]);
+  const fillMain = (fill.ids || []).filter(okFill), fillTail = POOL_TAIL.filter(id => okFill(id) && !fillMain.includes(id));
+  const fillIds = [...rotate(fillMain, seed), ...fillTail].map(id => ctx.byId[id]); // the related filler first (varied by day), the easy tail last
   if (gentle.length || flows.length || (!load.length && !skills.length)) {
     const kind = filter.tradition ? (flows.length ? 'flow' : 'mobility') : items.length ? GENTLE_KIND[filter.category] || 'mobility' : 'mobility';
     const title = filter.tradition ? TRADITIONS[filter.tradition].name : CATEGORY_LABEL[filter.category] || ALL_FAMILIES[filter.family]?.name || 'Practice';
-    quick.pool = { kind, title, flows: [...flows].sort((a, b) => a.level - b.level), singles: rotate([...gentle].sort(byT), 0), filler: rotate(fillIds, seed),
+    quick.pool = { kind, title, flows: [...flows].sort((a, b) => a.level - b.level), singles: rotate([...gentle].sort(byT), 0), filler: fillIds,
       sec: Math.round(gentleShare * content) };
   }
   const T = (fams, role, tier, extra = {}) => S(fams, role, tier <= 2, { tier, ...extra });
@@ -2157,14 +2160,88 @@ function poolTemplate(filter, ctx, seed, minutes, quick, library) {
     const ranked = [...fl].sort((a, b) => Math.abs(a.level - lvl) - Math.abs(b.level - lvl) || a.level - b.level);
     // cardio: the near-level moves form one circuit (tier 1); otherwise one lead item per family
     ranked.forEach((ex, i) => slots.push(T([f], role(f), (cond ? i < 4 && Math.abs(ex.level - lvl) <= 1.5 : i === 0) ? (n++ < (cond ? 4 : 3) ? 1 : 2) : Math.abs(ex.level - lvl) <= 1 ? 3 : 4,
-      { fixed: ex, ...(hold ? { hold } : {}) })));
+      { fixed: ex, ...(minutes <= 10 ? { minSets: 1 } : {}), ...(hold ? { hold } : {}) }))); // short sessions: breadth before sets
   }
   if (cond) { quick.warmAvoid = new Set(load.map(e => e.id)); ctx.roundRest = 45; }
   // filler strength slots (tier 4: only used once the pool's own work is in)
-  for (const f of fill.slots || []) slots.push(T([f], role(f), items.length ? 4 : 1, hold ? { hold } : {}));
+  // filler may be a single set; a one-move pool (horse stance) takes it early so the session is more than one hold and stretches
+  const lone = items.length === 1 && !flows.length; // a one-move pool: filler joins early
+  for (const f of fill.slots || []) slots.push(T([f], role(f), !items.length ? 1 : lone ? 2 : 4, { minSets: 1, ...(hold ? { hold } : {}) }));
   const focus = [...new Set([...load, ...(fill.slots || []).map(f => ({ family: f }))].map(e => patternOf(e.family)))].filter(x => ['push', 'pull', 'legs', 'core'].includes(x));
-  const tpl = { kind: 'hard', name: '', focus: focus.length ? focus : ['mobility'], slots, pool: true, ...(cond ? { fmt: 'circuit' } : {}) };
+  const tpl = { kind: 'hard', name: '', focus: focus.length ? focus : ['mobility'], slots, pool: true, ...(lone ? { targeted: true } : {}), ...(cond ? { fmt: 'circuit' } : {}) };
   return { tpl, items, key, fill, flows: flows.length };
+}
+
+/**
+ * Pool sessions land within about ±8% of the requested length: trim the cool-down (then extra warm-up drills) when over;
+ * when short, add sets of the pool's own moves, then a pool form or related filler, then main sets, then stretches.
+ */
+function fitLength(sess, T, ctx, P) {
+  const info = ctx.info, lo = 0.93 * T, hi = 1.1 * T - 1; // aim inside ±7%, never past +10%
+  const secs = () => sessionSec(sess, info);
+  const kinds = k => sess.blocks.filter(b => b.kind === k);
+  const content = () => sess.blocks.filter(b => b.kind !== 'warmup' && b.kind !== 'cooldown');
+  const warm = kinds('warmup')[0];
+  for (let g = 0; g < 40 && secs() > hi; g++) {
+    const cool = kinds('cooldown')[0];
+    const b = cool && cool.items.length ? cool : warm && warm.items.length > 1 ? warm : null;
+    if (b) { const it = b.items[b.items.length - 1]; if (it.sets > 1) it.sets--; else b.items.pop(); continue; }
+    // still over: one set fewer of the biggest content item (a superset group together), else drop a last extra move
+    const its = content().flatMap(x => x.items).filter(i => i.sets > 1).sort((a, c) => setSec(c, info) - setSec(a, info));
+    if (its.length) { const it = its[0]; const grp = it.superset != null ? content().flatMap(x => x.items).filter(x => x.superset === it.superset) : [it]; grp.forEach(x => { x.sets = Math.max(1, x.sets - 1); }); continue; }
+    const wi = warm && warm.items[0];
+    if (wi && wi.reps && wi.reps[1] > 6) { wi.reps = [4, 6]; continue; } // a shorter warm-up drill
+    const long = content().flatMap(x => x.items).filter(i => i.reps && i.reps[1] > 10).sort((a, c) => setSec(c, info) - setSec(a, info))[0];
+    if (long) { long.reps = [Math.max(5, long.reps[0] - 3), 10]; continue; } // fewer reps on the longest set
+    const cb = content().filter(x => x.items.length).pop();
+    if (!cb || content().reduce((n, x) => n + x.items.length, 0) <= 2) break;
+    cb.items.pop();
+  }
+  sess.blocks = sess.blocks.filter(b => b.items.length);
+  const used = new Set(sess.blocks.flatMap(b => b.items.map(i => i.exerciseId)));
+  const poolBlk = sess.blocks.find(b => P && b.kind === P.kind && b.title === P.title);
+  const main = sess.blocks.find(b => b.kind === 'main');
+  let cool = kinds('cooldown')[0];
+  if (!cool) { cool = { kind: 'cooldown', title: 'Cool-down', items: [] }; sess.blocks.push(cool); }
+  const bump = (list, cap) => () => { // +1 set to the first item (or superset group) that still fits
+    for (const it of list()) {
+      const grp = it.superset != null ? main.items.filter(x => x.superset === it.superset) : [it];
+      if (grp.some(x => x.sets >= (x.flow ? (FLOW_ROUNDS[x.exerciseId] || 1) : cap))) continue;
+      grp.forEach(x => { x.sets++; if (x.flow && x.sets > 1) x.restSec = 20; });
+      if (secs() <= hi) return true;
+      grp.forEach(x => { x.sets--; if (x.flow && x.sets === 1) x.restSec = 0; });
+    }
+    return false;
+  };
+  const add = (block, cands, light = false) => () => {
+    for (const ex of cands) {
+      if (!ex || used.has(ex.id) || !ctx.isAvail(ex)) continue;
+      const it = light ? flatItem(ex, { reps: [4, 6], hold: [15, 20], sets: 1 })
+        : ex.category === 'mobility' && ex.family === 'mobility' ? mobilityItem(ctx)(ex, 1) : poolSingle(ex, ctx, 1);
+      block.items.push(it);
+      if (secs() <= hi) { used.add(ex.id); return true; }
+      block.items.pop();
+    }
+    return false;
+  };
+  const steps = [];
+  if (poolBlk) steps.push(bump(() => poolBlk.items.filter(i => !i.flow), 4), add(poolBlk, [...P.singles, ...P.filler]), bump(() => poolBlk.items.filter(i => i.flow), 4));
+  if (main) steps.push(bump(() => main.items.filter(i => !i.superset || main.items.find(x => x.superset === i.superset) === i), 6));
+  steps.push(bump(() => cool.items, 3), add(cool, candidates(MOBILITY_ORDER.full, ctx, ['mobility'])));
+  if (warm) steps.push(bump(() => warm.items, 2));
+  if (poolBlk) steps.push(add(poolBlk, [...P.singles, ...P.filler], true)); // a short extra hold or a few slow reps
+  steps.push(add(cool, candidates(MOBILITY_ORDER.full, ctx, ['mobility']), true));
+  for (let g = 0; g < 60 && secs() < lo; g++) if (!steps.some(f => f())) break;
+  // prefer the pool's own work to stretching: trade a cool-down stretch for another set of a pool move when it still fits
+  const own = [...(poolBlk ? [bump(() => poolBlk.items, 4)] : []), ...(main ? [steps.find((f, i) => i === (poolBlk ? 3 : 0))] : [])].filter(Boolean);
+  for (let g = 0; g < 8 && cool.items.length > (T > 300 ? 1 : 0); g++) {
+    const snap = JSON.stringify(sess.blocks);
+    const gone = cool.items.pop();
+    let grew = false;
+    while (secs() < hi && own.some(f => f())) grew = true;
+    if (!grew || secs() < lo) { const back = JSON.parse(snap); sess.blocks.forEach((b, i) => { b.items = back[i].items; }); void gone; break; }
+  }
+  sess.blocks = sess.blocks.filter(b => b.items.length);
 }
 
 function quickName(minutes, focus, muscles, goal, goalGiven) {
@@ -2249,7 +2326,7 @@ export function generateQuickSession(request = {}, profile = null, levels = null
     const ranked = [...ctx.avail.mobility].map((ex, i) => ({ ex, i, sc: muscleScore(ex, muscles).score })).sort((a, b) => b.sc - a.sc || a.i - b.i);
     quick.mobOrder = ranked.map(x => x.ex.id);
   }
-  ctx.twoMoves = focus === 'full'; // "train for a goal": a 5-min session always has at least two moves
+  ctx.twoMoves = focus === 'full' || (pooled && filter.category !== 'warmup'); // goal and pool sessions: a 5-min session always has at least two moves
   let sess = buildSession({ key: 'quick', tpl, quick, hardIdx: 0, variant: 0 }, ctx, seed, 0);
   const contentN = s => s.blocks.filter(b => b.kind !== 'warmup' && b.kind !== 'cooldown').reduce((n, b) => n + b.items.length, 0);
   if (ctx.twoMoves && minutes <= 5 && contentN(sess) < 2) { // 5 min: never a single move; the warm-up and cool-down shrink to their minimum
@@ -2259,6 +2336,7 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   delete sess._tpl; delete sess._key;
   sess.id = 'Q';
   if (pool) {
+    fitLength(sess, T, ctx, quick.pool);
     const inPool = new Set(pool.items.map(e => e.id));
     const label = filter.tradition ? TRADITIONS[filter.tradition]?.name || filter.tradition : filter.category ? CATEGORY_LABEL[filter.category] || filter.category
       : ALL_FAMILIES[filter.family]?.name || filter.family;
@@ -2267,8 +2345,11 @@ export function generateQuickSession(request = {}, profile = null, levels = null
     const coolB = sess.blocks.find(b => b.kind === 'cooldown');
     const added = sess.blocks.some(b => b !== warmB && b !== coolB && b.items.some(i => !inPool.has(i.exerciseId))); // filler in the content
     const longCool = coolB && blockSec(coolB, ctx.info) > quick.cool + 120; // the stretches absorbed spare time
+    const contentBlocks = sess.blocks.filter(b => b !== warmB && b !== coolB);
+    const poolSec = contentBlocks.reduce((t, b) => t + blockSec({ items: b.items.filter(i => inPool.has(i.exerciseId)).map(i => ({ ...i, superset: null })) }, ctx.info), 0);
+    const thin = poolSec < 0.5 * (sessionSec(sess, ctx.info) - blockSec(warmB || { items: [] }, ctx.info)); // the pool's own work is under half the session
     if (!pool.items.length) sess.note = `None of the ${label} moves suit you right now (kit, space or injuries), so this is a related session instead.`;
-    else if (added || longCool) sess.note = (typeof pool.fill.note === 'function' ? pool.fill.note(pool.flows) : pool.fill.note) || `There isn’t enough ${label} to fill ${minutes} minutes, so we’ve added related work around it.`;
+    else if (added || longCool || thin) sess.note = (typeof pool.fill.note === 'function' ? pool.fill.note(pool.flows) : pool.fill.note) || `There isn’t enough ${label} to fill ${minutes} minutes, so we’ve added related work around it.`;
     sess.name = `${minutes}-min ${label}`;
   } else sess.name = GOAL_QUICK_LABEL[goalLed] ? `${minutes}-min ${GOAL_QUICK_LABEL[goalLed]}` : quickName(minutes, focus === 'muscles' ? 'muscles' : focus, focus === 'muscles' ? muscles : [], goal, goalGiven);
   if (focus === 'mobility') sess.focus = ['mobility'];
