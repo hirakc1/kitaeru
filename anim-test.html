@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kitaeru animation test</title>
+<style>
+  :root {
+    --bg: #F5F1E8; --surface: #FFFDF7; --ink: #1C1B19; --ink-muted: #6B665C; --line: #E3DCCB;
+    --accent: #C8372D; --accent-2: #D9A441;
+    --muscle-primary: #C8372D; --muscle-secondary: #D9A441; --bone: #EFE8D8; --joint: #8A8374;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121110; --surface: #1C1A18; --ink: #EFEAE0; --ink-muted: #A39D90; --line: #2E2B27;
+      --accent: #E0503F; --accent-2: #E3B45A; --muscle-primary: #E0503F; --muscle-secondary: #E3B45A; --bone: #3A3631; --joint: #A39D90;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121110; --surface: #1C1A18; --ink: #EFEAE0; --ink-muted: #A39D90; --line: #2E2B27;
+    --accent: #E0503F; --accent-2: #E3B45A; --muscle-primary: #E0503F; --muscle-secondary: #E3B45A; --bone: #3A3631; --joint: #A39D90;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4 system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  header h1 { font: 600 18px "Noto Serif JP", Georgia, serif; margin: 0 8px 0 0; }
+  button, input { font: inherit; min-height: 36px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px; padding: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+  .card h2 { font-size: 13px; margin: 0 0 6px; display: flex; justify-content: space-between; gap: 8px; }
+  .card h2 small { color: var(--ink-muted); font-weight: 400; }
+  .row { display: grid; grid-template-columns: 1fr 96px; gap: 8px; align-items: center; }
+  .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); padding: 4px 8px; gap: 4px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--line); }
+  .sheet b { font-size: 11px; grid-column: 1 / -1; }
+  .note { color: var(--ink-muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>鍛える · animations</h1>
+  <button id="theme">Toggle theme</button>
+  <button id="pause">Pause all</button>
+  <label>t <input id="scrub" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+  <input id="filter" placeholder="filter ids" size="12">
+  <span class="note" id="status"></span>
+</header>
+<main class="grid" id="grid"></main>
+<script type="module">
+  import { createSkeletonPlayer, ANIM_IDS, debugPoints } from './js/anim/skeleton.js';
+  import { renderBodyMap } from './js/anim/bodymap.js';
+
+  let byId = {};
+  try { ({ byId } = await import('./js/data/exercises.js')); } catch (e) { console.warn('exercises.js not available yet', e); }
+
+  // exercises that use a non-default animation id
+  const animFor = {};
+  for (const ex of Object.values(byId)) animFor[ex.anim || ex.id] = ex;
+
+  const grid = document.getElementById('grid');
+  const players = [];
+  const params = new URLSearchParams(location.search);
+  if (params.has('sheet')) {           // contact sheet: every animation at five time points (visual QA)
+    grid.style.display = 'block'; grid.style.padding = '0'; document.querySelector('header').style.display = 'none';
+    const only = params.get('sheet');
+    for (const id of ANIM_IDS.filter(i => !only || only.split(',').some(o => i.includes(o)))) {
+      const ex = byId[id] || animFor[id];
+      const m = ex?.muscles || { primary: [], secondary: [] };
+      const row = document.createElement('div'); row.className = 'sheet'; row.dataset.id = id;
+      row.innerHTML = `<b>${id}</b>`;
+      grid.appendChild(row);
+      for (const t of (params.get('t') || '0,.2,.4,.6,.8').split(',').map(Number)) {
+        const cell = document.createElement('div'); row.appendChild(cell);
+        const p = createSkeletonPlayer(cell, id, { primary: m.primary, secondary: m.secondary, size: 400, playing: false });
+        p.seek(t); players.push(p);
+      }
+    }
+  } else
+  for (const id of ANIM_IDS) {
+    const ex = byId[id] || animFor[id];
+    const m = ex?.muscles || { primary: [], secondary: [] };
+    const card = document.createElement('section');
+    card.className = 'card'; card.dataset.id = id;
+    card.innerHTML = `<h2><span>${id}</span><small>${ex ? ex.name : 'no exercise data'}</small></h2><div class="row"><div class="sk"></div><div class="bm"></div></div>`;
+    grid.appendChild(card);
+    const p = createSkeletonPlayer(card.querySelector('.sk'), id, { primary: m.primary, secondary: m.secondary, size: 320 });
+    renderBodyMap(card.querySelector('.bm'), { primary: m.primary, secondary: m.secondary, size: 96 });
+    players.push(p);
+  }
+  document.getElementById('status').textContent = `${ANIM_IDS.length} animations · ${Object.keys(byId).length} exercises loaded`;
+
+  let paused = false;
+  document.getElementById('pause').onclick = e => {
+    paused = !paused; players.forEach(p => (paused ? p.pause() : p.play()));
+    e.target.textContent = paused ? 'Play all' : 'Pause all';
+  };
+  document.getElementById('scrub').oninput = e => { paused = true; players.forEach(p => { p.pause(); p.seek(+e.target.value); }); };
+  document.getElementById('theme').onclick = () => {
+    const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  };
+  document.getElementById('filter').oninput = e => {
+    const q = e.target.value.trim();
+    for (const c of grid.children) c.style.display = !q || c.dataset.id.includes(q) ? '' : 'none';
+  };
+  // debug hooks for automated checks
+  window.kt = { players, ids: ANIM_IDS, debugPoints };
+</script>
+</body>
+</html>

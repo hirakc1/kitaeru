@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Kitaeru 鍛える — free calisthenics</title>
+  <meta name="description" content="Your bodyweight, forged daily. A free calisthenics coach: no account, no ads, your data stays on your phone.">
+  <meta name="theme-color" content="#F5F1E8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Kitaeru">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;700&display=swap">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#view">Skip to content</a>
+  <div class="app">
+    <main id="view" class="view" tabindex="-1">
+      <div class="boot" aria-label="Loading">
+        <svg width="64" height="64" viewBox="0 0 100 100" aria-hidden="true"><rect x="5" y="5" width="90" height="90" rx="14" fill="#C8372D"/></svg>
+      </div>
+    </main>
+    <nav class="tabbar" id="tabbar" aria-label="Main" hidden>
+      <a href="#/today" data-tab="today"><span class="tab-ico" data-icon="today"></span><span>Today</span></a>
+      <a href="#/plan" data-tab="plan"><span class="tab-ico" data-icon="plan"></span><span>Plan</span></a>
+      <a href="#/progress" data-tab="progress"><span class="tab-ico" data-icon="progress"></span><span>Progress</span></a>
+      <a href="#/library" data-tab="library"><span class="tab-ico" data-icon="library"></span><span>Library</span></a>
+      <a href="#/me" data-tab="me"><span class="tab-ico" data-icon="me"></span><span>Me</span></a>
+    </nav>
+  </div>
+  <noscript><p style="padding:2rem;font-family:serif">Kitaeru needs JavaScript to run.</p></noscript>
+</body>
+</html>

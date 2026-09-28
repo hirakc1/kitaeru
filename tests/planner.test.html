@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planner tests</title>
+<style>
+  :root { --bg: #F5F1E8; --ink: #1C1B19; --ok: #3F7D58; --bad: #C8372D; --muted: #6B665C; }
+  body { background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, sans-serif; margin: 16px; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  #summary { font-size: 16px; font-weight: 600; margin: 8px 0 12px; }
+  .pass { color: var(--ok); } .fail { color: var(--bad); }
+  pre { white-space: pre-wrap; background: #FFFDF7; border: 1px solid #E3DCCB; padding: 8px; max-height: 60vh; overflow: auto; }
+  details { margin: 6px 0; }
+</style>
+</head>
+<body>
+<h1>Kitaeru planner tests</h1>
+<div id="summary">Running…</div>
+<pre id="fails"></pre>
+<details><summary>Sample weeks</summary><pre id="sample"></pre></details>
+<script type="module">
+import { EXERCISES } from '../js/data/exercises.js';
+import * as P from '../js/engine/planner.js';
+
+const byId = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
+let pass = 0, fail = 0;
+const fails = [];
+function ok(cond, msg) { if (cond) pass++; else { fail++; if (fails.length < 300) fails.push(msg); } }
+const clone = o => JSON.parse(JSON.stringify(o));
+const ALL_EQ = ['pullup_bar', 'dip_bars', 'rings', 'parallettes', 'resistance_band', 'bench', 'table', 'wall'];
+const PUSH = ['push_horizontal', 'push_vertical', 'dip'], PULL = ['pull_vertical', 'pull_horizontal', 'pull_noequip'], HPULL = ['pull_horizontal', 'pull_noequip'];
+const dflt = { 2: [1, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 3, 5, 6], 6: [1, 2, 3, 4, 5, 6] };
+
+function mk(o = {}) {
+  const days = o.daysPerWeek || 3;
+  const bmi = o.bmi || 22, h = 175;
+  const p = {
+    name: 'T', goals: ['strength'], primaryGoal: 'strength', daysPerWeek: days, minutesPerSession: 30, preferredDays: dflt[days],
+    age: 35, sex: 'male', heightCm: h, weightKg: Math.round(bmi * (h / 100) ** 2 * 10) / 10, units: 'metric', experience: 'some',
+    baseline: { pushUps: null, pullUps: null, squats: null, plankSec: null }, injuries: [], equipment: [], space: 'medium', lowImpact: false, ...o,
+  };
+  if (o.primaryGoal && !o.goals) p.goals = [o.primaryGoal];
+  delete p.bmi;
+  return p;
+}
+
+const grid = [
+  mk({ daysPerWeek: 2, minutesPerSession: 10 }),
+  mk({ daysPerWeek: 2, minutesPerSession: 90, equipment: ALL_EQ }),
+  mk({ daysPerWeek: 3, minutesPerSession: 20, equipment: ALL_EQ, primaryGoal: 'muscle' }),
+  mk({ daysPerWeek: 3, minutesPerSession: 45, primaryGoal: 'endurance' }),
+  mk({ daysPerWeek: 4, minutesPerSession: 15 }),
+  mk({ daysPerWeek: 4, minutesPerSession: 60, equipment: ALL_EQ, experience: 'regular' }),
+  mk({ daysPerWeek: 5, minutesPerSession: 30, primaryGoal: 'health' }),
+  mk({ daysPerWeek: 5, minutesPerSession: 50, equipment: ALL_EQ, primaryGoal: 'muscle', experience: 'regular' }),
+  mk({ daysPerWeek: 6, minutesPerSession: 25, experience: 'regular' }),
+  mk({ daysPerWeek: 6, minutesPerSession: 75, equipment: ALL_EQ, experience: 'advanced' }),
+  mk({ injuries: ['wrist'], daysPerWeek: 3, minutesPerSession: 30 }),
+  mk({ injuries: ['elbow'], daysPerWeek: 4, minutesPerSession: 45, equipment: ALL_EQ, experience: 'regular' }),
+  mk({ injuries: ['shoulder'], daysPerWeek: 3, minutesPerSession: 40, equipment: ['pullup_bar', 'table'] }),
+  mk({ injuries: ['neck'], daysPerWeek: 2, minutesPerSession: 60, equipment: ALL_EQ }),
+  mk({ injuries: ['lower_back'], daysPerWeek: 5, minutesPerSession: 35, experience: 'regular' }),
+  mk({ injuries: ['hip'], daysPerWeek: 3, minutesPerSession: 25, equipment: ['bench'] }),
+  mk({ injuries: ['knee'], daysPerWeek: 4, minutesPerSession: 30 }),
+  mk({ injuries: ['ankle'], daysPerWeek: 6, minutesPerSession: 60, equipment: ALL_EQ, experience: 'regular' }),
+  mk({ space: 'small', daysPerWeek: 3, minutesPerSession: 30 }),
+  mk({ space: 'small', daysPerWeek: 4, minutesPerSession: 40, equipment: ALL_EQ }),
+  mk({ age: 16, daysPerWeek: 3, minutesPerSession: 30 }),
+  mk({ age: 16, daysPerWeek: 5, minutesPerSession: 60, equipment: ALL_EQ, experience: 'advanced' }),
+  mk({ age: 70, daysPerWeek: 3, minutesPerSession: 30, primaryGoal: 'health' }),
+  mk({ age: 70, daysPerWeek: 6, minutesPerSession: 45, equipment: ALL_EQ }),
+  mk({ bmi: 34, daysPerWeek: 3, minutesPerSession: 40 }),
+  mk({ bmi: 34, daysPerWeek: 4, minutesPerSession: 20, equipment: ALL_EQ }),
+  mk({ bmi: 37, daysPerWeek: 5, minutesPerSession: 30, experience: 'new', sex: 'female' }),
+  mk({ primaryGoal: 'flexibility', goals: ['flexibility', 'health'], daysPerWeek: 4, minutesPerSession: 40 }),
+  mk({ primaryGoal: 'skill', goals: ['skill', 'strength'], daysPerWeek: 5, minutesPerSession: 30, equipment: ALL_EQ, baseline: { pushUps: 25, pullUps: 5, squats: 40, plankSec: 60 } }),
+  mk({ experience: 'new', sex: 'female', baseline: { pushUps: 0, pullUps: 0, squats: 12, plankSec: 15 }, daysPerWeek: 3, minutesPerSession: 30, equipment: ['wall', 'table'] }),
+  mk({ experience: 'advanced', baseline: { pushUps: 45, pullUps: 15, squats: 80, plankSec: 120 }, daysPerWeek: 6, minutesPerSession: 90, equipment: ALL_EQ, space: 'large' }),
+  mk({ injuries: ['knee', 'shoulder', 'wrist'], daysPerWeek: 3, minutesPerSession: 12 }),
+  mk({ age: 58, daysPerWeek: 4, minutesPerSession: 35, equipment: ['resistance_band', 'wall'] }),
+  mk({ primaryGoal: 'strength', goals: ['strength', 'muscle'], daysPerWeek: 4, minutesPerSession: 60, equipment: ALL_EQ, experience: 'regular' }),
+  mk({ primaryGoal: 'endurance', goals: ['endurance', 'health'], age: 45, daysPerWeek: 2, minutesPerSession: 45, space: 'large' }),
+];
+
+const allItems = s => s.blocks.flatMap(b => b.items);
+const mainIt = w => w.sessions.flatMap(s => s.blocks.filter(b => b.kind === 'main').flatMap(b => b.items));
+const mainSets = w => mainIt(w).reduce((t, i) => t + i.sets, 0);
+const avail = (p, fams) => EXERCISES.some(e => fams.includes(e.family) && P.isAvailable(e, p));
+const tag = (p, i) => `#${i} d${p.daysPerWeek} m${p.minutesPerSession} age${p.age} inj[${p.injuries}] eq${p.equipment.length} ${p.space} ${p.primaryGoal}`;
+
+let sessionsChecked = 0, worstDev = 0;
+grid.forEach((p, gi) => {
+  const T = tag(p, gi);
+  let levels;
+  try { levels = P.initialLevels(p, EXERCISES); } catch (e) { ok(false, `${T}: initialLevels threw ${e.stack}`); return; }
+  for (const [f, id] of Object.entries(levels)) ok(byId[id] && byId[id].family === f && P.isAvailable(byId[id], p), `${T}: initial level ${f}=${id} unavailable/wrong family`);
+  const weeks = [];
+  for (let w = 0; w < 11; w++) {
+    let wk;
+    try { wk = P.generateWeek(p, levels, EXERCISES, w); } catch (e) { ok(false, `${T} w${w}: generateWeek threw ${e.stack}`); continue; }
+    weeks[w] = wk;
+    const WT = `${T} w${w}`;
+    ok(wk.sessions.length === p.daysPerWeek, `${WT}: ${wk.sessions.length} sessions`);
+    ok(Object.values(wk.days).filter(Boolean).length === p.daysPerWeek && p.preferredDays.every(d => wk.days[d]), `${WT}: days map wrong ${JSON.stringify(wk.days)}`);
+    for (const s of wk.sessions) {
+      const ids = allItems(s).map(i => i.exerciseId);
+      ok(new Set(ids).size === ids.length, `${WT} ${s.id}: duplicate exercise ${ids}`);
+      for (const it of allItems(s)) {
+        const ex = byId[it.exerciseId];
+        ok(ex && P.isAvailable(ex, p), `${WT} ${s.id}: unavailable ${it.exerciseId}`);
+        ok(it.sets >= 1 && (it.reps || it.holdSec) && !(it.reps && it.holdSec), `${WT} ${s.id}: bad prescription ${JSON.stringify(it)}`);
+        if (ex && ex.mode === 'hold' && it.family !== 'conditioning') ok(!!it.holdSec, `${WT}: hold exercise ${it.exerciseId} without holdSec`);
+      }
+      ok(s.estMinutes === P.estimateMinutes(s, EXERCISES), `${WT} ${s.id}: estMinutes mismatch`);
+      ok(typeof s.name === 'string' && s.name.length > 2 && /^[A-Z]$/.test(s.id), `${WT}: bad id/name ${s.id} ${s.name}`);
+      const hasPush = allItems(s).some(i => PUSH.includes(i.family));
+      const barOnly = p.equipment.includes('pullup_bar') && !p.equipment.includes('rings') && !p.equipment.includes('table') && avail(p, ['pull_vertical']);
+      if (hasPush && avail(p, HPULL)) ok(allItems(s).some(i => HPULL.includes(i.family) || (barOnly && i.family === 'pull_vertical')), `${WT} ${s.id}: push without horizontal pull`);
+      // QA #2: primary lifts reach 3 sets (strength/muscle) before any accessory is added
+      const main = s.blocks.find(b => b.kind === 'main');
+      const early = w <= 1 && (p.age >= 65 || (p.goals.length === 1 && p.goals[0] === 'health'));
+      if (main && wk.phase === 'build' && !early && ['strength', 'muscle'].includes(p.primaryGoal) && s.focus.includes('legs')) {
+        const acc = main.items.some(i => i.family === 'calves' || /Balance/.test(i.notes));
+        const firsts = ['push', 'pull', 'legs'].map(pt => main.items.find(i => (pt === 'push' ? PUSH : pt === 'pull' ? PULL : ['squat', 'hinge']).includes(i.family))).filter(Boolean);
+        if (acc) ok(firsts.every(i => i.sets >= 3), `${WT} ${s.id}: accessory added while a primary lift has < 3 sets ${firsts.map(i => i.exerciseId + ':' + i.sets)}`);
+      }
+      if (wk.phase === 'build' && wk.meta.reentry == null) {
+        const M = p.minutesPerSession, est = P.estimateSeconds(s, EXERCISES) / 60;
+        const tol = M <= 15 ? 3 : 0.1 * M;
+        sessionsChecked++;
+        worstDev = Math.max(worstDev, Math.abs(est - M) / M);
+        ok(Math.abs(est - M) <= tol, `${WT} ${s.id} ${s.name}: ${est.toFixed(1)} min vs ${M}`);
+      }
+    }
+    if (avail(p, PULL)) {
+      const mi = mainIt(wk);
+      const push = mi.filter(i => PUSH.includes(i.family)).reduce((t, i) => t + i.sets, 0);
+      const pull = mi.filter(i => PULL.includes(i.family)).reduce((t, i) => t + i.sets, 0);
+      ok(pull > 0, `${WT}: no pull in week`);
+      ok(pull >= push * (p.injuries.includes('shoulder') ? 1.5 : 1), `${WT}: pull ${pull} < push ${push}`);
+    }
+    // QA #1: with a bar (and a vertical pull level), vertical pulling appears every week
+    if (levels.pull_vertical && avail(p, ['pull_vertical'])) ok(mainIt(wk).some(i => i.family === 'pull_vertical'), `${WT}: no vertical pull despite a bar`);
+    // QA #4: 3-day full body at >= 25 min has three different sessions, and every pattern >= 2x/week
+    if (p.daysPerWeek === 3 && p.minutesPerSession >= 25 && wk.sessions.every(s => s.name.startsWith('Full body'))) {
+      const keys = wk.sessions.map(s => mainIt({ sessions: [s] }).map(i => i.exerciseId).sort().join());
+      ok(new Set(keys).size === 3, `${WT}: A/B/C main work not distinct`);
+      for (const [pt, fams] of [['push', PUSH], ['pull', PULL], ['legs', ['squat', 'hinge']]]) {
+        if (avail(p, fams)) ok(wk.sessions.filter(s => mainIt({ sessions: [s] }).some(i => fams.includes(i.family))).length >= 2, `${WT}: ${pt} < 2x/week`);
+      }
+      ok(wk.sessions.filter(s => allItems(s).some(i => i.family.startsWith('core_'))).length >= 2, `${WT}: core < 2x/week`);
+      const cools = wk.sessions.map(s => (s.blocks.find(b => b.kind === 'cooldown') || { items: [] }).items.map(i => i.exerciseId).join());
+      ok(new Set(cools).size >= 2, `${WT}: identical stretches every session`);
+    }
+    const ex = P.explainPlan(p, wk);
+    // QA #2: explainPlan states the sets actually delivered
+    const cmp = mainIt(wk).filter(i => [...PUSH, ...PULL, 'squat', 'hinge'].includes(i.family) && !/Balance/.test(i.notes));
+    const m = ex.join(' ').match(/main lifts get (\d+)(?:-(\d+))? sets/);
+    if (cmp.length) ok(m && +m[1] === Math.min(...cmp.map(i => i.sets)) && +(m[2] || m[1]) === Math.max(...cmp.map(i => i.sets)), `${WT}: explainPlan sets '${m && m[0]}' vs delivered ${Math.min(...cmp.map(i => i.sets))}-${Math.max(...cmp.map(i => i.sets))}`);
+    ok(!/3-5 sets/.test(ex.join(' ')) || cmp.some(i => i.sets >= 5), `${WT}: explainPlan promises 3-5 sets`);
+    ok(Array.isArray(ex) && ex.length >= 4 && ex.length <= 8 && ex.every(x => typeof x === 'string' && x.length > 10), `${WT}: explainPlan ${ex && ex.length}`);
+  }
+  // deload has fewer sets than the build week before it
+  const di = weeks.findIndex(w => w && w.phase === 'deload');
+  ok(di > 0, `${T}: no deload in 11 weeks`);
+  if (di > 0) ok(mainSets(weeks[di]) < mainSets(weeks[di - 1]), `${T}: deload sets ${mainSets(weeks[di])} !< ${mainSets(weeks[di - 1])}`);
+  // determinism
+  ok(JSON.stringify(P.generateWeek(p, levels, EXERCISES, 2)) === JSON.stringify(P.generateWeek(clone(p), clone(levels), EXERCISES, 2)), `${T}: not deterministic`);
+});
+
+// ---- specific rules
+{
+  const p = mk({ age: 12 });
+  let code = null; try { P.generateWeek(p, {}, EXERCISES, 0); } catch (e) { code = e.code; }
+  ok(code === 'AGE_UNDER_13', 'age 12 should throw AGE_UNDER_13');
+}
+{
+  const p = mk({ injuries: ['knee'] });
+  ok(P.lowImpactInfo(p).forced, 'knee injury forces low impact');
+  ok(!P.lowImpactInfo(mk({ age: 60 })).forced && P.lowImpactInfo(mk({ age: 66 })).forced, 'age 65+ forces low impact (research), 60 does not');
+  ok(P.lowImpactInfo(mk({ bmi: 31 })).forced, 'BMI 31 forces low impact');
+  const lv = P.initialLevels(mk({ injuries: ['knee'] }), EXERCISES);
+  ok(lv.squat === 'split_squat', `knee, no bench: squat via allowed-with-modification split_squat (${lv.squat})`);
+  const lv2 = P.initialLevels(mk({ injuries: ['knee'], equipment: ['bench'] }), EXERCISES);
+  ok(lv2.squat === 'box_squat', `knee + bench: box_squat (${lv2.squat})`);
+}
+{
+  const L = b => P.initialLevels(mk({ baseline: { pushUps: null, pullUps: null, squats: null, plankSec: null, ...b }, equipment: ALL_EQ }), EXERCISES);
+  ok(L({ pushUps: 0 }).push_horizontal === 'incline_push_up', 'pushUps 0 -> incline');
+  ok(L({ pushUps: 3 }).push_horizontal === 'knee_push_up', 'pushUps 3 -> knee');
+  ok(L({ pushUps: 10 }).push_horizontal === 'push_up', 'pushUps 10 -> push_up');
+  ok(L({ pushUps: 20 }).push_horizontal === 'decline_push_up', 'pushUps 20 -> decline');
+  ok(L({ pullUps: 7 }).pull_vertical === 'pull_up', 'pullUps 7 -> pull_up');
+  ok(L({ squats: 5 }).squat === 'box_squat', 'squats 5 -> box_squat');
+  ok(L({ plankSec: 10 }).core_anterior === 'dead_bug', 'plank 10 -> dead_bug');
+  ok(!('push_vertical' in L({ pushUps: 5 })), 'pushUps 5 -> no vertical push yet');
+  const noWall = P.initialLevels(mk({ experience: 'new' }), EXERCISES);
+  ok(noWall.push_horizontal === 'knee_push_up', `ladder gap: no wall/bench -> knee_push_up (${noWall.push_horizontal})`);
+  const fem = P.initialLevels(mk({ experience: 'some', sex: 'female', equipment: ALL_EQ }), EXERCISES);
+  const mal = P.initialLevels(mk({ experience: 'some', sex: 'male', equipment: ALL_EQ }), EXERCISES);
+  ok(byId[fem.push_horizontal].level === byId[mal.push_horizontal].level - 1 && fem.squat === mal.squat, 'female prior: -1 on push only');
+}
+{ // splits
+  const names = p => P.generateWeek(p, P.initialLevels(p, EXERCISES), EXERCISES, 0).sessions.map(s => s.name);
+  ok(names(mk({ daysPerWeek: 4, minutesPerSession: 40, experience: 'regular' })).filter(n => n.startsWith('Upper')).length === 2, 'U/L for 4 days');
+  ok(names(mk({ daysPerWeek: 6, minutesPerSession: 60, experience: 'regular' })).filter(n => n.startsWith('Push')).length === 2, 'PPL x2 for 6 days >=45 min');
+  ok(names(mk({ daysPerWeek: 5, minutesPerSession: 30, experience: 'new' })).filter(n => n.startsWith('Full body')).length === 3, 'new -> full body max 3 hard days');
+  const w3 = mk({ daysPerWeek: 3, minutesPerSession: 20 });
+  ok(names(w3).join() === 'Full body A,Full body B,Full body A' && P.generateWeek(w3, {}, EXERCISES, 1).sessions.map(s => s.name).join() === 'Full body B,Full body A,Full body B', '3 days <25 min: A/B/A then B/A/B');
+}
+{ // re-entry from logs
+  const p = mk({});
+  const lv = P.initialLevels(p, EXERCISES);
+  const logs = [{ id: 'x', date: '2026-01-05', weekIndex: 0, sessionId: 'A', items: [] }];
+  const w = P.generateWeek(p, lv, EXERCISES, 5, { startDate: '2026-01-05', logs });
+  const b = P.generateWeek(p, lv, EXERCISES, 5); // same week, no gap information
+  ok(w.meta.reentry === 0.5 && mainSets(w) < mainSets(b), `gap of 35 days -> re-entry x0.5 (${w.meta.reentry})`);
+  const w2 = P.generateWeek(p, lv, EXERCISES, 3, { daysSinceLastLog: 15 });
+  ok(w2.meta.reentry === 0.75 && w2.phase === 'build', 'daysSinceLastLog 15 -> x0.75 build');
+}
+
+// ---- PM QA profile
+{
+  const p = mk({ age: 42, heightCm: 178, weightKg: 84, experience: 'some', baseline: { pushUps: 10, pullUps: 3, squats: 20, plankSec: 30 }, injuries: ['wrist'],
+    equipment: ['wall', 'pullup_bar', 'bench'], goals: ['strength', 'flexibility'], primaryGoal: 'strength', daysPerWeek: 3, minutesPerSession: 30 });
+  const lv = P.initialLevels(p, EXERCISES);
+  ok(['split_squat', 'reverse_lunge', 'bulgarian_split_squat'].includes(lv.squat), `QA: squats 20 + strength -> harder squat (${lv.squat})`);
+  ok(lv.push_horizontal === 'push_up' && lv.pull_vertical === 'chin_up', `QA: push_up / chin_up (${lv.push_horizontal}, ${lv.pull_vertical})`);
+  for (let w = 0; w < 5; w++) {
+    const wk = P.generateWeek(p, lv, EXERCISES, w);
+    if (wk.phase !== 'build') continue;
+    const vs = wk.sessions.filter(s => mainIt({ sessions: [s] }).some(i => i.family === 'pull_vertical'));
+    ok(vs.length >= 2, `QA w${w}: vertical pull in ${vs.length} sessions`);
+    const cmp = mainIt(wk).filter(i => [...PUSH, ...PULL, 'squat', 'hinge'].includes(i.family));
+    ok(cmp.every(i => i.sets >= 2), `QA w${w}: compound sets ${cmp.map(i => i.exerciseId + ':' + i.sets)}`);
+    for (const s of wk.sessions) {
+      const mi = mainIt({ sessions: [s] });
+      const firsts = [PUSH, PULL, ['squat', 'hinge']].map(f => mi.find(i => f.includes(i.family))).filter(Boolean);
+      ok(firsts.length === 3 && firsts.every(i => i.sets >= 3), `QA w${w} ${s.id}: primary push/pull/legs at 3+ sets ${firsts.map(i => i.exerciseId + ':' + i.sets)}`);
+    }
+    const row = mainIt(wk).find(i => i.exerciseId === 'inverted_row');
+    ok(!row || /low bar or rings/.test(row.notes), 'QA: inverted_row carries the low-bar note');
+    ok(new Set(wk.sessions.map(s => mainIt({ sessions: [s] }).map(i => i.exerciseId).sort().join())).size === 3, `QA w${w}: A/B/C distinct`);
+    const exs = P.explainPlan(p, wk).join(' ');
+    ok(/main lifts get (2-)?3 sets of 4-8 reps/.test(exs) && !/3-5 sets/.test(exs), `QA w${w}: explain states delivered sets (${exs.slice(0, 300)})`);
+  }
+  const L = (goal, sq) => P.initialLevels(mk({ primaryGoal: goal, goals: [goal], baseline: { pushUps: null, pullUps: null, squats: sq, plankSec: null } }), EXERCISES).squat;
+  ok(L('muscle', 20) === 'bodyweight_squat', `muscle goal keeps bodyweight_squat for 20 squats (${L('muscle', 20)})`);
+  ok(L('strength', 5) === 'box_squat' || L('strength', 5) === 'bodyweight_squat', 'low baseline not pushed harder');
+  const pv = P.initialLevels(mk({ equipment: ALL_EQ, baseline: { pushUps: 20, pullUps: 20, squats: null, plankSec: 70 } }), EXERCISES);
+  ok(pv.pull_vertical === 'pull_up' || pv.pull_vertical === 'archer_pull_up', `20 pull-ups, strength -> hard vertical pull (${pv.pull_vertical})`);
+  ok(pv.core_anterior === 'hollow_body_hold', `plank 70 s -> hollow (${pv.core_anterior})`);
+}
+// ---- plan start (QA #5)
+{
+  ok(P.planStartDate('2026-09-27', [1, 3, 5]) === '2026-09-28', 'created Sunday, Mon/Wed/Fri -> next Monday');
+  ok(P.planStartDate('2026-09-23', [1, 3, 5]) === '2026-09-21', 'created Wednesday, Friday still ahead -> this Monday');
+  ok(P.planStartDate('2026-09-27', [0, 3]) === '2026-09-21', 'created Sunday with a Sunday session -> this Monday');
+  ok(P.planStartDate('2026-09-26', [1, 2]) === '2026-09-28', 'created Saturday, only Mon/Tue -> next Monday');
+  ok(P.planStartDate(new Date(2026, 8, 21, 23, 30), [1]) === '2026-09-21', 'Date input, Monday itself');
+}
+
+// ---- progression
+{
+  const p = mk({ equipment: ALL_EQ, experience: 'regular' });
+  const lv = { ...P.initialLevels(p, EXERCISES), push_horizontal: 'push_up' };
+  const wk = P.generateWeek(p, lv, EXERCISES, 0, { _forceBuild: true });
+  const sess = wk.sessions.find(s => allItems(s).some(i => i.exerciseId === 'push_up'));
+  const rx = allItems(sess).find(i => i.exerciseId === 'push_up');
+  const [lo, hi] = rx.reps;
+  const log = (id, date, reps, rating, extra = {}) => ({ id, date, weekIndex: 2, sessionId: sess.id, feel: 3, items: [{ exerciseId: 'push_up', family: 'push_horizontal', sets: reps.map(r => ({ reps: r, done: true })), rating, ...extra }] });
+  const L1 = log('a', '2026-03-02', [hi, hi, hi], 'good'), L2 = log('b', '2026-03-04', [hi, hi, hi], 'good');
+  let r = P.applySessionLog(lv, p, L2, EXERCISES, [L1]);
+  ok(r.levels.push_horizontal === 'decline_push_up' && r.changes.length === 1 && r.changes[0].reason, `advance after 2 top sessions (${r.levels.push_horizontal})`);
+  r = P.applySessionLog(lv, p, L2, EXERCISES, []);
+  ok(r.levels.push_horizontal === 'push_up' && !r.changes.length, 'no advance after only 1 top session');
+  r = P.applySessionLog(lv, p, log('b', '2026-03-04', [hi, hi, hi], 'hard'), EXERCISES, [L1]);
+  ok(r.levels.push_horizontal === 'push_up', 'no advance when rated hard');
+  const H1 = log('c', '2026-03-02', [lo - 1, lo - 2, lo - 2], 'hard'), H2 = log('d', '2026-03-04', [lo - 1, lo - 1, lo - 2], 'hard');
+  r = P.applySessionLog(lv, p, H2, EXERCISES, [H1]);
+  ok(r.levels.push_horizontal === 'knee_push_up' && r.changes[0].to === 'knee_push_up', `regress after 2 hard misses (${r.levels.push_horizontal})`);
+  r = P.applySessionLog(lv, p, log('e', '2026-03-04', [lo, lo, lo], 'good', { pain: 5 }), EXERCISES, []);
+  ok(r.levels.push_horizontal === 'knee_push_up', 'pain > 3 regresses immediately');
+  r = P.applySessionLog(lv, p, log('f', '2026-03-04', [hi + 3, hi + 3, hi + 4], 'easy'), EXERCISES, []);
+  ok(r.levels.push_horizontal === 'decline_push_up', 'fast-track: easy and hi+3');
+  const dlw = P.phaseInfo(p, 0).cycleLen - 1;
+  const D1 = { ...L1, weekIndex: dlw }, D2 = { ...L2, weekIndex: dlw };
+  r = P.applySessionLog(lv, p, D2, EXERCISES, [D1]);
+  ok(r.levels.push_horizontal === 'push_up', 'deload-week logs never advance');
+  r = P.applySessionLog(lv, p, log('g', '2026-03-04', [lo, lo + 1, lo], 'good'), EXERCISES, [log('h', '2026-03-02', [lo, lo, lo], 'good')]);
+  ok(r.levels.push_horizontal === 'push_up' && !r.changes.length, 'within range: stay');
+  const L3 = log('i', '2026-03-06', [hi, hi, hi], 'good');
+  ok(JSON.stringify(P.applySessionLog(lv, p, L3, EXERCISES, [L1, L2])) === JSON.stringify(P.applySessionLog(clone(lv), clone(p), clone(L3), EXERCISES, clone([L1, L2]))), 'applySessionLog deterministic');
+}
+
+// ---- early start (log before startDate has weekIndex -1)
+{
+  const p = mk({ equipment: ALL_EQ, experience: 'regular' });
+  const lv = { ...P.initialLevels(p, EXERCISES), push_horizontal: 'push_up' };
+  const wm1 = P.generateWeek(p, lv, EXERCISES, -1), w0 = P.generateWeek(p, lv, EXERCISES, 0);
+  ok(wm1.weekIndex === -1 && JSON.stringify(wm1.sessions) === JSON.stringify(w0.sessions) && wm1.phase === 'build', 'weekIndex -1 = week 1 content');
+  const it = w0.sessions.flatMap(s => s.blocks.flatMap(b => b.items)).find(i => i.exerciseId === 'push_up');
+  const sid = w0.sessions.find(s => s.blocks.some(b => b.items.includes(it))).id;
+  const hi = it.reps[1];
+  const early = { id: 'e1', date: '2026-09-27', weekIndex: -1, sessionId: sid, feel: 3, items: [{ exerciseId: 'push_up', family: 'push_horizontal', sets: [hi + 6, hi + 6, hi + 7].map(r => ({ reps: r, done: true })), rating: 'good' }] };
+  let r = P.applySessionLog(lv, p, early, EXERCISES, []);
+  ok(r.changes.length === 1 && r.levels.push_horizontal === 'diamond_push_up', `early log is a calibration week: +2 levels (${r.levels.push_horizontal})`);
+  const e2 = { ...early, id: 'e2', items: [{ ...early.items[0], sets: [hi, hi, hi].map(x => ({ reps: x, done: true })) }] };
+  const d2 = { ...e2, id: 'd2', date: '2026-09-28', weekIndex: 0 };
+  r = P.applySessionLog(lv, p, d2, EXERCISES, [e2]);
+  ok(r.levels.push_horizontal === 'decline_push_up', `early log counts as an exposure for progression (${r.levels.push_horizontal})`);
+}
+
+// ---- streaks
+{
+  const p = mk({ daysPerWeek: 3, preferredDays: [1, 3, 5] }); // Mon Wed Fri
+  const L = dates => dates.map((d, i) => ({ id: 's' + i, date: d, sessionId: 'A', items: [] }));
+  const day = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+  // 2026-09-07 is a Monday
+  let s = P.computeStreak(L(['2026-09-07', '2026-09-09', '2026-09-11', '2026-09-14', '2026-09-16']), p, day('2026-09-17'));
+  ok(s.current === 5 && s.best === 5, `rest days neutral: 5 scheduled days done (${s.current})`);
+  ok(s.weekly.current === 1, `weekly: week 1 kept, week 2 in progress not yet kept (${s.weekly.current})`);
+  s = P.computeStreak(L(['2026-09-07', '2026-09-09', '2026-09-11', '2026-09-14']), p, day('2026-09-16'));
+  ok(s.current === 4, `today (Wed) untrained does not break (${s.current})`);
+  s = P.computeStreak(L(['2026-09-07', '2026-09-09', '2026-09-11', '2026-09-14', '2026-09-18']), p, day('2026-09-19'));
+  ok(s.current === 1 && s.freezesUsed === 0, `missed Wed with no freeze breaks (${s.current})`);
+  s = P.computeStreak(L(['2026-09-07', '2026-09-10', '2026-09-11']), p, day('2026-09-12'));
+  ok(s.current === 3, `±1 day flex: Wed session done Thu counts (${s.current})`);
+  // two kept weeks earn a freeze, which covers a later missed day
+  const two = ['2026-09-07', '2026-09-09', '2026-09-11', '2026-09-14', '2026-09-16', '2026-09-18'];
+  s = P.computeStreak(L(two), p, day('2026-09-20'));
+  ok(s.freezeAvailable === true && s.freezesBanked === 1 && s.weekly.current === 2, `2 kept weeks -> 1 freeze (${JSON.stringify(s)})`);
+  s = P.computeStreak(L([...two, '2026-09-21', '2026-09-25']), p, day('2026-09-26'));
+  ok(s.current === 8 && s.freezesUsed === 1 && s.freezeAvailable === false, `freeze covers missed Wed (${JSON.stringify(s)})`);
+  s = P.computeStreak(L(['2026-09-07', '2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11']), p, day('2026-09-12'));
+  ok(s.current === 3, `extra sessions add nothing (${s.current})`);
+  s = P.computeStreak(L([...two, '2026-09-28', '2026-09-30', '2026-10-02']), p, day('2026-10-04'));
+  ok(s.weekly.current === 3 && s.weekly.best === 3 && s.freezesUsed >= 1, `missed week rescued by freeze (${JSON.stringify(s.weekly)} used ${s.freezesUsed})`);
+  s = P.computeStreak(L([...two, '2026-09-28', '2026-10-12', '2026-10-14', '2026-10-16']), p, day('2026-10-18'));
+  ok(s.weekly.current === 1 && s.weekly.best === 2, `two missed weeks with one freeze break the weekly streak (${JSON.stringify(s.weekly)})`);
+  s = P.computeStreak([], p, day('2026-10-18'));
+  ok(s.current === 0 && s.weekly.current === 0 && s.freezeAvailable === false, 'empty logs');
+  // createdOn: logs before it are ignored and the creation week is not penalised
+  s = P.computeStreak(L(['2026-08-03', '2026-08-05', '2026-09-24', '2026-09-28', '2026-09-30', '2026-10-02']), p, day('2026-10-04'), { createdOn: '2026-09-23' });
+  ok(s.weekly.current === 1 && s.weekly.best === 1 && s.current === 4, `createdOn: creation week neutral, old logs ignored (${JSON.stringify(s)})`);
+  s = P.computeStreak(L(['2026-09-30']), mk({ daysPerWeek: 3, preferredDays: [1, 3, 5], createdOn: '2026-09-30' }), day('2026-10-02'));
+  ok(s.current === 1 && s.weekly.current === 0, `profile.createdOn midweek start not penalised (${JSON.stringify(s)})`);
+  // early start: plan created Sun 2026-09-27, startDate Mon 2026-09-28, first session on the Sunday
+  const eo = { createdOn: '2026-09-27', startDate: '2026-09-28' };
+  s = P.computeStreak(L(['2026-09-27']), p, day('2026-09-27'), eo);
+  ok(s.current === 1 && s.best === 1, `early start: session today -> day streak 1 (${JSON.stringify(s)})`);
+  s = P.computeStreak(L(['2026-09-27']), p, day('2026-09-28'), eo);
+  ok(s.current === 1, `early start, Monday still open -> 1 (${s.current})`);
+  s = P.computeStreak(L(['2026-09-27', '2026-09-30', '2026-10-02']), p, day('2026-10-04'), eo);
+  ok(s.current === 3 && s.weekly.current === 1 && s.weekly.best === 1, `early start counts for week 1 (Sun covers Mon via flex; target 3 kept) (${JSON.stringify(s)})`);
+  s = P.computeStreak(L(['2026-09-27', '2026-09-30']), p, day('2026-10-04'), eo);
+  ok(s.weekly.current === 0, `week 1 with 2 of 3 is not kept (${JSON.stringify(s.weekly)})`);
+  s = P.computeStreak(L(['2026-09-27']), { ...p, createdOn: '2026-09-27', startDate: '2026-09-28' }, day('2026-09-27'));
+  ok(s.current === 1, 'early start via profile fields');
+  s = P.computeStreak(L(['2026-09-24']), p, day('2026-09-24'));
+  ok(s.current === 1, `unscheduled Thursday session today -> 1 (${s.current})`);
+  const p5 = mk({ daysPerWeek: 5, preferredDays: [1, 2, 3, 5, 6] });
+  s = P.computeStreak(L(['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-11']), p5, day('2026-09-14'));
+  ok(s.weekly.current === 1, `5 days/week: target 4 allows one miss (${s.weekly.current})`);
+  s = P.computeStreak(L(['2026-09-07', '2026-09-09', '2026-09-11']).map((l, i) => i === 1 ? { ...l, sessionId: 'M' } : l), p, day('2026-09-12'));
+  ok(s.current === 1 || s.current === 0 || s.current < 3, 'rest-day mobility (M) logs do not count');
+}
+
+// ---- sample
+{
+  const p = grid[0 + 13];
+  const w = P.generateWeek(p, P.initialLevels(p, EXERCISES), EXERCISES, 0);
+  document.getElementById('sample').textContent = [grid[12], grid[22], grid[4]].map(pp => {
+    const wk = P.generateWeek(pp, P.initialLevels(pp, EXERCISES), EXERCISES, 0);
+    return JSON.stringify(pp) + '\n' + P.explainPlan(pp, wk).map(b => ' • ' + b).join('\n') + '\n' +
+      wk.sessions.map(s => `${s.id} ${s.name} ~${s.estMinutes}m [${s.focus}]\n` + s.blocks.map(b => `  ${b.title}: ` + b.items.map(i => `${i.exerciseId} ${i.sets}x${i.reps ? i.reps.join('-') : i.holdSec.join('-') + 's'}${i.perSide ? '/side' : ''} r${i.restSec}${i.superset ? ' S' + i.superset : ''}`).join(', ')).join('\n')).join('\n');
+  }).join('\n\n');
+  void w;
+}
+
+const el = document.getElementById('summary');
+el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}%`;
+document.getElementById('fails').textContent = fails.join('\n') || 'All tests passed.';
+window.__results = { pass, fail, fails, sessionsChecked, worstDev };
+</script>
+</body>
+</html>
