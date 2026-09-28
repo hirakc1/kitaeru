@@ -363,10 +363,10 @@ function armIK(S, ch, G, spec, sd, s, T4) {
   const pole = nrm(add(add(mul(T4.x, pl[0]), mul(T4.y, pl[1])), mul(T4.z, pl[2] * s)));
   let W, hand = null;
   // planted / bar hands: z = thumb side (medial when palm-down or overhand, lateral underhand), as for free hands
-  if (spec.grip === 'palm') {                               // flat hand planted on the floor
-    const c = spec.target(sd, s);
-    const d = nrm(spec.dir(s)), a = [0, -1, 0];
-    W = add(madd(c, d, -5.2), [0, 2.4, 0]);
+  if (spec.grip === 'palm') {                               // flat hand planted on a surface (floor; spec.normal: wall, bench)
+    const c = spec.target(sd, s), n = spec.normal ? nrm(spec.normal(s)) : [0, 1, 0];
+    const d = nrm(spec.dir(s)), a = mul(n, -1);
+    W = madd(madd(c, d, -5.2), n, 2.4);
     hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'palm' };
   } else if (spec.grip === 'forearm') {                     // forearm flat on the floor (forearm plank): elbow + hand planted
     const E = spec.target(sd, s), d = nrm(spec.dir(s)), a = [0, -1, 0];
@@ -381,7 +381,8 @@ function armIK(S, ch, G, spec, sd, s, T4) {
       dirv = nrm(lerp3(nrm(sub(r.mid, B)), nrm(sub(G, B)), .35));
     }
     W = madd(B, dirv, 6.6);
-    const d = nrm(sub(B, W)), a = perp([spec.sup ? -1 : 1, 0, 0], d);   // sup: underhand (chin-up) grip
+    // palm faces forward (overhand); sup: underhand (chin-up); spec.palm(s): any other, e.g. neutral on dip bars / rings
+    const d = nrm(sub(B, W)), a = perp(spec.palm ? spec.palm(s) : [spec.sup ? -1 : 1, 0, 0], d);
     hand = { o: W, x: a, y: d, z: mul(nrm(cross(a, d)), -s), len: 18, grip: 'bar', bar: B };
   } else {                                                   // free hand driven by a target in chest space
     W = P(T4, [ch['handX' + sd], ch['handY' + sd], ch['handZ' + sd] * s]);
@@ -511,14 +512,15 @@ function mirrorSpec(sp) {
   if (!sp) return sp;
   const o = { ...sp }, mc = ch => ch && mirrorPose(ch);
   for (const k of ['ankle', 'ball', 'heel', 'target']) if (typeof sp[k] === 'function') o[k] = (sd, s, ch) => fz(sp[k](OTHER[sd], -s, mc(ch)));
-  for (const k of ['pole', 'dir']) if (typeof sp[k] === 'function') o[k] = (s, ch) => fz(sp[k](-s, mc(ch)));
+  for (const k of ['pole', 'dir', 'normal', 'palm']) if (typeof sp[k] === 'function') o[k] = (s, ch) => fz(sp[k](-s, mc(ch)));
+  if (typeof sp.axes === 'function') o.axes = (sd, s, ch) => sp.axes(OTHER[sd], -s, mc(ch)).map(fz);
   for (const k of ['knee', 'lift']) if (typeof sp[k] === 'function') o[k] = (s, ch) => sp[k](-s, mc(ch));
   return o;
 }
 const mirrorLimbs = L => L && { R: mirrorSpec(L.L || L.both), L: mirrorSpec(L.R || L.both) };
 function mirrored(c) {
   if (c._mir) return c._mir;
-  const m = { ...c, swap: false, prep: null, _prepped: true, _c: null, _an: null, _mir: null,
+  const m = { ...c, swap: false, prep: null, _prepped: true, _c: null, _an: null, _mir: null, shift: -(c.shift ?? .5), shiftRoll: -(c.shiftRoll ?? .6),
     base: mirrorPose(expand(c.base || {})), keys: Object.fromEntries(Object.entries(c.keys).map(([k, v]) => [k, mirrorPose(expand(v))])),
     legs: mirrorLimbs(c.legs), arms: mirrorLimbs(c.arms) };
   if (c.derive) m.derive = (ch, lag, sm) => { const x = mirrorPose(ch); c.derive(x, mirrorPose(lag), sm); Object.assign(ch, mirrorPose(x)); };

@@ -13,7 +13,7 @@
 //     foot / hand  absolute world angle override for the sole / hand (90 = pointing +x, 180 = up)
 // Absolute angle convention: direction(a) = (sin a, cos a) in SVG space, so 0 = down, 90 = +x, 180 = up.
 import { ANIMS } from './poses.js';
-import { createPlatePlayer, V2_IDS } from './v2/plate.js';
+import { V2_IDS, V2_GROUP_OF } from './v2/ids.js';
 
 export const ANIM_IDS = Object.keys(ANIMS);
 
@@ -761,31 +761,60 @@ export function createV1Player(container, animId, { primary = [], secondary = []
 
 // ---------- public player: v2 anatomical plate (Direction A) where a clip exists, v1 otherwise ----------
 // Same contract as before. setAnim() swaps renderer in place when crossing v1 <-> v2. ?anim=v1 forces v1 (A/B review).
+// v2 is lazy: the renderer and the exercise's clip group are imported the first time a v2 exercise is shown (a blank
+// placeholder holds the space meanwhile, usually a few ms from the service-worker cache). If the import fails, v1.
 const FORCE_V1 = typeof location !== 'undefined' && /[?&]anim=v1(&|$)/.test(location.search);
 export const isV2 = id => !FORCE_V1 && V2_IDS.has(id);
+let plateMod = null;
+const groups = new Map(), loaded = new Set();   // clip group -> import promise; groups ready
+export function loadV2(id) {
+  const g = V2_GROUP_OF[id];
+  if (!groups.has(g)) groups.set(g, import(`./v2/clips/${g}.js`).then(() => loaded.add(g), e => { groups.delete(g); throw e; }));
+  return Promise.all([import('./v2/plate.js'), groups.get(g)]).then(([m]) => { plateMod = m; });
+}
+const v2Ready = id => !!plateMod && loaded.has(V2_GROUP_OF[id]);
+function placeholder(container, size) {
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 4 3'); svg.setAttribute('class', 'kt-ph'); svg.setAttribute('aria-hidden', 'true');
+  svg.style.cssText = `display:block;width:100%;height:auto;max-width:${size}px;margin:0 auto`;
+  container.appendChild(svg);
+  const nop = () => {};
+  return { svg, play: nop, pause: nop, seek: nop, setAnim: nop, destroy() { svg.remove(); } };
+}
 // opts.breath / opts.trail (default off): v2 breath ring and motion trail; v1 ignores both
 export function createSkeletonPlayer(container, animId, opts = {}) {
   const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, ...opts };
-  let p = null, v2 = null;
-  function load(id, prim, sec) {
-    if (prim) o.primary = prim; if (sec) o.secondary = sec;
-    const want = isV2(id);
-    if (p && want === v2) { p.setAnim(id, o.primary, o.secondary); return; }
+  let p = null, kind = null, cur = null, gen = 0, dead = false, fixedT = null;
+  function mount(k) {
     const old = p;
-    p = (want ? createPlatePlayer : createV1Player)(container, id, { ...o });
-    v2 = want;
+    p = k === 'v2' ? plateMod.createPlatePlayer(container, cur, { ...o }) : k === 'v1' ? createV1Player(container, cur, { ...o }) : placeholder(container, o.size);
+    kind = k;
     if (old) { if (old.svg.parentNode === container) container.insertBefore(p.svg, old.svg); old.destroy(); }
+    if (fixedT != null) p.seek(fixedT);
+  }
+  function show(id) {
+    const k = isV2(id) ? 'v2' : 'v1';
+    if (p && kind === k) p.setAnim(id, o.primary, o.secondary); else mount(k);
+  }
+  function load(id, prim, sec) {
+    cur = id; if (prim) o.primary = prim; if (sec) o.secondary = sec;
+    const my = ++gen;
+    if (!isV2(id) || v2Ready(id)) { show(id); return; }
+    if (kind !== 'ph') mount('ph');
+    loadV2(id).then(() => { if (!dead && my === gen) show(id); },
+      e => { console.warn('anim v2 unavailable, using v1', e); if (!dead && my === gen) mount('v1'); });
   }
   load(animId);
   return {
-    play() { o.playing = true; p.play(); },
+    play() { o.playing = true; fixedT = null; p.play(); },
     pause() { o.playing = false; p.pause(); },
-    setAnim(id, prim, sec) { load(id, prim, sec); },
-    destroy() { p.destroy(); },
-    seek(t) { p.seek(t); },
+    setAnim(id, prim, sec) { fixedT = null; load(id, prim, sec); },
+    destroy() { dead = true; p.destroy(); },
+    seek(t) { fixedT = t; p.seek(t); },
     setBreath(on) { o.breath = !!on; p.setBreath?.(o.breath); },
     setTrail(on) { o.trail = !!on; p.setTrail?.(o.trail); },
     get svg() { return p.svg; },
-    get renderer() { return v2 ? 'v2' : 'v1'; },
+    get renderer() { return kind; },   // 'v2' | 'v1' | 'ph' (v2 still loading)
+    get ready() { return kind !== 'ph'; },
   };
 }

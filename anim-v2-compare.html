@@ -79,7 +79,9 @@
   let three = null;
   if (params.has('b')) try { three = await import('./js/anim/v2/three-player.js'); } catch (e) { console.error(e); }
   document.documentElement.style.setProperty('--cols', three ? 3 : 2);
-  const PINS = { knee_push_up: ['kneeR', 'kneeL'] };
+  const { V2_IDS } = await import('./js/anim/v2/ids.js');
+  const drift = [...CLIP_IDS.filter(i => !V2_IDS.has(i)), ...[...V2_IDS].filter(i => !CLIPS[i])];
+  if (drift.length) console.error('ids.js and clips/*.js disagree:', drift);
   const nav = document.getElementById('nav');
   nav.innerHTML = ids.map(id => `<a href="#${id}">${CLIPS[id].name}</a>`).join(' · ');
 
@@ -100,7 +102,7 @@
     const pa = createPlatePlayer(sec.querySelector('[data-v=a]'), id, { primary: m.primary, secondary: m.secondary, size });
     plates.push(pa); players.push(pa);
     if (three) { const pb = three.createThreePlayer(sec.querySelector('[data-v=b]'), id, { primary: m.primary, secondary: m.secondary, size }); threes.push(pb); players.push(pb); }
-    const q = qaClip(c, { pins: PINS[id] || [] }), f = (v, bad) => `<b class="${bad ? 'bad' : ''}">${v}</b>`;
+    const q = qaClip(c), f = (v, bad) => `<b class="${bad ? 'bad' : ''}">${v}</b>`;
     sec.querySelector('.qa').innerHTML = `QA ${f(q.ok ? 'pass' : 'FAIL', !q.ok)} · arm reach ${f(q.reach, q.reach > 1)} · leg reach ${f(q.reachLeg, q.reachLeg > 1)}`
       + ` · contact slide ${f(q.slide + ' cm', q.slide >= .05)}${q.slide ? ` (${q.slideAt})` : ''} · floor ${f(q.floor + ' cm', q.floor <= -.3)} (${q.floorAt})`
       + `${q.humerus ? ` · humerus stretch ${f(q.humerus + ' cm', q.humerus >= .6)}` : ''} · ${q.ms} ms/pose · cycle ${(c._c?.T ?? 0).toFixed(2)} s`;

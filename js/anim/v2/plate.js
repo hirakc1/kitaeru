@@ -5,9 +5,8 @@
 // order re-sorted each frame), and far-side groups fade like a textbook plate.
 import * as K from './core.js';
 import { PROFILE, BLOBS, handBones, footShape, PELVIS, COXA, STERNUM, vertebraShape, SKULL_LAT, SKULL_FRONT, FOOT_BODY, TOES } from './anatomy.js';
-import { CLIPS, CLIP_IDS } from './clips.js';
+import { CLIPS } from './clips/lib.js';   // registry: the clip group must be loaded first (skeleton.js / clips.js)
 
-export const V2_IDS = new Set(CLIP_IDS);
 const NS = 'http://www.w3.org/2000/svg';
 const f2 = n => Math.round(n * 10) / 10;
 const PT = q => `${f2(q[0])},${f2(q[1])}`;
@@ -88,7 +87,13 @@ const STYLE = `
 .kt-pl .pl-p0{stop-color:color-mix(in srgb,var(--pl-mp) 62%,#fff)} .kt-pl .pl-p1{stop-color:var(--pl-mp)} .kt-pl .pl-p2{stop-color:color-mix(in srgb,var(--pl-mp) 62%,#000)}
 .kt-pl .pl-q0{stop-color:color-mix(in srgb,var(--pl-ms) 60%,#fff)} .kt-pl .pl-q1{stop-color:var(--pl-ms)} .kt-pl .pl-q2{stop-color:color-mix(in srgb,var(--pl-ms) 62%,#000)}
 .kt-pl .pl-h0{stop-color:var(--ink,#1C1B19);stop-opacity:.16} .kt-pl .pl-h1{stop-color:var(--ink,#1C1B19);stop-opacity:0}
-.kt-pl.lod .pl-b,.kt-pl.lod .pl-bf,.kt-pl.lod .pl-m,.kt-pl.lod .pl-m2{vector-effect:non-scaling-stroke;stroke-width:.55px}
+.kt-pl .pl-pt{fill:color-mix(in srgb,var(--line,#E3DCCB) 70%,var(--surface,#FFFDF7));stroke:var(--pl-ink);stroke-width:.26;stroke-linejoin:round}
+.kt-pl .pl-pz{fill:var(--line,#E3DCCB);stroke:var(--pl-ink);stroke-width:.26;stroke-linejoin:round}
+.kt-pl .pl-px{fill:color-mix(in srgb,var(--line,#E3DCCB) 78%,var(--ink-muted,#6B665C));stroke:var(--pl-ink);stroke-width:.26;stroke-linejoin:round}
+.kt-pl .pl-rgo{stroke:var(--pl-ink);stroke-width:2.2}
+.kt-pl .pl-rgi{stroke:var(--line,#E3DCCB);stroke-width:1.6}
+.kt-pl .pl-band{fill:none;stroke:var(--accent-2,#D9A441);stroke-width:1.1;stroke-linecap:round;stroke-opacity:.9}
+.kt-pl.lod .pl-b,.kt-pl.lod .pl-bf,.kt-pl.lod .pl-m,.kt-pl.lod .pl-m2,.kt-pl.lod .pl-pt,.kt-pl.lod .pl-pz,.kt-pl.lod .pl-px,.kt-pl.lod .pl-pr{vector-effect:non-scaling-stroke;stroke-width:.55px}
 .kt-pl.lod .pl-fl{vector-effect:non-scaling-stroke;stroke-width:1px}`;
 function injectStyle() {
   if (document.getElementById('kt-pl-style')) return;
@@ -142,7 +147,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   const over = new Grp(svg, 'over');
   const st = { clip: null, cam: null, playing: playing && !reduce, visible: true, t0: 0, elapsed: 0, last: 0, raf: 0, fixedT: null,
     trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), avg: {}, trailPath: {}, order: '', ms: [],
-    lod: size < 160 ? 1 : 0, n: 0, slow: false };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
+    lod: size < 160 ? 1 : 0, n: 0, slow: false, props: [], pnames: [], gnames: GROUPS };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
   if (st.lod) { svg.classList.add('lod'); st.trail = st.breath = false; }   // no overlays on thumbnails
 
   // ---------- primitives ----------
@@ -470,6 +475,47 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
       }
     }
   }
+  // ---------- props (clip.props: array, or c => array after prep). Each prop is its own depth-sorted group. ----------
+  //   { t: 'box', a: [x0, y0, z0], b: [x1, y1, z1], bias }   visible faces only, top lighter than the sides
+  //   { t: 'tube', pts: [[x, y, z], ...], r }                  bars, uprights, straps, legs
+  //   { t: 'ring', c, n, r }                                   gymnastic ring (circle of radius r facing n)
+  //   { t: 'band', a: S => p | p, b: S => p }                  resistance band, follows the body
+  // bias shifts the painter depth (boxes default -20: supports sit behind whatever rests on them)
+  const PROP = p => (p.t === 'box' ? K.lerp3(p.a, p.b, .5) : p.t === 'tube' ? K.lerp3(p.pts[0], p.pts[p.pts.length - 1], .5) : p.c);
+  const at = (v, S) => (typeof v === 'function' ? v(S) : v);
+  function drawProp(g, cam, p, S) {
+    if (p.t === 'box') {
+      const [x0, y0, z0] = p.a, [x1, y1, z1] = p.b;
+      const F = [[[1, 0, 0], [[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]]], [[-1, 0, 0], [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]]],
+        [[0, 1, 0], [[x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]]], [[0, 0, 1], [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]],
+        [[0, 0, -1], [[x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [x1, y0, z0]]]];
+      for (const [n, q] of F) if (K.dot(n, cam.c) > 1e-3) g.add('path', { d: 'M' + q.map(v => PT(cam.pr(v))).join('L') + 'Z' }, n[1] ? 'pl-pt' : n[0] ? 'pl-px' : 'pl-pz');
+    } else if (p.t === 'tube') {
+      const d = K.nrm(K.sub(p.pts[p.pts.length - 1], p.pts[0])), a1 = K.perp(Math.abs(d[1]) > .9 ? [1, 0, 0] : [0, 1, 0], d), a2 = K.cross(d, a1);
+      const t = tube(cam, p.pts, p.pts.map(() => a1), p.pts.map(() => p.r), p.pts.map(() => a2), p.pts.map(() => p.r));
+      g.add('path', { d: tubeD(t) }, 'pl-pr');
+    } else if (p.t === 'ring') {
+      const n = K.nrm(p.n), u = K.perp([0, 1, 0], n), w = K.cross(n, u);
+      g.add('ellipse', { ...splat(cam, p.c, [K.mul(u, p.r), K.mul(w, p.r), K.mul(n, .01)]), fill: 'none' }, 'pl-rgo');
+      g.add('ellipse', { ...splat(cam, p.c, [K.mul(u, p.r), K.mul(w, p.r), K.mul(n, .01)]), fill: 'none' }, 'pl-rgi');
+    } else if (p.t === 'band') {
+      g.add('path', { d: `M${PT(cam.pr(at(p.a, S)))}L${PT(cam.pr(at(p.b, S)))}` }, 'pl-band');
+    }
+  }
+  function propPts(p) {
+    if (p.t === 'box') { const r = []; for (const x of [p.a[0], p.b[0]]) for (const y of [p.a[1], p.b[1]]) for (const z of [p.a[2], p.b[2]]) r.push([x, y, z]); return r; }
+    if (p.t === 'tube') return p.pts;
+    if (p.t === 'ring') return [K.add(p.c, [0, p.r, 0]), K.add(p.c, [0, -p.r, 0]), K.add(p.c, [p.r, 0, 0]), K.add(p.c, [-p.r, 0, 0])];
+    return [];
+  }
+  function setProps(clip) {
+    for (const n of st.pnames) { G[n].g.remove(); delete G[n]; }
+    st.props = (typeof clip.props === 'function' ? clip.props(clip) : clip.props) || [];
+    st.pnames = st.props.map((_, i) => 'prop' + i);
+    st.props.forEach((p, i) => { G[st.pnames[i]] = new Grp(root, st.pnames[i]); });
+    st.gnames = [...GROUPS, ...st.pnames];
+  }
+
   function drawOverlay(S, cam, tn) {
     const g = over;
     if (st.trail) for (const name of st.clip.trail || []) {
@@ -504,6 +550,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
       D['leg' + sd] = d(mid(S.pt['knee' + sd], S.pt['hip' + sd]));
       D['arm' + sd] = d(mid(S.pt['elbow' + sd], S.pt['glenoid' + sd])) + 1;
     }
+    st.props.forEach((p, i) => { D[st.pnames[i]] = (p.t === 'band' ? d(K.lerp3(at(p.a, S), at(p.b, S), .5)) : d(PROP(p))) + (p.bias ?? (p.t === 'box' ? -20 : 0)); });
     return D;
   }
 
@@ -512,14 +559,16 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const clip = st.clip, cam = st.cam, T = K.period(clip);
     const tn = st.fixedT != null ? st.fixedT : (!st.playing && st.elapsed === 0 ? (clip.still ?? .45) : (st.elapsed / 1000 % T) / T);
     const S = K.poseAt(clip, tn * T);
-    if (clip.swap) {                                // side switch: a quick dip through the paper (a cut, not a teleport)
-      const h = K.swapTime(clip), ts = tn * T, d = Math.min(ts, Math.abs(ts - h), T - ts), u = Math.min(1, d / .35);
+    // side switch (swap) or a loop that restarts elsewhere (cut: negatives): a quick dip through the paper, not a teleport
+    if (clip.swap || clip.cut) {
+      const h = clip.swap ? K.swapTime(clip) : -1, ts = tn * T, d = Math.min(ts, h < 0 ? 1e9 : Math.abs(ts - h), T - ts), u = Math.min(1, d / .35);
       const op = f2(.15 + .85 * u * u * (3 - 2 * u));
       if (st.op !== op) { st.op = op; if (op >= 1) root.removeAttribute('opacity'); else root.setAttribute('opacity', op); }
     }
     S._strands = K.strands(S, st.groups);
     for (const k in G) G[k].begin(); over.begin();
     drawFloor(S, cam); drawBar(cam);
+    st.props.forEach((p, i) => drawProp(G[st.pnames[i]], cam, p, S));
     drawSpine(S, cam); drawSkull(S, cam); drawSternum(S, cam);
     for (const [sd, s] of K.SIDES) {
       drawPelvis(S, cam, sd, s); muscles(G['pelvis' + sd], cam, S, sd, HIP_M);
@@ -530,7 +579,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     for (const k in G) G[k].end(); over.end();
     // painter's order by anatomical group, far groups fade
     const D = depthOf(S, cam), cd = cam.depth(S.F.pelvis.o);
-    const ord = GROUPS.slice().sort((a, b) => D[a] - D[b]);
+    const ord = st.gnames.slice().sort((a, b) => D[a] - D[b]);
     const key = ord.join();
     if (key !== st.order) { for (const n of ord) root.appendChild(G[n].g); st.order = key; }
     for (const n of GROUPS) {
@@ -543,12 +592,14 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   }
 
   function setAnim(id, prim = primary, sec = secondary) {
-    const clip = CLIPS[id] || CLIPS.push_up;
+    const clip = CLIPS[id];
+    if (!clip) throw new Error(`anim v2: clip '${id}' not loaded`);
     st.clip = clip; st.id = id;
     st.prim = new Set(prim ?? clip.muscles.primary); st.sec = new Set(sec ?? clip.muscles.secondary);
     st.groups = new Set([...st.prim, ...st.sec]);
     st.cam = camera(clip.cam.az, clip.cam.el);
-    st.avg = K.analyse(clip, st.groups).avg;
+    st.avg = K.analyse(clip, st.groups).avg;   // (also runs prep, which props may depend on)
+    setProps(clip);
     trailPaths();
     svg.setAttribute('viewBox', viewBox(clip, st.cam).join(' '));
     svg.setAttribute('aria-label', `${clip.name} animation`);
@@ -575,6 +626,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
       inc(cam.pr([b.x || 0, b.y, z]), 3); inc(cam.pr([b.x || 0, b.posts === 'down' ? 0 : b.y + 16, z]), 2);
       if (b.posts === 'down') for (const dx of [-26, 26]) inc(cam.pr([(b.x || 0) + dx, 0, z]), 2);
     }
+    for (const p of st.props) for (const q of propPts(p)) inc(cam.pr(q), 1);
     if (clip.floor) inc(cam.pr([0, 0, 0]), st.lod ? 2 : 5);
     const pad = st.lod ? 2 : 8; x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
     let w = x1 - x0, h = y1 - y0;

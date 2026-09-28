@@ -7,7 +7,8 @@
 //   humerus           worst upper-arm stretch in forearm-plank contacts (cm)
 import { poseAt, period, swapTime } from './core.js';
 
-export function qaClip(clip, { n = 240, pins = [] } = {}) {
+// pins: points that must not move at all (contacts off the floor: palms on a bench, knees); default clip.qaPins
+export function qaClip(clip, { n = 240, pins = clip.qaPins || [] } = {}) {
   const T = period(clip), anc = {};
   const r = { reach: 0, reachLeg: 0, slide: 0, slideAt: '', floor: 1e9, floorAt: '', humerus: 0, ms: 0 };
   const t0 = performance.now();
