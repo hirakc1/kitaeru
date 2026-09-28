@@ -80,8 +80,7 @@ button { cursor: pointer; }
 body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); }
 .view-library { max-width: 920px; }
 .view-workout { padding-top: calc(4px + var(--safe-t)); }
-.boot { display: grid; place-items: center; min-height: 70vh; animation: pulse 1.4s ease-in-out infinite; }
-@keyframes pulse { 50% { opacity: .5; transform: scale(.94); } }
+.boot { min-height: 70vh; } /* blank washi while modules load: the splash is the only opening screen */
 
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
@@ -219,16 +218,16 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
   transition: opacity .7s var(--ease); }
 .splash.out { opacity: 0; pointer-events: none; }
 .splash > * { animation: fadeUp .9s var(--ease) both; }
-.splash-seal { filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--accent) 35%, transparent)); animation: stampIn .8s var(--ease) both; margin-bottom: 24px; }
-.splash-name { font-family: var(--serif); font-size: 2.6rem; font-weight: 700; letter-spacing: .14em; margin: 0; animation-delay: .3s; }
-.splash-jp { font-family: var(--serif); color: var(--accent); letter-spacing: .18em; margin: 4px 0 0; animation-delay: .5s; }
-.splash-rule { width: 56px; height: 2px; background: var(--ink); opacity: .7; margin: 22px auto; border-radius: 2px; animation-delay: .7s; }
-.splash-line { font-family: var(--serif); color: var(--muted); max-width: 28ch; line-height: 1.6; margin: 0; animation-delay: .9s; animation-duration: 1s; }
+.splash-seal { filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--accent) 35%, transparent)); animation: sealIn .9s var(--ease) both; margin-bottom: 24px; }
+.splash-name { font-family: var(--serif); font-size: 2.6rem; font-weight: 700; letter-spacing: .14em; margin: 0; animation-delay: .45s; }
+.splash-jp { font-family: var(--serif); color: var(--accent); letter-spacing: .18em; margin: 4px 0 0; animation-delay: .75s; }
+.splash-rule { width: 56px; height: 2px; background: var(--ink); opacity: .7; margin: 22px auto; border-radius: 2px; animation-delay: 1.05s; }
+.splash-line { font-family: var(--serif); color: var(--muted); max-width: 28ch; line-height: 1.6; margin: 0; animation-delay: 1.3s; animation-duration: 1.2s; }
 
 /* ---------- welcome ---------- */
 .welcome { min-height: calc(100dvh - 60px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 32px 0; }
 .welcome-mark { margin-bottom: 26px; }
-.seal-hero { filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--accent) 35%, transparent)); animation: stampIn .9s var(--ease) both; }
+.seal-hero { filter: drop-shadow(0 10px 22px color-mix(in srgb, var(--accent) 35%, transparent)); animation: sealIn .9s var(--ease) both; }
 .welcome-title { font-size: 3.2rem; letter-spacing: .12em; font-weight: 700; }
 .welcome-sub { font-family: var(--serif); color: var(--muted); letter-spacing: .06em; margin-top: 4px; }
 .ink-rule { width: 64px; height: 2px; background: var(--ink); opacity: .75; margin: 20px auto; border-radius: 2px; }
@@ -342,7 +341,7 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .forge-lines { list-style: none; padding: 0; margin: 28px 0 0; font-family: var(--serif); color: var(--muted); }
 .forge-lines li { opacity: 0; animation: lineIn .5s var(--ease) forwards; margin: 6px 0; }
 .forge-lines li:nth-child(1) { animation-delay: .5s; }
-.forge-lines li:nth-child(2) { animation-delay: .7s; }
+.forge-lines li:nth-child(2) { animation-delay: 1.05s; }
 .forge-lines li:nth-child(3) { animation-delay: 1.6s; }
 @keyframes lineIn { from { opacity: 0; transform: translateY(6px); letter-spacing: .12em; } to { opacity: 1; transform: none; letter-spacing: .02em; } }
 
@@ -354,6 +353,8 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .btn .seal-inline g { fill: var(--btn-bg); }
 .stamp { animation: stampIn .75s cubic-bezier(.3, 1.4, .5, 1) both; transform-origin: 50% 60%; }
 @keyframes stampIn { 0% { opacity: 0; transform: scale(1.9) rotate(-14deg); filter: blur(3px); } 60% { opacity: 1; transform: scale(.94) rotate(-3deg); filter: none; } 100% { transform: scale(1) rotate(-4deg); } }
+/* The logo seal settles straight; only earned stamps (workout done) land at a hand-pressed tilt. */
+@keyframes sealIn { 0% { opacity: 0; transform: scale(1.35); filter: blur(3px); } 60% { opacity: 1; transform: scale(.97); filter: none; } 100% { transform: scale(1); } }
 .stamp-static { transform: rotate(-5deg); }
 
 /* ---------- toast & sheet ---------- */

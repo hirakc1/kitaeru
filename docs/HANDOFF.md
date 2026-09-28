@@ -19,7 +19,8 @@ This is the current state for a new Claude session picking up the project. Claud
 - **v1.0:** onboarding, plan engine (research-based), 82 exercises with a 2D skeletal animation and muscle highlight, workout player, weekly-primary streaks with freezes, progress, library.
 - **v1.1** (2026-09-28): Quick workout with no setup. You pick a time plus a goal or a body area; body-map muscle tapping uses `generateQuickSession`. Also fixed from founder feedback: day chips sync with days/week, the weight format is st&lb | kg | lb, plank baseline is entered in min+sec, and preferences have an edit hub.
 
-- **Timed holds** (2026-09-28, committed but not deployed yet): Start runs a 3-2-1 get-ready, then counts down to the target (the top of the `holdSec` range). It auto-logs at 0, and "Stop & log" still logs early.
+- **Opening screen** (deployed as v2026.09.28-1037): the seal, the name, 鍛える, and the founder's line "The world's movement traditions, brought together to strengthen body and mind." It runs 3.6 s (the founder found 2.8 s too fast) and can be tapped to skip. The same line appears in the Me → About section.
+- **Timed holds** (deployed as v2026.09.28-0949): Start runs a 3-2-1 get-ready, then counts down to the target (the top of the `holdSec` range). It auto-logs at 0, and "Stop & log" still logs early.
 
 ## In progress / next
 1. **Animation level-up.** This is founder feedback: "much higher quality, better skeleton, more fluid, a real level up".
@@ -33,7 +34,11 @@ This is the current state for a new Claude session picking up the project. Claud
    - Converting all 82 exercises takes about 4–6 weeks of agent work. Stepping with a support-foot switch needs about 1 more week.
    - Still rough: the pelvis and hand silhouettes need an art pass.
    - **Decided (2026-09-28): A now, B later.** A becomes the default renderer for all 82 exercises. B comes later as an optional "3D view" for the v1.2 world-movement and rotation moves. Prototypes are committed.
-   - **Next:** convert all 82 exercises to A while keeping the `createSkeletonPlayer` API, plus the pelvis/hands art pass. Review in batches with the founder before deploying.
+   - **Batch 1 approved (2026-09-28):** 15 exercises on branch `worktree-agent-a9739dc712fdd0781`, not merged or deployed yet. Founder liked the continuous motion, the motion trail and the breath ring.
+     - Agreed placement: the breath ring runs during holds (workout and library), and the motion trail shows in library/detail only. A Me-tab "Animation extras" setting controls both.
+     - Batch 1 fixes in progress: a floor and frame for the pull-ups, a clearer superman lift, and side swap.
+   - **Batch 2 in progress:** about 18 exercises (push-up variants, dips, pull/rows, box/Bulgarian split squat, hip thrust, single-leg calf raise), plus lazy-loading v2. After that come batches 3–5: core/skills, conditioning (needs support-foot switching), and mobility.
+   - Theme: keep Auto as the default. Light is the brand identity for store screenshots and marketing.
    - The world-movement wave needs trunk rotation, stepping with weight transfer, flows, hand shapes and a breath indicator. That leans towards 3D.
 2. **v1.2 world-movement wave:** see `docs/world-movement.md` §7. It covers Radio Taisō No.1 (movements only; the music is copyrighted, and the name/trademark needs checking), Tai Chi singles and short flow, Baduanjin, horse stance, Hindu push-up and squat, rotation / anti-rotation families, and schema additions (`tradition`, `nativeName`, `sequence`, `plane`). Each tradition must be reviewed and credited by a practitioner before it ships.
 3. **Known gaps:**
