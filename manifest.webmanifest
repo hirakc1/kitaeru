@@ -1,7 +1,7 @@
 {
   "name": "Kitaeru 鍛える — free calisthenics",
   "short_name": "Kitaeru",
-  "description": "Your bodyweight, forged daily. Free forever. No account, no ads, your data stays on your phone.",
+  "description": "Movement disciplines from around the world, brought together to strengthen body and mind. Free forever. No account, no ads, your data stays on your phone.",
   "id": "./",
   "start_url": "./#/today",
   "scope": "./",
