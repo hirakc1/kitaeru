@@ -1263,6 +1263,10 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
       fillFlat(cool, mobCands, T - base, T - base + 15, ex => mk(ex, 1), Q ? (M >= 60 ? 10 : 8) : 4, used, info);
     }
   }
+  if (poolBlk) { // a small pool with nothing left to add: more rounds of its own moves rather than a short session
+    total = blocks.reduce((t, b) => t + blockSec(b, info), 0);
+    if (total < 0.96 * T) { const base = total - blockSec(poolBlk, info); fillFlat(poolBlk, [], T - base, T - base + 15, null, 6, used, info); }
+  }
   if (cond) delete cond._u;
   if (ctx.balanceSessionsInc) { ctx.balanceSessions++; ctx.balanceSessionsInc = false; }
 
@@ -1952,7 +1956,8 @@ function goalTemplate(goal, ctx, seed, minutes, quick) {
       const nDyn = minutes <= 5 ? 1 : 2;
       if (minutes <= 5) quick.mobSets = 1; // 5 min: more areas, one hold each
       const dyn = rotate(FLEX_DYNAMIC.filter(id => ctx.isAvail(ctx.byId[id])), seed), holds = rotate(FLEX_HOLDS.filter(id => ctx.isAvail(ctx.byId[id])), seed >> 3);
-      quick.mobOrder = [...dyn.slice(0, nDyn), ...holds, ...dyn.slice(nDyn)];
+      quick.mobOrder = nDyn === 1 ? [dyn[0], ...holds, ...dyn.slice(1)].filter(Boolean) // a dynamic opener, then holds with the other drills between them
+        : [dyn[0], holds[0], dyn[1], ...holds.slice(1), ...dyn.slice(2)].filter(Boolean);
       return { kind: 'flow', name: '', focus: ['mobility'], slots: [] };
     }
     case 'endurance': { // research §1.1 endurance: circuits, 15-30 reps or 30-45 s efforts, short rests
@@ -1997,6 +2002,7 @@ const POOL_FILL = {
   'category:flow': { ids: [...FLEX_DYNAMIC, ...FLEX_HOLDS], note: 'We’ve added mobility and stretches around the flows.' },
   'category:conditioning': { slots: ['squat', 'push_horizontal', 'core_anterior'] },
 };
+const POOL_TAIL = ['cat_cow', 'childs_pose', 'marching_in_place', 'arm_circles', 'leg_swings', 'hip_circles'];
 const GENTLE_KIND = { mobility: 'mobility', balance: 'balance', warmup: 'warmup', flow: 'flow', breath: 'mobility' };
 
 /** Items (visible, available to this profile) matching every given filter. Unknown ids match nothing. */
@@ -2046,7 +2052,7 @@ function poolBlock(ctx, P, used, info, M) {
   }
   for (const it of block.items) addRounds(block, it, target, info);
   const sets = M <= 5 ? 1 : 2;
-  fillFlat(block, [...P.singles, ...P.filler], target, target + 30, ex => poolSingle(ex, ctx, sets), 3, used, info);
+  fillFlat(block, [...P.singles, ...P.filler], target, target + 30, ex => poolSingle(ex, ctx, sets), M >= 20 ? 4 : 3, used, info);
   return block.items.length ? block : null;
 }
 
@@ -2075,7 +2081,8 @@ function poolTemplate(filter, ctx, seed, minutes, quick, library) {
     quick.warmFirst = ['wrist_prep'];
   }
   const gentleShare = !load.length ? 1 : !(gentle.length + flows.length) ? 0 : clamp((gentle.length + flows.length * 3) / (gentle.length + flows.length * 3 + load.length), 0.3, 0.7);
-  const fillIds = (fill.ids || []).map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !items.includes(e));
+  // last resort for any gentle pool: easy whole-body drills, so a small pool (small space, injuries) still fills its time
+  const fillIds = [...new Set([...(fill.ids || []), ...POOL_TAIL])].map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !items.includes(e));
   if (gentle.length || flows.length || (!load.length && !skills.length)) {
     const kind = filter.tradition ? (flows.length ? 'flow' : 'mobility') : items.length ? GENTLE_KIND[filter.category] || 'mobility' : 'mobility';
     const title = filter.tradition ? TRADITIONS[filter.tradition].name : CATEGORY_LABEL[filter.category] || ALL_FAMILIES[filter.family]?.name || 'Practice';
