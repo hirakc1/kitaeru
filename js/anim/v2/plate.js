@@ -142,7 +142,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   const over = new Grp(svg, 'over');
   const st = { clip: null, cam: null, playing: playing && !reduce, visible: true, t0: 0, elapsed: 0, last: 0, raf: 0, fixedT: null,
     trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), avg: {}, trailPath: {}, order: '', ms: [],
-    lod: size < 160 ? 1 : 0 };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
+    lod: size < 160 ? 1 : 0, n: 0, slow: false };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
   if (st.lod) svg.classList.add('lod');
 
   // ---------- primitives ----------
@@ -576,7 +576,9 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     if (!st.playing || !st.visible) return;
     const dt = st.last ? Math.min(100, ts - st.last) : 16;
     st.last = ts; st.elapsed += dt;
-    if (!st.lod || (st.odd = !st.odd)) draw();   // thumbnails redraw at half rate
+    // thumbnails, and any player whose median frame costs > 8 ms (slow phones), redraw at half rate
+    if (!(st.lod || st.slow) || (st.odd = !st.odd)) draw();
+    if (++st.n % 30 === 0 && st.ms.length >= 40) st.slow = api.stats().median > 8;
     st.raf = requestAnimationFrame(loop);
   }
   const kick = () => { if (st.playing && st.visible && !st.raf) { st.last = 0; st.raf = requestAnimationFrame(loop); } };

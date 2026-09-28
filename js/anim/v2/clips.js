@@ -9,7 +9,7 @@ const R = Math.PI / 180;
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const angXY = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]) / R;
 // x in [lo, hi] with g(x) = y (g monotone, either direction)
-function solve(lo, hi, g, y = 0, n = 30) {
+function solve(lo, hi, g, y = 0, n = 22) {
   const inc = g(hi) > g(lo);
   for (let i = 0; i < n; i++) { const m = (lo + hi) / 2; if ((g(m) > y) === inc) hi = m; else lo = m; }
   return (lo + hi) / 2;
@@ -246,7 +246,7 @@ function bridge(single) {
     pin: { pt: S => P(S.vert[T_INDEX(4)], [-7.5, 0, 0]), at: [0, 0] },
     legs: { R: { mode: 'ik', foot: 'flat', toeOut: 6, ankle: (sd, s) => [c._fx, 7.5, 11 * s], pole: s => [.35, 1, .1 * s] } },
     arms: { both: { mode: 'ik', grip: 'palm', pole: [.1, 0, 1], dir: s => [1, 0, .06 * s], target: (sd, s) => [c._ax, 0, 23 * s] } },
-    base: { pitch: -92, fingers: 0, wrist: 0, ...(single ? { hipFlexL: 108, kneeL: 100, ankleL: 12, hipAbdL: 3 } : {}) },
+    base: { pitch: -92, fingers: 0, wrist: 0, ...(single ? { hipFlexL: 116, kneeL: 122, ankleL: 14, hipAbdL: 3 } : {}) },
     keys: {
       down: { pitch: -92, lumbar: 1, cervical: 0, head: 0 },
       up: { pitch: -118, lumbar: 3, thoracic: 2, cervical: 0, head: 0 },
@@ -319,13 +319,13 @@ const superman = (() => {
     prep({ settle }) {
       const k = c.keys, r = k.rest;
       const face = S => Math.min(S.pt.nose[1], S.pt.chin[1]);
-      r.pitch = solve(80, 105, p => settle({ ...r, pitch: p }).pt.sternum[1], 4.5);          // chest resting
-      r.cervical = solve(-40, 30, v => face(settle({ ...r, cervical: v })), 3.5);             // face just off the floor
+      r.pitch = solve(80, 105, p => settle({ ...r, pitch: p }).pt.sternum[1], 6);            // chest resting (with soft tissue)
+      r.cervical = -30; r.head = solve(-50, -15, v => face(settle({ ...r, head: v })), 2.2);    // long neck, face just off the floor
       r.shFlex = solve(150, 200, v => settle({ ...r, shFlex: v }).pt.palmR[1], 2.4);          // hands on the floor
       r.hipFlex = solve(-20, 20, v => settle({ ...r, hipFlex: v }).pt.patellaR[1], 2.4);      // thighs on the floor
       // lift: spine extends through the lumbar and thoracic levels, arms and legs rise ~10-15 cm, neck stays long
-      k.top = { ...r, pitch: r.pitch + 1, lumbar: -8, thoracic: -8, cervical: r.cervical + 4, shFlex: r.shFlex + 9, scapUp: 4, hipFlex: r.hipFlex - 9 };
-      k.top2 = { ...k.top, lumbar: k.top.lumbar - 1.2, thoracic: k.top.thoracic - 1.2, shFlex: k.top.shFlex + 2.5, hipFlex: k.top.hipFlex - 1.5 };
+      k.top = { ...r, pitch: r.pitch + 1, lumbar: -8, thoracic: -7, cervical: r.cervical + 5, shFlex: r.shFlex + 5, scapUp: 3, hipFlex: r.hipFlex - 8 };
+      k.top2 = { ...k.top, lumbar: k.top.lumbar - 1, thoracic: k.top.thoracic - 1, shFlex: k.top.shFlex + 2, hipFlex: k.top.hipFlex - 1.2 };
     },
   };
   return c;

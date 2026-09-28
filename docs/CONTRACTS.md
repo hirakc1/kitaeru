@@ -105,6 +105,7 @@ export function createSkeletonPlayer(container, animId, { primary = [], secondar
 // Renders an SVG into container. Returns { play(), pause(), setAnim(animId, primary, secondary), destroy() }.
 // Highlights primary muscles (accent, gently pulsing) and secondary muscles (softer tint) as shapes on the skeleton.
 ```
+Since animation v2 (batch 1), `createSkeletonPlayer` renders the Direction A anatomical plate (`js/anim/v2/plate.js`) for every id that has a clip in `js/anim/v2/clips.js`, and falls back to the v1 player otherwise. `setAnim` swaps the renderer in place. Additions (non-breaking): `seek(t)`, a `renderer` getter (`'v2'` | `'v1'`), `createV1Player` (the old player) and `isV2(id)`. `?anim=v1` in the URL forces v1 for A/B review. Players under 160 px use a thumbnail level of detail. `anim-v2-compare.html` shows v1 vs A (and QA checks) for every clip.
 
 `js/anim/bodymap.js`:
 ```js
