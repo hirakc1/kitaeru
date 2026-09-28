@@ -1,7 +1,7 @@
 // Single import point for modules owned by other teams (data, animation, planner).
 // Everything else in the UI imports from here, so the contract surface lives in one place.
 export { MUSCLES, MUSCLE_IDS } from '../data/muscles.js';
-export { EXERCISES, FAMILIES, byId } from '../data/exercises.js';
+export { EXERCISES, FAMILIES, byId, varietyFor } from '../data/exercises.js';
 // v1.2 world movement (for the flow player, culture cards and filters): ALL_* include hidden items; use only to resolve flow steps.
 export { ALL_EXERCISES, ALL_BY_ID, ALL_FAMILIES, EQUIPMENT, isVisible, flowSteps, flowSeconds } from '../data/exercises.js';
 export { TRADITIONS, traditionVisible, traditionPreview, contentVisible, RADIO_TAISO_ATTRIBUTION } from '../data/traditions.js';

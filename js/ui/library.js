@@ -137,7 +137,7 @@ function detailHTML(e) {
     <div class="detail-stage" data-stage></div>
     ${trad ? `<p class="origin-line">From <strong>${esc(trad.name)}</strong>${trad.region ? ` · ${esc(trad.region)}` : ''}${card ? ` <button type="button" class="link" data-culture="${esc(card)}">About ${esc(trad.name)}</button>` : ''}</p>`
       : card ? `<p class="origin-line"><button type="button" class="link" data-culture="${esc(card)}">Why train ${esc(TRADITIONS[card].name.toLowerCase())}?</button></p>` : ''}
-    <div class="badges"><span class="badge">${esc(familyName(e.family))}</span>${PROG(e) ? `<span class="badge">Level ${lad.indexOf(e) + 1} of ${lad.length}</span>` : ''}
+    <div class="badges"><span class="badge">${esc(familyName(e.family))}</span>${PROG(e) && e.rung === false ? '<span class="badge">Variety swap</span>' : PROG(e) ? `<span class="badge">Level ${lad.indexOf(e) + 1} of ${lad.length}</span>` : ''}
       <span class="badge">${target}${e.unilateral ? ' · per side' : ''}</span><span class="badge">Difficulty ${e.difficulty}/10</span>${e.impact === 'high' ? '<span class="badge badge-gold">High impact</span>' : ''}</div>
     ${ok ? '' : '<p class="note small">Not in your plan right now — it needs equipment you don’t have, or it loads a joint you flagged.</p>'}
     ${e.description ? `<p>${esc(e.description)}</p>` : ''}

@@ -1,5 +1,5 @@
 // Shared UI helpers: escaping, icons, the seal mark, sheets, toasts, formatting, audio, thumbnails.
-import { MUSCLES, FAMILIES, ALL_FAMILIES, EXERCISES, byId, ALL_BY_ID, createSkeletonPlayer, plannerIsAvailable } from './deps.js';
+import { MUSCLES, FAMILIES, ALL_FAMILIES, EXERCISES, byId, varietyFor, ALL_BY_ID, createSkeletonPlayer, plannerIsAvailable } from './deps.js';
 import { getState } from '../store.js';
 
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -208,7 +208,7 @@ export function isAvailable(ex, profile) {
   if ((rank[ex.space] ?? 0) > (rank[profile.space] ?? 2)) return false;
   return true;
 }
-export const ladder = family => EXERCISES.filter(e => e.family === family).sort((a, b) => a.level - b.level);
+export const ladder = family => EXERCISES.filter(e => e.family === family && e.rung !== false).sort((a, b) => a.level - b.level);
 /** Next easier/harder exercise for a swap, respecting explicit overrides and availability. */
 export function neighbour(id, dir, profile) {
   const ex = byId[id]; if (!ex) return null;
@@ -218,6 +218,8 @@ export function neighbour(id, dir, profile) {
   const cands = dir < 0 ? lad.filter(e => e.level < ex.level).reverse() : lad.filter(e => e.level > ex.level);
   return cands[0] || null;
 }
+/** Variety swaps (`rung: false` items such as the daṇḍ) this profile can do instead of an exercise. */
+export function varietySwaps(id, profile) { return varietyFor(id).filter(e => isAvailable(e, profile)); }
 export const PROGRESSION_EXCLUDE = new Set(['mobility', 'warmup', 'conditioning']);
 /** Is this family a progression ladder? Not mobility/warm-up/conditioning, nor v1.2 families marked `progression: false` (flows, breath). */
 export const isProgression = f => !PROGRESSION_EXCLUDE.has(f) && (ALL_FAMILIES[f] || FAMILIES[f])?.progression !== false;

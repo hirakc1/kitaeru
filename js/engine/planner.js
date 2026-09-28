@@ -318,7 +318,8 @@ function libInfo(library) {
   const byId = {}, fam = {}, famMax = {};
   for (const ex of library) {
     if (!contentVisible(ex) || ex.flowOnly || !exerciseAnimated(ex, ALL_BY_ID)) continue;
-    byId[ex.id] = ex; (fam[ex.family] ||= []).push(ex);
+    byId[ex.id] = ex;
+    if (ex.rung !== false) (fam[ex.family] ||= []).push(ex);   // variety items (the daṇḍ) are swaps, never rungs
   }
   for (const f of Object.keys(fam)) { fam[f].sort((a, b) => a.level - b.level); famMax[f] = fam[f][fam[f].length - 1].level; }
   const info = { byId, fam, famMax };

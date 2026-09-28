@@ -364,6 +364,7 @@ const V12 = [
 
   // ---- Pehlwani (India and Pakistan)
   { ...BASE, ...PW, id: 'dand', name: 'Daṇḍ (Hindu push-up)', nativeName: { text: 'दण्ड', romanised: 'daṇḍ', lang: 'hi', alt: [{ text: 'दंड', lang: 'hi' }] }, aka: ['Hindu push-up', 'Dand'], family: 'push_horizontal',
+    rung: false,   // a variety swap from the push-up, never a required rung (founder decision)
     level: 4.5, category: 'strength', mode: 'reps', muscles: { primary: ['chest', 'triceps', 'front_delts'], secondary: ['lower_back', 'abs', 'upper_back'] },
     stress: ['wrist', 'shoulder', 'lower_back'], difficulty: 5, planes: ['sagittal'], tempo: { secPerRep: 3 }, sources: [SRC.dandWiki, SRC.alter, SRC.pwWiki, SRC.pwYog],
     cues: ['Start in a pike: hips high, hands shoulder-width', 'Dip your chest low between your hands and sweep forward', 'Straighten your arms into a gentle arch, then push your hips back to the pike'],
@@ -1908,9 +1909,15 @@ export const byId = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
 export const ALL_FAMILIES = FAMILY_DEFS;
 export const FAMILIES = Object.fromEntries(Object.entries(FAMILY_DEFS).filter(([f]) => EXERCISES.some(e => e.family === f)));
 
-/** Exercises of one family, easiest first. */
+/** Exercises of one family, easiest first. Variety items (`rung: false`, e.g. the daṇḍ) are not rungs. */
 export function familyLadder(family) {
-  return EXERCISES.filter(e => e.family === family).sort((a, b) => a.level - b.level);
+  return EXERCISES.filter(e => e.family === family && e.rung !== false).sort((a, b) => a.level - b.level);
+}
+/** Variety swaps for an exercise: visible `rung: false` items of its family within a level of it (the planner never
+ *  prescribes them; the workout player offers them next to Easier / Harder). Filter by availability in the UI. */
+export function varietyFor(id) {
+  const ex = byId[id]; if (!ex || ex.rung === false) return [];
+  return EXERCISES.filter(e => e.rung === false && e.family === ex.family && e.id !== id && Math.abs(e.level - ex.level) <= 1);
 }
 
 /**

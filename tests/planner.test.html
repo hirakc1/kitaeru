@@ -20,7 +20,7 @@
 <pre id="fails"></pre>
 <details><summary>Sample weeks</summary><pre id="sample"></pre></details>
 <script type="module">
-import { EXERCISES, ALL_EXERCISES, ALL_BY_ID, ALL_FAMILIES, FAMILIES, byId as visibleById, flowSeconds, flowSteps, familyLadder, isVisible } from '../js/data/exercises.js';
+import { EXERCISES, ALL_EXERCISES, ALL_BY_ID, ALL_FAMILIES, FAMILIES, byId as visibleById, flowSeconds, flowSteps, familyLadder, varietyFor, isVisible } from '../js/data/exercises.js';
 import { TRADITIONS, EXCLUDED_TRADITIONS, RADIO_TAISO_ATTRIBUTION, setTraditionPreview, traditionPreview, traditionVisible, contentVisible } from '../js/data/traditions.js';
 import { MUSCLE_IDS } from '../js/data/muscles.js';
 import { hasAnimation, exerciseAnimated, registerAnimationIds, clearRegisteredAnimationIds, animationGateVersion } from '../js/data/animated.js';
@@ -29,8 +29,6 @@ import { V2_IDS, V2_DRAFT } from '../js/anim/v2/ids.js';
 import * as P from '../js/engine/planner.js';
 
 const byId = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
-// the visible push ladder above push_up (daṇḍ sits at 4.5 once it is animated and verified)
-const PH = familyLadder('push_horizontal').map(e => e.id), PH1 = PH[PH.indexOf('push_up') + 1], PH2 = PH[PH.indexOf('push_up') + 2];
 let pass = 0, fail = 0;
 const fails = [];
 function ok(cond, msg) { if (cond) pass++; else { fail++; if (fails.length < 300) fails.push(msg); } }
@@ -280,7 +278,7 @@ grid.forEach((p, gi) => {
   const log = (id, date, reps, rating, extra = {}) => ({ id, date, weekIndex: 2, sessionId: sess.id, feel: 3, items: [{ exerciseId: 'push_up', family: 'push_horizontal', sets: reps.map(r => ({ reps: r, done: true })), rating, ...extra }] });
   const L1 = log('a', '2026-03-02', [hi, hi, hi], 'good'), L2 = log('b', '2026-03-04', [hi, hi, hi], 'good');
   let r = P.applySessionLog(lv, p, L2, EXERCISES, [L1]);
-  ok(r.levels.push_horizontal === PH1 && r.changes.length === 1 && r.changes[0].reason, `advance after 2 top sessions (${r.levels.push_horizontal})`);
+  ok(r.levels.push_horizontal === 'decline_push_up' && r.changes.length === 1 && r.changes[0].reason, `advance after 2 top sessions (${r.levels.push_horizontal})`);
   r = P.applySessionLog(lv, p, L2, EXERCISES, []);
   ok(r.levels.push_horizontal === 'push_up' && !r.changes.length, 'no advance after only 1 top session');
   r = P.applySessionLog(lv, p, log('b', '2026-03-04', [hi, hi, hi], 'hard'), EXERCISES, [L1]);
@@ -291,7 +289,7 @@ grid.forEach((p, gi) => {
   r = P.applySessionLog(lv, p, log('e', '2026-03-04', [lo, lo, lo], 'good', { pain: 5 }), EXERCISES, []);
   ok(r.levels.push_horizontal === 'knee_push_up', 'pain > 3 regresses immediately');
   r = P.applySessionLog(lv, p, log('f', '2026-03-04', [hi + 3, hi + 3, hi + 4], 'easy'), EXERCISES, []);
-  ok(r.levels.push_horizontal === PH1, 'fast-track: easy and hi+3');
+  ok(r.levels.push_horizontal === 'decline_push_up', 'fast-track: easy and hi+3');
   const dlw = P.phaseInfo(p, 0).cycleLen - 1;
   const D1 = { ...L1, weekIndex: dlw }, D2 = { ...L2, weekIndex: dlw };
   r = P.applySessionLog(lv, p, D2, EXERCISES, [D1]);
@@ -313,11 +311,11 @@ grid.forEach((p, gi) => {
   const hi = it.reps[1];
   const early = { id: 'e1', date: '2026-09-27', weekIndex: -1, sessionId: sid, feel: 3, items: [{ exerciseId: 'push_up', family: 'push_horizontal', sets: [hi + 6, hi + 6, hi + 7].map(r => ({ reps: r, done: true })), rating: 'good' }] };
   let r = P.applySessionLog(lv, p, early, EXERCISES, []);
-  ok(r.changes.length === 1 && r.levels.push_horizontal === PH2, `early log is a calibration week: +2 levels (${r.levels.push_horizontal})`);
+  ok(r.changes.length === 1 && r.levels.push_horizontal === 'diamond_push_up', `early log is a calibration week: +2 levels (${r.levels.push_horizontal})`);
   const e2 = { ...early, id: 'e2', items: [{ ...early.items[0], sets: [hi, hi, hi].map(x => ({ reps: x, done: true })) }] };
   const d2 = { ...e2, id: 'd2', date: '2026-09-28', weekIndex: 0 };
   r = P.applySessionLog(lv, p, d2, EXERCISES, [e2]);
-  ok(r.levels.push_horizontal === PH1, `early log counts as an exposure for progression (${r.levels.push_horizontal})`);
+  ok(r.levels.push_horizontal === 'decline_push_up', `early log counts as an exposure for progression (${r.levels.push_horizontal})`);
 }
 
 // ---- streaks
@@ -486,12 +484,12 @@ let quickChecked = 0;
     const mkLog = (id, date, reps, rating) => ({ id, date, sessionId: 'Q', request: req, feel: 3, items: [{ exerciseId: 'push_up', family: 'push_horizontal', sets: reps.map(r => ({ reps: r, done: true })), rating }] });
     const hi = rx.reps[1];
     let r = P.applySessionLog(lv, p, mkLog('b', '2026-09-30', [hi, hi, hi], 'good'), EXERCISES, [mkLog('a', '2026-09-28', [hi, hi, hi], 'good')]);
-    ok(r.levels.push_horizontal === PH1, `Q logs progress families (${r.levels.push_horizontal})`);
+    ok(r.levels.push_horizontal === 'decline_push_up', `Q logs progress families (${r.levels.push_horizontal})`);
     r = P.applySessionLog(lv, p, mkLog('c', '2026-09-30', [hi + 6, hi + 6, hi + 6], 'easy'), EXERCISES, []);
-    ok(r.levels.push_horizontal === PH1, `Q log without plan week: fast-track +1, not calibration +2 (${r.levels.push_horizontal})`);
+    ok(r.levels.push_horizontal === 'decline_push_up', `Q log without plan week: fast-track +1, not calibration +2 (${r.levels.push_horizontal})`);
     const mixed = [mkLog('a', '2026-09-28', [hi, hi, hi], 'good'), { id: 'w', date: '2026-09-29', weekIndex: 0, sessionId: 'A', feel: 3, items: [{ exerciseId: 'push_up', family: 'push_horizontal', sets: [hi, hi, hi].map(x => ({ reps: x, done: true })), rating: 'good' }] }];
     r = P.applySessionLog(lv, p, mixed[1], EXERCISES, [mixed[0]]);
-    ok(r.levels.push_horizontal === PH1, 'Q log + plan log are consecutive exposures');
+    ok(r.levels.push_horizontal === 'decline_push_up', 'Q log + plan log are consecutive exposures');
   }
   r0: {
     let threw = null; try { P.generateQuickSession({ minutes: 20 }, mk({ age: 12 }), null, EXERCISES); } catch (e) { threw = e.code; }
@@ -567,6 +565,25 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   // ---- accuracy gate (preview off)
   ok(EXERCISES.every(e => contentVisible(e) && !e.flowOnly), 'EXERCISES hides unverified tradition items and flow-only steps');
   ok(['dand', 'baithak', 'horse_stance'].every(id => visibleById[id]), 'verified and animated tradition items are visible (daṇḍ, baiṭhak, horse stance)');
+  {  // daṇḍ: a variety swap from the push-up, never a required rung (founder decision)
+    const lad = familyLadder('push_horizontal').map(e => e.id);
+    ok(ALL_BY_ID.dand.rung === false && !lad.includes('dand') && lad[lad.indexOf('push_up') + 1] === 'decline_push_up', `daṇḍ is not a push ladder rung (${lad})`);
+    let planned = 0, levelled = 0;
+    for (const p of [...grid, mk({ equipment: ALL_EQ, experience: 'regular' }), mk({ primaryGoal: 'strength', goals: ['strength'], daysPerWeek: 5 })]) {
+      const lv = P.initialLevels(p, ALL_EXERCISES);
+      if (Object.values(lv).includes('dand')) levelled++;
+      for (const w of [0, 3]) planned += weekItems(P.generateWeek(p, { ...lv, push_horizontal: 'push_up' }, ALL_EXERCISES, w)).filter(i => i.exerciseId === 'dand').length;
+      for (const focus of ['full', 'push']) planned += allIt(P.generateQuickSession({ minutes: 30, focus, date: '2026-10-01' }, p, lv, ALL_EXERCISES)).filter(i => i.exerciseId === 'dand').length;
+    }
+    ok(levelled === 0 && planned === 0, `daṇḍ is never a level or a planned item (levels ${levelled}, items ${planned})`);
+    const p = mk({ equipment: ALL_EQ });
+    ok(varietyFor('push_up').some(e => e.id === 'dand') && P.isAvailable(ALL_BY_ID.dand, p), 'daṇḍ is offered as a variety swap from the push-up');
+    ok(['lower_back', 'wrist'].every(inj => !P.isAvailable(ALL_BY_ID.dand, mk({ equipment: ALL_EQ, injuries: [inj] }))), 'daṇḍ swap keeps its lower-back and wrist exclusions');
+    const lv = { ...P.initialLevels(p, ALL_EXERCISES), push_horizontal: 'push_up' };
+    const dl = (id, date) => ({ id, date, weekIndex: 2, sessionId: 'A', feel: 3, items: [{ exerciseId: 'dand', family: 'push_horizontal', sets: [20, 20, 20].map(r => ({ reps: r, done: true })), rating: 'easy' }] });
+    const r = P.applySessionLog(lv, p, dl('b', '2026-03-04'), ALL_EXERCISES, [dl('a', '2026-03-02')]);
+    ok(r.levels.push_horizontal === 'push_up' && !r.changes.length, 'a swapped-in daṇḍ log never moves the push ladder');
+  }
   ok(Object.values(visibleById).every(isVisible) && ALL_EXERCISES.every(e => !!visibleById[e.id] === isVisible(e)) && !visibleById.taichi_short_flow, 'byId hides them too (library deep links, swaps)');
   ok(!FAMILIES.flow_taichi && !FAMILIES.flow_sequence && Object.keys(FAMILIES).every(f => EXERCISES.some(e => e.family === f)), 'FAMILIES lists only families with visible items');
   ok(['open_book', 'thread_the_needle', 'pallof_press', 'plank_shoulder_tap'].every(id => contentVisible(ALL_BY_ID[id])), 'generic rotation / anti-rotation need no fact-check (the animation gate still applies)');

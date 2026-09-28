@@ -217,6 +217,8 @@ Research: `docs/world-movement.md` (§3 rotation, §4 programming, §5 cultural 
   stanceLevels: ['high', 'medium', 'low'],
   sources: [{ label, url, kind: 'official' | 'reference' | 'research' }],
   verified: null | { date: 'YYYY-MM-DD', notes },  // set ONLY by the separate fact-check pass
+  rung: false,                       // a variety swap, not a ladder rung (the daṇḍ): listed and swappable (varietyFor / the workout
+                                     // player's variety button, next to Easier / Harder) but never a level or a planned item
   flowOnly: true,                    // a step used inside a flow; never shown, planned or swapped on its own (promoted in v1.3)
   adaptation: true,                  // Kitaeru's own substitute, not part of the tradition (e.g. rt_heel_raise); say so in the UI
 }

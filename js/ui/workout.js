@@ -2,7 +2,7 @@
 // v1.2: flow items (mode 'flow') play step by step with Kitaeru's own visual count. No music, ever.
 import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, applySessionLog, MORNING_TAISO_SESSION_ID } from './deps.js';
 import { getState, update, getActiveWorkout, saveActiveWorkout, clearActiveWorkout } from '../store.js';
-import { esc, icon, seal, fmtTarget, exName, muscleName, familyName, neighbour, stepper, handleStepper, ring, setRing,
+import { esc, icon, seal, fmtTarget, exName, muscleName, familyName, neighbour, varietySwaps, stepper, handleStepper, ring, setRing,
   beep, buzz, unlockAudio, openSheet, reducedMotion, clamp, plural, isFlowItem, isProgression, nativeNameHTML, fmtDur, stepName, stepCount } from './components.js';
 import { getStreak, sessionsThisWeek, weeklyTarget, groupLabel, planOpts, isTrainingLog } from './model.js';
 
@@ -218,6 +218,7 @@ function draw() {
   // Flows keep their own form: no easier/harder swap (their stance, support and tempo progress instead).
   const easier = isFlow ? null : neighbour(it.exerciseId, -1, getState().profile);
   const harder = isFlow ? null : neighbour(it.exerciseId, 1, getState().profile);
+  const variety = isFlow ? [] : varietySwaps(it.exerciseId, getState().profile);   // e.g. the daṇḍ from the push-up
   const muscles = e.muscles;
   const grp = groupLabel(w.items, w.idx);
   const fx = it.flow || {};
@@ -244,6 +245,7 @@ function draw() {
     ${w.phase === 'set' ? `<div class="pl-actions">
       <button class="btn btn-quiet btn-sm" data-act="easier" ${easier ? '' : 'disabled'} aria-label="${isFlow ? 'Flows keep their own form: no easier swap' : `Swap to an easier variation${easier ? `: ${esc(easier.name)}` : ''}`}">${icon('easier', { size: 18 })} Easier</button>
       <button class="btn btn-quiet btn-sm" data-act="harder" ${harder ? '' : 'disabled'} aria-label="${isFlow ? 'Flows keep their own form: no harder swap' : `Swap to a harder variation${harder ? `: ${esc(harder.name)}` : ''}`}">${icon('harder', { size: 18 })} Harder</button>
+      ${variety.map(v => `<button class="btn btn-quiet btn-sm" data-act="variety" data-id="${esc(v.id)}" aria-label="Swap to a variety move: ${esc(v.name)}">${esc(v.aka?.[0] || v.name)}</button>`).join('')}
       <button class="btn btn-quiet btn-sm" data-act="skip">${icon('skip', { size: 18 })} Skip</button></div>` : ''}
     <details class="pl-details"><summary>Muscles worked</summary>
       <div class="pl-body"><div class="bodymap" data-bodymap></div>
@@ -417,9 +419,8 @@ function advance(rest) {
   if (moved) window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
 }
 
-function swap(dir) {
+function swap(dir, target = neighbour(item().exerciseId, dir, getState().profile)) {
   if (flowNow()) return;
-  const target = neighbour(item().exerciseId, dir, getState().profile);
   if (!target) return;
   const it = item();
   it.exerciseId = target.id;
@@ -455,6 +456,7 @@ async function onClick(e) {
     case 'rest-skip': endRest(); break;
     case 'easier': swap(-1); break;
     case 'harder': swap(1); break;
+    case 'variety': { const v = varietySwaps(item().exerciseId, getState().profile).find(x => x.id === a.dataset.id); if (v) swap(0, v); break; }
     case 'skip': log().skipped = true; log().sets = []; hold = null; advance(0); break;
     case 'rate': log().rating = a.dataset.val; save();
       root.querySelectorAll('.rate-btn').forEach(b => b.setAttribute('aria-pressed', String(b === a)));
