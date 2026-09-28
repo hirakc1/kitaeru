@@ -1,6 +1,6 @@
 // Kitaeru app shell: theme, hash router, tab bar, service worker.
 import { getState, subscribe, getActiveWorkout } from './store.js';
-import { icon, $, $$, closeAllSheets } from './ui/components.js';
+import { icon, seal, $, $$, closeAllSheets, reducedMotion } from './ui/components.js';
 import * as welcome from './ui/welcome.js';
 import * as onboarding from './ui/onboarding.js';
 import * as today from './ui/today.js';
@@ -84,7 +84,25 @@ function route() {
   });
 }
 
+// ---------- splash ----------
+// Shown on every launch over the first screen: seal, name, meaning, then a slow fade out. Tap to skip.
+const SPLASH_MS = 2800;
+function splash() {
+  const el = document.createElement('div');
+  el.className = 'splash'; el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = `${seal('鍛える', { size: 108, cls: 'splash-seal' })}
+    <p class="splash-name">Kitaeru</p><p class="splash-jp">鍛える · to forge</p>
+    <div class="splash-rule"></div>
+    <p class="splash-line">The world’s answers to bodyweight movement, brought together to strengthen body and mind.</p>`;
+  document.body.append(el);
+  let gone = false;
+  const out = () => { if (gone) return; gone = true; el.classList.add('out'); setTimeout(() => el.remove(), reducedMotion() ? 0 : 700); };
+  el.addEventListener('click', out);
+  setTimeout(out, reducedMotion() ? 2200 : SPLASH_MS);
+}
+
 // ---------- boot ----------
+splash();
 $$('[data-icon]', tabbar).forEach(el => { el.innerHTML = icon(el.dataset.icon); });
 applyTheme();
 lastTheme = getState().settings.theme;
