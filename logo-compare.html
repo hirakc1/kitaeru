@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kitaeru logo directions</title>
+<meta name="description" content="Three logo directions for Kitaeru 鍛える: brush, carved seal and constructed. Exploration only — not wired into the app.">
+<link rel="icon" href="docs/brand/b/favicon-light.svg" type="image/svg+xml">
+<!-- Only the CURRENT logo (for comparison) uses a web font, exactly as the app does today. The three new directions are pure vector paths. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F5F1E8; --surface: #FFFDF7; --surface-2: #F9F5EC; --ink: #1C1B19; --muted: #6B665C; --line: #E3DCCB;
+    --accent: #C8372D; --on-accent: #FFF9F2;
+    --serif: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #121110; --surface: #1C1A18; --surface-2: #181715; --ink: #EFEAE0; --muted: #A39D90; --line: #2E2B27;
+      --accent: #E0503F; --on-accent: #FFF6EF;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121110; --surface: #1C1A18; --surface-2: #181715; --ink: #EFEAE0; --muted: #A39D90; --line: #2E2B27;
+    --accent: #E0503F; --on-accent: #FFF6EF;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); overflow-x: hidden; }
+  img { display: block; max-width: 100%; height: auto; }
+  header.top { position: sticky; top: 0; z-index: 5; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 10px 16px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  header.top h1 { font: 700 17px var(--serif); margin: 0 auto 0 0; }
+  header.top nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  header.top nav a { color: var(--muted); text-decoration: none; font-size: 13px; padding: 6px 8px; border-radius: 8px; }
+  header.top nav a:hover { color: var(--ink); background: var(--surface-2); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 13px; border: 0; padding: 6px 10px; background: transparent; color: var(--ink); cursor: pointer; min-height: 32px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  @media (max-width: 560px) { header.top nav { order: 3; width: 100%; flex-wrap: nowrap; overflow-x: auto; } header.top nav a { white-space: nowrap; } }
+  main { max-width: 1180px; margin: 0 auto; padding: 8px 16px 64px; }
+  h2 { font: 700 24px/1.25 var(--serif); margin: 48px 0 6px; }
+  h2 .jp { color: var(--accent); margin-right: 8px; }
+  h3 { font: 600 13px var(--sans); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 28px 0 10px; }
+  p { margin: 0 0 .8em; max-width: 72ch; }
+  .lede { font-size: 16px; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  code { font-size: .9em; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  .grid { display: grid; gap: 12px; }
+  .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 860px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g3 { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .g2 { grid-template-columns: 1fr; } }
+
+  /* fixed-colour panels: the logo renderings never follow the page theme */
+  .panel { border-radius: 14px; padding: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-width: 0; }
+  .panel.light { background: #F5F1E8; color: #1C1B19; box-shadow: inset 0 0 0 1px #E3DCCB; }
+  .panel.dark { background: #121110; color: #EFEAE0; box-shadow: inset 0 0 0 1px #2E2B27; }
+  .panel .cap { font-size: 12px; opacity: .7; align-self: flex-start; }
+  .panel img.mark { width: min(180px, 100%); }
+
+  /* at a glance */
+  .glance .panel { padding: 16px 10px; }
+  .glance .name { font: 700 15px var(--serif); align-self: stretch; text-align: center; }
+  .glance .tiny { display: flex; gap: 10px; align-items: end; }
+
+  /* sizes */
+  .sizes { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; }
+  .sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .sizes figcaption { font-size: 11px; opacity: .7; white-space: nowrap; }
+  .big512 { width: 512px; max-width: 100%; }
+  .scroll-x { overflow-x: auto; }
+
+  /* 16px legibility table */
+  table.legi { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.legi th, table.legi td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+  table.legi th { font-weight: 600; color: var(--muted); font-size: 12px; }
+  .tabstrip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 9px 9px 0 0; font: 12px var(--sans); min-width: 150px; }
+  .tabstrip.l { background: #fff; color: #1f1f1f; box-shadow: 0 0 0 1px #dadce0; }
+  .tabstrip.d { background: #35363a; color: #e8eaed; }
+  .tabstrip img, .tabstrip svg { width: 16px; height: 16px; flex: none; }
+  canvas.px { width: 96px; height: 96px; image-rendering: pixelated; border-radius: 4px; box-shadow: 0 0 0 1px var(--line); }
+  .pxpair { display: flex; gap: 8px; }
+
+  /* maskable */
+  .mask-demo { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .safe { position: relative; width: 168px; height: 168px; flex: none; }
+  .safe img { width: 100%; height: 100%; }
+  .safe::after { content: ""; position: absolute; left: 10%; top: 10%; width: 80%; height: 80%; border-radius: 50%; border: 1.5px dashed rgba(28, 27, 25, .75); box-shadow: 0 0 0 999px rgba(255, 255, 255, .0); pointer-events: none; }
+  .masks { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .masks img { width: 72px; height: 72px; box-shadow: 0 4px 10px -4px rgba(0,0,0,.35); }
+  .tile { box-shadow: 0 0 0 1px rgba(28,27,25,.14), 0 6px 16px -8px rgba(0,0,0,.35); border-radius: 4px; }
+  .m-circle { border-radius: 50%; }
+  .m-squircle { border-radius: 23%; }
+  .m-drop { border-radius: 50% 50% 50% 14%; }
+
+  /* phone mocks */
+  .phones { display: flex; gap: 16px; flex-wrap: wrap; }
+  .phone { width: 250px; max-width: 100%; aspect-ratio: 9 / 18; border-radius: 30px; padding: 26px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; box-shadow: 0 0 0 7px #2a2825, 0 16px 30px -18px rgba(0,0,0,.6); flex: none; }
+  .phone.light { background: #F5F1E8; color: #1C1B19; }
+  .phone.dark { background: #121110; color: #EFEAE0; }
+  .phone .lock { width: 150px; }
+  .phone .mk { width: 84px; }
+  .phone .wm { width: 150px; }
+  .phone .rule { width: 40px; height: 2px; background: currentColor; opacity: .6; border-radius: 2px; }
+  .phone .line { font: 13px/1.6 var(--serif); opacity: .75; max-width: 24ch; margin: 0; }
+  .phone .eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; opacity: .7; margin: 0; }
+  .phone .btn { width: 100%; border-radius: 12px; padding: 10px; font: 600 13px var(--sans); }
+  .phone.light .btn.p { background: #C8372D; color: #FFF9F2; }
+  .phone.dark .btn.p { background: #B8392C; color: #FFF6EF; }
+  .phone .btn.o { box-shadow: inset 0 0 0 1.5px currentColor; opacity: .85; }
+  .phone .label { font-size: 11px; opacity: .55; margin-top: auto; }
+
+  /* store art (Play feature graphic 1024x500) */
+  .store-wrap { container-type: inline-size; margin-top: 12px; max-width: 760px; }
+  .store { height: 48.83cqw; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 5cqw; padding: 0 6cqw; overflow: hidden; }
+  .store.light { background: #F5F1E8; color: #1C1B19; box-shadow: inset 0 0 0 1px #E3DCCB; }
+  .store.red { background: #C8372D; color: #FFF9F2; }
+  .store img { height: 30cqw; width: auto; max-width: none; flex: none; }
+  .store .claim { font: 600 2.6cqw/1.4 var(--serif); max-width: 16ch; text-align: left; margin: 0; }
+
+  /* home screen */
+  .home { border-radius: 18px; padding: 22px 16px; background: linear-gradient(160deg, #3b4a5a, #1f2a33 60%, #2f2320); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; justify-items: center; }
+  .home figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .home img, .home svg { width: 60px; height: 60px; border-radius: 23%; box-shadow: 0 6px 14px -6px rgba(0,0,0,.6); }
+  .home figcaption { color: #fff; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+
+  .dir { scroll-margin-top: 70px; }
+  .dir-head { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .dir-head .copy { flex: 1 1 320px; }
+  .notes { font-size: 13.5px; color: var(--muted); border-left: 3px solid var(--accent); padding: 2px 0 2px 12px; margin-top: 10px; }
+  .notes p { margin-bottom: .5em; }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); margin: 0 4px 4px 0; }
+  .rec { border: 2px solid var(--accent); }
+  ul { padding-left: 20px; margin: 0 0 1em; max-width: 76ch; }
+  li { margin-bottom: .35em; }
+  .glyph-check { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+  .glyph-check figure { margin: 0; }
+  .glyph-check figcaption { font-size: 12px; color: var(--muted); max-width: 240px; }
+  .strokes { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; max-width: 100%; }
+  .strokes div { text-align: center; font-size: 10px; color: var(--muted); }
+  .strokes svg { width: 100%; height: auto; background: #FFFDF7; border-radius: 6px; box-shadow: inset 0 0 0 1px #E3DCCB; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Kitaeru logo directions</h1>
+  <nav aria-label="Sections"><a href="#glance">Overview</a><a href="#legibility">16 px</a><a href="#dir-a">A 筆</a><a href="#dir-b">B 篆刻</a><a href="#dir-c">C 構成</a><a href="#rec">Recommendation</a><a href="#apply">App changes</a></nav>
+  <div class="seg" role="group" aria-label="Page theme">
+    <button data-theme-set="auto" aria-pressed="true">Auto</button><button data-theme-set="light" aria-pressed="false">Light</button><button data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+</header>
+<main>
+  <section>
+    <h2 style="margin-top:28px">A proper mark for 鍛える</h2>
+    <p class="lede">Three directions for the Kitaeru logo, next to today’s seal. Every character in A, B and C is a vector path: nothing depends on a font at runtime, so the mark can’t shift while the page loads and it renders the same everywhere. Straight (0°) in every direction. Exploration only: the app is untouched.</p>
+    <p class="small muted">Each direction has a primary 鍛 seal, a small-size cut for 16–32 px (favicon, inline button seal), app icons (any, Apple 180, Android maskable), a vertical 鍛える seal with the Kitaeru wordmark, and light, dark and one-colour sumi renderings. Assets live in <code>docs/brand/a</code>, <code>/b</code> and <code>/c</code>; fonts and licences are in <code>docs/brand/LICENSES.md</code>.</p>
+  </section>
+
+  <section id="glance" class="dir">
+    <h2>Overview</h2>
+    <div class="grid g4 glance" id="glance-grid"></div>
+    <h3>On a phone home screen</h3>
+    <div class="home" id="home"></div>
+  </section>
+
+  <section id="legibility" class="dir">
+    <h2>16 px legibility</h2>
+    <p class="muted small">Browser tabs at real size, then the exact 16 px and 32 px rasters, enlarged six and three times. 鍛 has 17 strokes, so no version resolves every stroke at 16 px (that would need about one pixel per stroke). What matters there is a distinctive silhouette and rhythm; from 32 px the strokes should read.</p>
+    <div class="scroll-x"><table class="legi" id="legi"></table></div>
+  </section>
+
+  <div id="dirs"></div>
+
+  <section id="rec" class="dir">
+    <h2>Recommendation</h2>
+    <div class="card rec" id="rec-card"></div>
+  </section>
+
+  <section id="apply" class="dir">
+    <h2>What changes in the app once a direction is chosen</h2>
+    <div class="card" id="apply-card"></div>
+  </section>
+</main>
+
+<script>
+const BR = 'docs/brand/';
+const DIRS = [
+  {
+    id: 'a', jp: '筆', name: 'A · Brush', sub: 'Hand-brushed 鍛, red on paper (朱文)',
+    rationale: 'A brushed 鍛 in vermilion, framed by four real brush strokes: each one presses, swells and lifts off with a dry-brush streak. It reads like an artist’s seal pressed next to calligraphy — warm, human, and the only direction whose app icon is paper-coloured, which stands out on a home screen full of solid tiles.',
+    notes: [
+      'Styled as a <b>yūin (遊印)</b>, the “leisure seal” calligraphers and painters use for a motto or word rather than a name. That makes a word-seal like 鍛える culturally natural, not a misuse of a name-hanko.',
+      '<b>朱文 (shubun)</b> means red characters on uncut paper — the opposite of B. The character is Yuji Syuku’s regular-script (楷書) 鍛, with the standard structure of 金 + 段.',
+      'Small sizes: the thin frame disappears below about 40 px, so the 16–32 px cut reverses to a brushed red block with a paper-white 鍛. This is the one direction where the favicon and the mark look different.'
+    ],
+    fonts: ['Yuji Syuku (鍛える, OFL)', 'Shippori Mincho ExtraBold (Kitaeru, OFL)'],
+    home: 'icon-any.svg'
+  },
+  {
+    id: 'b', jp: '篆刻', name: 'B · Carved seal', sub: 'White characters cut from vermilion stone (白文)',
+    rationale: 'The classic hanko: 鍛 carved out of a vermilion block, filled edge to edge the way seal carvers compose, with a stone edge that has worn and chipped. The heavy strokes of Zen Antique survive every size, so the favicon, the mark and the store art are the same object.',
+    notes: [
+      '<b>白文 (hakubun)</b> means characters cut away so the paper shows through. Carvers stretch characters to fill the stone, which is why 鍛 and the kana are slightly stretched here (at most 15%) without any change to their structure.',
+      '<b>Seal script:</b> true 篆刻 uses 篆書. 鍛 has a documented small-seal form (Shuowen Jiezi 説文解字, 金部: “鍛，小冶也。从金段聲” — “to forge; from 金, sound 段”), but no OFL-licensed vector of it exists, and drawing it from memory risks an incorrect form. So this uses the regular-script structure, which every Japanese reader can read (most can’t read 篆書). If the founder wants a real seal-script 鍛, the right step is to commission a 篆刻家 (seal carver) to carve and scan one. That would also make the mark fully ownable.',
+      'The texture (edge chips and small breaks in the strokes) only appears from 48 px up. The 16–32 px cut is clean.'
+    ],
+    fonts: ['Zen Antique (鍛える and KITAERU, OFL)'],
+    home: 'icon-any.svg'
+  },
+  {
+    id: 'c', jp: '構成', name: 'C · Constructed', sub: 'A drawn 鍛 from one consistent stroke',
+    rationale: '鍛える drawn by hand in one monoline stroke weight (17 strokes for 鍛, 3 for える), with square ends and no font at all. It is the most legible at 16 px and the most contemporary, like Japanese wayfinding signage. It is fully ownable, but it trades away the ink-and-stone warmth of A and B.',
+    notes: [
+      'The structure follows the standard Japanese form: 金 (8 strokes, with the ㇏ shortened and the last stroke a rising 提 ㇀, as the radical takes) + 段 (9 strokes: 5 on the left and 殳 on the right). The stroke check below overlays every stroke in order.',
+      'The ノ at the top of 段 and the left leg of 几 are drawn joined to their neighbours so the corners stay clean at small sizes. That is how gothic (ゴシック) type draws them too, and the stroke count and order are unchanged.',
+      'え and る are drawn with the same stroke, so the vertical seal is one system. The wordmark is Jost Medium, a geometric sans, widely tracked.'
+    ],
+    fonts: ['None for 鍛える (hand-drawn)', 'Jost Medium (KITAERU, OFL)'],
+    home: 'icon-any.svg'
+  }
+];
+
+// ---------- the CURRENT logo, reproduced from js/ui/components.js seal() and icons/favicon.svg ----------
+function currentSeal(text = '鍛', size = 56, dark = false) {
+  const accent = dark ? '#E0503F' : '#C8372D', on = dark ? '#FFF6EF' : '#FFF9F2';
+  const chars = [...text], fs = chars.length === 1 ? 58 : chars.length === 2 ? 36 : 26, step = fs * 0.98;
+  const y0 = 50 - (step * (chars.length - 1)) / 2 + fs * 0.35;
+  const t = chars.map((c, i) => `<text x="50" y="${(y0 + i * step).toFixed(1)}" text-anchor="middle" font-size="${fs}">${c}</text>`).join('');
+  return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" aria-label="Current seal" role="img">
+    <rect x="5" y="5" width="90" height="90" rx="14" fill="${accent}"/>
+    <rect x="11" y="11" width="78" height="78" rx="9" fill="none" stroke="${on}" stroke-width="2.2" opacity=".9"/>
+    <g fill="${on}" font-family="'Noto Serif JP','Yu Mincho','Hiragino Mincho ProN',serif" font-weight="700">${t}</g></svg>`;
+}
+const CURRENT_FAVICON = 'icons/favicon.svg';
+
+const img = (src, attrs = '') => `<img src="${BR}${src}" alt="" ${attrs}>`;
+const $ = s => document.querySelector(s);
+
+// ---------- overview ----------
+$('#glance-grid').innerHTML = [
+  `<div class="panel light"><span class="name">Today</span>${currentSeal('鍛', 150)}
+     <div class="tiny"><img src="${CURRENT_FAVICON}" width="16" height="16" alt=""><img src="${CURRENT_FAVICON}" width="32" height="32" alt="">${currentSeal('鍛', 48)}</div>
+     <span class="cap" style="align-self:center">live text in a web font</span></div>`,
+  ...DIRS.map(d => `<div class="panel light"><a class="name" href="#dir-${d.id}" style="color:inherit;text-decoration:none">${d.name}</a>
+     ${img(d.id + '/mark-light.svg', 'class="mark" width="150" height="150"')}
+     <div class="tiny">${img(d.id + '/favicon-light.svg', 'width="16" height="16"')}${img(d.id + '/favicon-light.svg', 'width="32" height="32"')}${img(d.id + '/mark-light.svg', 'width="48" height="48"')}</div>
+     <span class="cap" style="align-self:center">${d.sub}</span></div>`)
+].join('');
+
+$('#home').innerHTML = `<figure><img src="icons/apple-touch-icon.png" alt=""><figcaption>Today</figcaption></figure>` +
+  DIRS.map(d => `<figure>${img(d.id + '/icon-maskable.svg')}<figcaption>${d.name.split(' · ')[0]} · Kitaeru</figcaption></figure>`).join('');
+
+// ---------- 16px legibility ----------
+function rows() {
+  const all = [{ id: 'now', name: 'Today', fav: CURRENT_FAVICON, mark: null }, ...DIRS.map(d => ({ id: d.id, name: d.name, fav: BR + d.id + '/favicon-light.svg', favD: BR + d.id + '/favicon-dark.svg', mark: BR + d.id + '/mark-light.svg' }))];
+  let h = `<tr><th>Direction</th><th>Tab, light</th><th>Tab, dark</th><th>16 px raster ×6</th><th>32 px raster ×3</th><th>Full mark forced to 16 px</th></tr>`;
+  for (const r of all) {
+    const fav = r.fav, favD = r.favD || r.fav;
+    h += `<tr><td><b>${r.name}</b>${r.id === 'now' ? '<br><span class="muted small">(favicon.svg, live text)</span>' : '<br><span class="muted small">small-size cut</span>'}</td>
+      <td><span class="tabstrip l"><img src="${fav}" alt="">Kitaeru</span></td>
+      <td><span class="tabstrip d"><img src="${favD}" alt="">Kitaeru</span></td>
+      <td><div class="pxpair"><canvas class="px" width="16" height="16" data-src="${fav}" data-bg="#ffffff"></canvas><canvas class="px" width="16" height="16" data-src="${favD}" data-bg="#35363a"></canvas></div></td>
+      <td><div class="pxpair"><canvas class="px" width="32" height="32" data-src="${fav}" data-bg="#ffffff"></canvas></div></td>
+      <td>${r.mark ? `<canvas class="px" width="16" height="16" data-src="${r.mark}" data-bg="#F5F1E8"></canvas>` : '<span class="muted small">—</span>'}</td></tr>`;
+  }
+  $('#legi').innerHTML = h;
+}
+rows();
+
+// ---------- direction sections ----------
+function dirSection(d) {
+  const P = (cls, src, cap, extra = '') => `<div class="panel ${cls}"><span class="cap">${cap}</span>${img(src, extra)}</div>`;
+  return `<section id="dir-${d.id}" class="dir">
+    <h2><span class="jp">${d.jp}</span>${d.name}</h2>
+    <p class="muted" style="margin-top:-2px">${d.sub}</p>
+    <div class="dir-head">
+      <div class="copy">
+        <p>${d.rationale}</p>
+        <div class="notes">${d.notes.map(n => `<p>${n}</p>`).join('')}</div>
+        <p class="small" style="margin-top:12px">${d.fonts.map(f => `<span class="pill">${f}</span>`).join('')}</p>
+      </div>
+    </div>
+
+    <h3>Primary mark · light, dark, one-colour sumi</h3>
+    <div class="grid g3">
+      ${P('light', d.id + '/mark-light.svg', 'Light', 'class="mark" width="180" height="180"')}
+      ${P('dark', d.id + '/mark-dark.svg', 'Dark', 'class="mark" width="180" height="180"')}
+      ${P('light', d.id + '/mark-sumi.svg', 'One colour · sumi', 'class="mark" width="180" height="180"')}
+    </div>
+
+    <h3>Sizes · 16 · 32 · 48 · 180 · 512</h3>
+    <div class="grid g2">
+      <div class="panel light" style="align-items:flex-start"><div class="sizes">
+        <figure>${img(d.id + '/favicon-light.svg', 'width="16" height="16"')}<figcaption>16 · favicon</figcaption></figure>
+        <figure>${img(d.id + '/favicon-light.svg', 'width="32" height="32"')}<figcaption>32 · favicon</figcaption></figure>
+        <figure>${img(d.id + '/mark-light.svg', 'width="48" height="48"')}<figcaption>48 · mark</figcaption></figure>
+        <figure>${img(d.id + '/icon-any.svg', 'class="tile" width="180" height="180"')}<figcaption>180 · Apple touch icon</figcaption></figure>
+      </div></div>
+      <div class="panel dark" style="align-items:flex-start"><div class="sizes">
+        <figure>${img(d.id + '/favicon-dark.svg', 'width="16" height="16"')}<figcaption>16</figcaption></figure>
+        <figure>${img(d.id + '/favicon-dark.svg', 'width="32" height="32"')}<figcaption>32</figcaption></figure>
+        <figure>${img(d.id + '/mark-dark.svg', 'width="48" height="48"')}<figcaption>48</figcaption></figure>
+        <figure>${img(d.id + '/mark-dark.svg', 'width="180" height="180"')}<figcaption>180 · mark on dark</figcaption></figure>
+      </div></div>
+    </div>
+    <details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Show the 512 px icon at full size</summary>
+      <div class="panel light" style="margin-top:10px">${img(d.id + '/icon-any.svg', 'class="big512 tile" width="512" height="512"')}<span class="cap" style="align-self:center">512 × 512 · icon (purpose “any”)</span></div>
+    </details>
+
+    <h3>Android maskable icon · 80% safe zone</h3>
+    <div class="panel" style="align-items:flex-start;background:#D8D2C4;color:#1C1B19"><div class="mask-demo">
+      <div class="safe">${img(d.id + '/icon-maskable.svg', 'class="tile" width="168" height="168"')}</div>
+      <div><p class="small" style="margin-bottom:10px">Dashed circle = the 80% safe zone. Everything important sits inside it, so any launcher shape is safe:</p>
+      <div class="masks">${img(d.id + '/icon-maskable.svg', 'class="m-circle"')}${img(d.id + '/icon-maskable.svg', 'class="m-squircle"')}${img(d.id + '/icon-maskable.svg', 'class="m-drop"')}${img(d.id + '/icon-maskable.svg', 'style="border-radius:8px"')}</div></div>
+    </div></div>
+
+    <h3>Full lockup · vertical 鍛える seal + Kitaeru</h3>
+    <div class="phones">
+      <div class="phone light">${img(d.id + '/lockup-stacked-light.svg', 'class="lock"')}<div class="rule"></div><p class="line">The world’s movement traditions, brought together to strengthen body and mind.</p><span class="label">Opening screen · light</span></div>
+      <div class="phone dark">${img(d.id + '/lockup-stacked-dark.svg', 'class="lock"')}<div class="rule"></div><p class="line">The world’s movement traditions, brought together to strengthen body and mind.</p><span class="label">Opening screen · dark</span></div>
+      <div class="phone light">${img(d.id + '/mark-light.svg', 'class="mk"')}${img(d.id + '/wordmark-light.svg', 'class="wm"')}<p class="line" style="font-size:12px">Your bodyweight, forged daily. Free forever.</p><div class="btn p">Build my plan</div><div class="btn o">Quick workout</div><span class="label">Welcome · light</span></div>
+      <div class="phone light">${img(d.id + '/lockup-stacked-sumi.svg', 'class="lock"')}<span class="label">One colour · sumi</span></div>
+    </div>
+    <h3>Horizontal lockup and store art</h3>
+    <div class="grid g2">
+      <div class="panel light">${img(d.id + '/lockup-horizontal-light.svg', 'style="width:min(340px,100%)"')}<span class="cap" style="align-self:center">light</span></div>
+      <div class="panel dark">${img(d.id + '/lockup-horizontal-dark.svg', 'style="width:min(340px,100%)"')}<span class="cap" style="align-self:center">dark</span></div>
+    </div>
+    <div class="store-wrap"><div class="store light">${img(d.id + '/lockup-horizontal-light.svg')}<p class="claim">Your bodyweight, forged daily. Free forever.</p></div></div>
+    <p class="small muted" style="margin-top:6px">Store feature graphic, 1024 × 500 ratio.</p>
+    ${d.id === 'c' ? strokeCheck() : ''}
+  </section>`;
+}
+
+// C only: every stroke of the constructed 鍛 in order, so a reader can check the structure
+function strokeCheck() {
+  const S = ['M4,26 L20,4 L35,20', 'M11,36 H30', 'M5,52 H35', 'M20,36 V90', 'M9,62 L13,76', 'M31,62 L27,76', 'M4,95 L37,83',
+    'M60,4 L48,10 V97', 'M48,32 H62', 'M48,55 H62', 'M43,86 L63,74', 'M66,40 L73,24 V7 H90 V30 Q90,35 98,35', 'M67,50 H93 L68,97', 'M74,62 L99,97'];
+  const L = ['金 ノ+㇏ (2)', '金 一 (3)', '金 一 (4)', '金 丨 (5)', '金 丶 (6)', '金 ノ (7)', '金 ㇀ (8)',
+    '段 ノ+丨 (9–10)', '段 一 (11)', '段 一 (12)', '段 ㇀ (13)', '殳 几 (14–15)', '殳 又 ㇇ (16)', '殳 又 ㇏ (17)'];
+  const cell = (i) => `<div><svg viewBox="-6 -6 112 112">${S.map((d, j) => `<path d="${d}" fill="none" stroke="${j === i ? '#C8372D' : '#1C1B19'}" stroke-opacity="${j === i ? 1 : j < i ? .55 : .1}" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>`).join('')}</svg>${L[i]}</div>`;
+  return `<h3>Stroke check · 鍛 = 金 (8) + 段 (9) = 17 strokes</h3>
+    <p class="small muted">Each step highlights the stroke(s) added, in standard order. Where two strokes meet at a corner they are drawn as one joined path (counted as two).</p>
+    <div class="strokes">${S.map((_, i) => cell(i)).join('')}</div>`;
+}
+$('#dirs').innerHTML = DIRS.map(dirSection).join('');
+
+// ---------- recommendation + implementation ----------
+$('#rec-card').innerHTML = `
+  <p><b>Recommend B, the carved seal (篆刻).</b> It is the most unmistakably a hanko, which is the heart of the brand (you already “stamp” finished workouts). It is also the only expressive direction whose 16 px favicon is the same object as the 512 px icon: the heavy carved strokes survive where A’s frame vanishes. The worn stone edge gives it the character the current logo lacks, without tilting or decorating it.</p>
+  <p><b>Runner-up: C</b>, if legibility and a modern, fully ownable drawing matter more than craft feel. A is the most beautiful at large sizes and on the store page, but it needs two different marks, one for small sizes and one for large.</p>
+  <p class="small muted">One refinement worth doing before B ships: B’s 鍛 comes from a public typeface (Zen Antique, OFL). If you want a mark nobody else can set, commission a seal carver to cut 鍛 (regular or seal script) in stone and vectorise the print. The layout, colours and icon system here would stay as they are.</p>`;
+
+$('#apply-card').innerHTML = `
+  <ul>
+    <li><b><code>seal()</code> in <code>js/ui/components.js</code>:</b> replace the <code>&lt;text&gt;</code> elements with the chosen path data. Keep one symbol per string used today: 鍛 (square), 鍛える (vertical; the splash and Me → About call it) and <b>済</b> (the “done” stamp in <code>today.js</code>). 済 isn’t in this exploration yet and needs the same treatment. Use classes (for example <code>.seal-bg</code> and <code>.seal-ink</code>) filled with <code>var(--accent)</code> and <code>var(--on-accent)</code>, so theming and the in-button recolour in <code>css/app.css</code> (<code>.btn .seal-inline …</code>, which targets <code>rect</code> and <code>g</code> today) keep working. Below about 32 px (the 22 px <code>seal-inline</code> in buttons), <code>seal()</code> should switch to the small-size cut.</li>
+    <li><b>Splash (<code>app.js</code>):</b> use the stacked lockup (vertical 鍛える seal + wordmark) instead of <code>seal('鍛える')</code> + the <code>.splash-name</code> text. The <code>.splash-jp</code> line and the founder’s sentence stay as they are. Because the vertical seal is 100 × 250, <code>.splash-seal</code> sizing changes from a square to a height.</li>
+    <li><b>Welcome (<code>welcome.js</code>):</b> the primary 鍛 mark replaces <code>seal-hero</code>. Optionally, the path wordmark replaces the “Kitaeru” in the eyebrow; the 鍛える heading can stay as text.</li>
+    <li><b>Icons (<code>icons/</code>):</b> regenerate <code>icon-192.png</code>, <code>icon-512.png</code>, <code>icon-maskable-512.png</code> and <code>apple-touch-icon.png</code> by rasterising <code>icon-any.svg</code> and <code>icon-maskable.svg</code>. <code>make_icons.py</code> currently draws with a system font, so it would render the SVGs instead (for example with headless Edge or Chrome, as done for these screenshots).</li>
+    <li><b>Favicon:</b> <code>icons/favicon.svg</code> becomes <code>favicon-light.svg</code>. It can carry a <code>prefers-color-scheme</code> media query inside the SVG to switch to the dark cut in dark browsers.</li>
+    <li><b>Manifest:</b> the <code>icons</code> entries keep their file names. Only the files change, and <code>theme_color</code> and <code>background_color</code> stay. Bump the service-worker <code>VERSION</code> so installed phones pick up the new icons. Some launchers cache icons until the app is reinstalled.</li>
+    <li><b>Font:</b> once no seal uses text, the Noto Serif JP web font is only needed for headings, so a font-loading delay can no longer shift the logo.</li>
+  </ul>`;
+
+// ---------- pixel rasters ----------
+function drawPx() {
+  document.querySelectorAll('canvas.px').forEach(c => {
+    const im = new Image();
+    im.onload = () => { const x = c.getContext('2d'); x.fillStyle = c.dataset.bg; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height); };
+    im.src = c.dataset.src;
+  });
+}
+drawPx();
+
+// ---------- theme toggle ----------
+function setTheme(t) {
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+  document.querySelectorAll('[data-theme-set]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeSet === t)));
+  try { localStorage.setItem('logo-compare-theme', t); } catch (e) {}
+}
+document.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => setTheme(b.dataset.themeSet)));
+try { const q = new URLSearchParams(location.search).get('theme'); setTheme(q || localStorage.getItem('logo-compare-theme') || 'auto'); } catch (e) {}
+</script>
+</body>
+</html>
