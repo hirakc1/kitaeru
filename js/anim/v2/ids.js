@@ -9,7 +9,7 @@ export const V2_GROUPS = {
   legs: ['bodyweight_squat', 'box_squat', 'split_squat', 'bulgarian_split_squat', 'calf_raise', 'single_leg_calf_raise',
     'glute_bridge', 'single_leg_glute_bridge', 'hip_thrust'],
   trunk: ['plank', 'side_plank', 'superman'],
-  flow: ['taichi_cloud_hands'],
+  flow: ['taichi_cloud_hands', 'taichi_brush_knee'],   // stepping pilots for v1.2 (not app exercises yet; not precached)
 };
 export const V2_GROUP_OF = Object.fromEntries(Object.entries(V2_GROUPS).flatMap(([g, ids]) => ids.map(id => [id, g])));
 export const V2_IDS = new Set(Object.keys(V2_GROUP_OF));

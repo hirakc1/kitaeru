@@ -92,6 +92,7 @@ const STYLE = `
 .kt-pl .pl-px{fill:color-mix(in srgb,var(--line,#E3DCCB) 78%,var(--ink-muted,#6B665C));stroke:var(--pl-ink);stroke-width:.26;stroke-linejoin:round}
 .kt-pl .pl-rgo{stroke:var(--pl-ink);stroke-width:2.2}
 .kt-pl .pl-rgi{stroke:var(--line,#E3DCCB);stroke-width:1.6}
+.kt-pl .pl-ctR,.kt-pl .pl-ctL{stroke:var(--surface,#FFFDF7);stroke-width:.5}.kt-pl .pl-ctR{fill:var(--accent,#C8372D)}.kt-pl .pl-ctL{fill:var(--ok,#3F7D58)}
 .kt-pl .pl-band{fill:none;stroke:var(--accent-2,#D9A441);stroke-width:1.1;stroke-linecap:round;stroke-opacity:.9}
 .kt-pl.lod .pl-b,.kt-pl.lod .pl-bf,.kt-pl.lod .pl-m,.kt-pl.lod .pl-m2,.kt-pl.lod .pl-pt,.kt-pl.lod .pl-pz,.kt-pl.lod .pl-px,.kt-pl.lod .pl-pr{vector-effect:non-scaling-stroke;stroke-width:.55px}
 .kt-pl.lod .pl-fl{vector-effect:non-scaling-stroke;stroke-width:1px}`;
@@ -106,6 +107,12 @@ function camera(az, el) {
   const c = [Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e)];
   const r = K.nrm(K.cross([0, 1, 0], c)), u = K.cross(c, r);
   return { c, r, u, pr: p => [K.dot(p, r), -K.dot(p, u)], pd: v => [K.dot(v, r), -K.dot(v, u)], depth: p => K.dot(p, c) };
+}
+
+// follow camera for travelling clips: the pelvis's progress along the travel direction since the start of the cycle
+function follow(clip, S) {
+  const d = K.nrm(clip.travel), p0 = clip._p0 || (clip._p0 = K.poseAt(clip, 0).pt.pelvis);
+  return K.mul(d, K.dot(K.sub(S.pt.pelvis, p0), d));
 }
 
 // ---------- renderer ----------
@@ -450,6 +457,19 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const at = splat(cam, [cx, 0, cz], [[hw, 0, 0], [0, .01, 0], [0, 0, 20]]);
     at.fill = `url(#${SHD})`; g.add('ellipse', at, '');
     const zN = Math.max(34, (st.clip.floorZ || 0), (st.clip.bar?.w ?? 0) + 12), zF = -zN, xa = vb[0] - 20, xb = vb[0] + vb[2] + 20;
+    if (st.clip.travel) {   // travelling clip: a wide floor with a world grid of marks that scrolls under the panning camera
+      const c = S.com, o = c, W = 180;
+      const q = [[c[0] - W, 0, c[2] - W], [c[0] + W, 0, c[2] - W], [c[0] + W, 0, c[2] + W], [c[0] - W, 0, c[2] + W]].map(cam.pr);
+      g.add('path', { d: `M${PT(q[0])}L${PT(q[1])}L${PT(q[2])}L${PT(q[3])}Z` }, 'pl-mat');
+      let h = '';
+      const g0 = v => Math.ceil(v / 25) * 25;
+      for (let x = g0(o[0] - 120); x < o[0] + 120; x += 25) for (let z = g0(o[2] - 90); z < o[2] + 90; z += 25) {
+        const a = cam.pr([x - 2, 0, z]), b = cam.pr([x + 2, 0, z]), d = cam.pr([x, 0, z - 2]), e = cam.pr([x, 0, z + 2]);
+        h += `M${PT(a)}L${PT(b)}M${PT(d)}L${PT(e)}`;
+      }
+      if (!st.lod) g.add('path', { d: h }, 'pl-flh');
+      return;
+    }
     const q = [[xa, 0, zF], [xb, 0, zF], [xb, 0, zN], [xa, 0, zN]].map(cam.pr);
     g.add('path', { d: `M${PT(q[0])}L${PT(q[1])}L${PT(q[2])}L${PT(q[3])}Z` }, 'pl-mat');
     g.add('line', { x1: f2(q[3][0]), x2: f2(q[2][0]), y1: f2(q[3][1]), y2: f2(q[2][1]) }, 'pl-fl');
@@ -528,6 +548,13 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
         g.add('path', { d: `M${PT(pt(b))}L${PT(pt(a))}`, 'stroke-width': f2(1.6 - j * .2), 'stroke-opacity': f2(.75 - j * .1) }, 'pl-comet');
       }
     }
+    if (st.contacts) {                              // QA overlay: heel / ball / toe resting on the floor
+      for (const [sd] of K.SIDES) for (const n of ['heel', 'ball', 'toe']) {
+        const p = S.pt[n + sd]; if (!p || p[1] > 1.6) continue;
+        const q = st.cam.pr(K.sub(p, st.off || [0, 0, 0]));
+        g.add('circle', { cx: f2(q[0]), cy: f2(q[1]), r: 1.6 }, sd === 'R' ? 'pl-ctR' : 'pl-ctL');
+      }
+    }
     if (st.breath) {
       const vb = st.vb, r = 3 + 4 * S.breath, c = [vb[0] + vb[2] - 10, vb[1] + 10];
       g.add('circle', { cx: f2(c[0]), cy: f2(c[1]), r: f2(r) }, 'pl-brf');
@@ -559,6 +586,11 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const clip = st.clip, cam = st.cam, T = K.period(clip);
     const tn = st.fixedT != null ? st.fixedT : (!st.playing && st.elapsed === 0 ? (clip.still ?? .45) : (st.elapsed / 1000 % T) / T);
     const S = K.poseAt(clip, tn * T);
+    if (clip.travel) {                              // stepping clips travel: the camera follows the pelvis along the travel
+      st.off = follow(clip, S);                     // direction (it ends the cycle exactly one travel on, so the loop wraps)
+      const p = st.cam.pr(st.off), tr = `translate(${f2(-p[0])} ${f2(-p[1])})`;
+      if (st.tr !== tr) { st.tr = tr; root.setAttribute('transform', tr); }
+    }
     // side switch (swap) or a loop that restarts elsewhere (cut: negatives): a quick dip through the paper, not a teleport
     if (clip.swap || clip.cut) {
       const h = clip.swap ? K.swapTime(clip) : -1, ts = tn * T, d = Math.min(ts, h < 0 ? 1e9 : Math.abs(ts - h), T - ts), u = Math.min(1, d / .35);
@@ -598,6 +630,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     st.prim = new Set(prim ?? clip.muscles.primary); st.sec = new Set(sec ?? clip.muscles.secondary);
     st.groups = new Set([...st.prim, ...st.sec]);
     st.cam = camera(clip.cam.az, clip.cam.el);
+    st.off = [0, 0, 0]; st.tr = ''; root.removeAttribute('transform');
     st.avg = K.analyse(clip, st.groups).avg;   // (also runs prep, which props may depend on)
     setProps(clip);
     trailPaths();
@@ -610,8 +643,8 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   function trailPaths() {
     st.trailPath = {};
     if (!st.trail) return;
-    const an = K.analyse(st.clip, st.groups, st.clip.trail || []);
-    for (const p in an.trail) st.trailPath[p] = an.trail[p].map(st.cam.pr);
+    const an = K.analyse(st.clip, st.groups, st.clip.trail || []), tv = st.clip.travel;   // (camera frame when travelling)
+    for (const p in an.trail) st.trailPath[p] = an.trail[p].map((q, i, a) => st.cam.pr(tv ? K.sub(q, K.mul(tv, i / (a.length - 1))) : q));
   }
   // view box from the whole cycle (cached per clip)
   function viewBox(clip, cam) {
@@ -620,13 +653,16 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     const inc = (q, r = 0) => { x0 = Math.min(x0, q[0] - r); x1 = Math.max(x1, q[0] + r); y0 = Math.min(y0, q[1] - r); y1 = Math.max(y1, q[1] + r); };
     const T = K.period(clip);
-    for (let i = 0; i < 16; i++) { const S = K.poseAt(clip, i / 16 * T); for (const n in S.pt) inc(cam.pr(S.pt[n]), 4); inc(cam.pr(K.P(S.F.head, [1, 17, 0])), 3); }
+    for (let i = 0; i < 16; i++) {                  // (travelling clips: in the panning camera's frame)
+      const S = K.poseAt(clip, i / 16 * T), o = clip.travel ? follow(clip, S) : [0, 0, 0], pr = q => cam.pr(K.sub(q, o));
+      for (const n in S.pt) inc(pr(S.pt[n]), 4); inc(pr(K.P(S.F.head, [1, 17, 0])), 3);
+    }
     const b = clip.bar;
     // the bar frames the view; floor-standing uprights and their feet may run out of the picture (figure stays large)
     if (b) for (const z of [-b.w * .7, b.w * .7]) inc(cam.pr([b.x || 0, b.y, z]), 3);
     if (b && b.posts !== 'down') for (const z of [-b.w - 5, b.w + 5]) inc(cam.pr([b.x || 0, b.y + 16, z]), 2);
     for (const p of st.props) if (!p.nv) for (const q of propPts(p)) inc(cam.pr(q), 1);   // nv: may run out of frame
-    if (clip.floor) inc(cam.pr([0, 0, 0]), st.lod ? 2 : 5);
+    if (clip.floor && !clip.travel) inc(cam.pr([0, 0, 0]), st.lod ? 2 : 5);
     const pad = st.lod ? 2 : 8; x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
     let w = x1 - x0, h = y1 - y0;
     const ar = clip.aspect || K.clamp(w / h, .85, st.lod ? 1.3 : 1.5);
@@ -657,6 +693,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     seek(t) { st.fixedT = t; draw(); },
     setTrail(on) { on = !!on && !st.lod; if (on !== st.trail) { st.trail = on; trailPaths(); draw(); } },
     setBreath(on) { on = !!on && !st.lod; if (on !== st.breath) { st.breath = on; draw(); } },
+    setContacts(on) { st.contacts = !!on; draw(); },   // compare page: show which foot points bear weight
     stats() { const a = st.ms.slice().sort((x, y) => x - y); return { median: a[a.length >> 1] || 0, p95: a[Math.floor(a.length * .95)] || 0, n: a.length }; },
     get skeleton() { return st.S; }, get cam() { return st.cam; },
     svg,

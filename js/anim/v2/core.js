@@ -93,6 +93,7 @@ export const SCAP = {
   acromion: [3.6, 7.4, 8.3],
 };
 export const FOOT = { heel: [-5.6, -6.2, .3], ball: [14.2, -7.1, 0], toe: [20.8, -7.2, -.6] };
+const HEEL_Y = 7.5 + FOOT.heel[1];   // heel point height with the foot flat (ankle 7.5 cm up)
 export const TMJ = [.8, 1.3];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -155,10 +156,14 @@ function gauss(A, b) {
 // ---------------------------------------------------------------------------------------------------------------
 // Channels
 // ---------------------------------------------------------------------------------------------------------------
+// foot* (stepping feet, leg mode 'step'): footX = heel x (world), footZ = heel lateral offset (world z = footZ * side),
+// footLift = heel height above the floor, footTurn = toe-out (deg), footPitch = + toes up about the heel (heel strike),
+// - heel up about the ball (toe-off)
 const SIDED = ['scapElev', 'scapProt', 'scapUp', 'shFlex', 'shAbd', 'elbow', 'wrist', 'palm', 'fingers', 'handX', 'handY', 'handZ',
-  'hipFlex', 'hipAbd', 'knee', 'ankle'];
+  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch'];
+// weight: stepping clips, share of body weight on the right foot (0..1) while both feet are down
 const AXIAL = ['rootX', 'rootY', 'rootZ', 'pitch', 'yaw', 'roll', 'lumbar', 'thoracic', 'cervical', 'head', 'headYaw', 'bend', 'twist',
-  'jaw', 'bodyAngle'];
+  'jaw', 'bodyAngle', 'weight'];
 export const CHANNELS = [...AXIAL, ...SIDED.flatMap(k => [k + 'R', k + 'L'])];
 export const expand = pose => {
   const o = {};
@@ -175,7 +180,7 @@ export function mirrorPose(p) {
   for (const k in p) {
     const m = /^(.*)([RL])$/.exec(k);
     if (m && SIDED.includes(m[1])) o[m[1] + (m[2] === 'R' ? 'L' : 'R')] = p[k];
-    else o[k] = MIRROR_NEG.has(k) ? -p[k] : p[k];
+    else o[k] = MIRROR_NEG.has(k) ? -p[k] : k === 'weight' ? 1 - p[k] : p[k];
   }
   return o;
 }
@@ -413,6 +418,27 @@ function leg(S, ch, ctx, sd, s) {
       const Rf = mm(ry(-s * (spec.toeOut ?? 10)), [1, 0, 0, 0, 1, 0, 0, 0, s]);
       A = spec.ankle(sd, s, ch);
       foot = frameR(A, Rf);
+    } else if (spec.foot === 'step') {                      // stepping: the foot is placed by channels, heel first
+      // Parametrised by the heel, so a foot that turns while planted pivots about its heel, a heel strike (pitch > 0)
+      // rotates about the heel and a toe-off (pitch < 0) about the ball. Constant channels = a planted, unmoving foot.
+      const turn = ch['footTurn' + sd], pitch = ch['footPitch' + sd], lift = Math.max(0, ch['footLift' + sd]);
+      const Rf0 = mm(ry(-s * turn), [1, 0, 0, 0, 1, 0, 0, 0, s]);
+      const heel = [ch['footX' + sd], HEEL_Y + lift, ch['footZ' + sd] * s];
+      let Rf = Rf0, pe = pitch;
+      A = sub(heel, mv(Rf0, FOOT.heel));
+      const ball = add(A, mv(Rf0, FOOT.ball)), onBall = p => { const R2 = mm(Rf0, rz(p)); return { R2, A2: sub(ball, mv(R2, FOOT.ball)) }; };
+      // a rear foot peels its heel as far as the leg needs (like walking), planted or trailing into the swing: the leg is
+      // never overstretched
+      if (pitch < 2) {
+        const D = LEN.femur + LEN.tibia - .6, far = p => len(sub(H, onBall(p).A2)) > D;
+        if (far(pitch)) { let lo = pitch, hi = -80; if (!far(hi)) { for (let i = 0; i < 20; i++) { const m = (lo + hi) / 2; if (far(m)) lo = m; else hi = m; } } pe = hi; }
+      }
+      if (pe > 0) { Rf = mm(Rf0, rz(pe)); A = sub(heel, mv(Rf, FOOT.heel)); }
+      else if (pe < 0) { const o = onBall(pe); Rf = o.R2; A = o.A2; }
+      foot = frameR(A, Rf);
+      if (pe < 0) foot.toeFlat = Rf0;
+      S.support = S.support || [];
+      if (lift < .05) S.support.push(sd);   // touching the floor (flat, heel strike or toe-off): can bear the keyed weight
     } else if (spec.foot === 'fixed') {                     // planted in any orientation: axes = [toes, up, lateral] (world)
       const [x, y, z] = spec.axes(sd, s, ch);
       A = spec.ankle(sd, s, ch);
@@ -489,7 +515,16 @@ function pose1(clip, ts) {
   const ctx = { clip, breath: sm.breath, sm, lag };
   clip.derive?.(ch, lag, sm);
   let S = settle(clip, ch, ctx);
-  if (clip.balance) {
+  if (clip.stepBalance) {                          // weight transfer: centre of mass over the weighted feet (x and z)
+    for (let i = 0; i < 4; i++) {
+      const t = supportTarget(S, ch.weight);
+      if (!t) break;
+      const ex = t[0] - S.com[0], ez = t[1] - S.com[2];
+      if (Math.abs(ex) + Math.abs(ez) < .03) break;
+      ch.rootX += ex; ch.rootZ += ez;
+      S = build(ch, ctx);
+    }
+  } else if (clip.balance) {
     for (let i = 0; i < 3; i++) {
       const err = clip.balance(S) - S.com[0];
       if (Math.abs(err) < .02) break;
@@ -499,6 +534,14 @@ function pose1(clip, ts) {
   }
   S.sm = sm;
   return S;
+}
+// where the centre of mass should sit: over the one flat foot, or between both by the keyed weight (share on the right)
+function supportTarget(S, w) {
+  const c = sd => [S.pt['heel' + sd][0] * .6 + S.pt['ball' + sd][0] * .4, S.pt['heel' + sd][2] * .6 + S.pt['ball' + sd][2] * .4];   // mid-foot, heel side
+  const sup = S.support || [];
+  if (sup.length === 1) return c(sup[0]);
+  if (sup.length === 2) { const r = c('R'), l = c('L'), u = clamp(w, 0, 1); return [l[0] + (r[0] - l[0]) * u, l[1] + (r[1] - l[1]) * u]; }
+  return null;
 }
 export const period = clip => { prepare(clip); return compile(clip).T * (clip.swap ? 2 : 1); };
 export const swapTime = clip => (clip.swap ? compile(clip).T : 0);   // seconds per side (for the switch fade)

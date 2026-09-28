@@ -57,6 +57,7 @@
   <label>t <input id="scrub" type="range" min="0" max="1" step="0.005" value="0"></label>
   <button id="trail" aria-pressed="false">Motion trail</button>
   <button id="breath" aria-pressed="false">Breath ring</button>
+  <button id="contacts" aria-pressed="false">Contacts</button>
   <button id="theme">Theme</button>
   <span class="note" id="status">loading…</span>
 </header>
@@ -105,7 +106,9 @@
     const q = qaClip(c), f = (v, bad) => `<b class="${bad ? 'bad' : ''}">${v}</b>`;
     sec.querySelector('.qa').innerHTML = `QA ${f(q.ok ? 'pass' : 'FAIL', !q.ok)} · arm reach ${f(q.reach, q.reach > 1)} · leg reach ${f(q.reachLeg, q.reachLeg > 1)}`
       + ` · contact slide ${f(q.slide + ' cm', q.slide >= .05)}${q.slide ? ` (${q.slideAt})` : ''} · floor ${f(q.floor + ' cm', q.floor <= -.3)} (${q.floorAt})`
-      + `${q.humerus ? ` · humerus stretch ${f(q.humerus + ' cm', q.humerus >= .6)}` : ''} · ${q.ms} ms/pose · cycle ${(c._c?.T ?? 0).toFixed(2)} s`;
+      + `${q.humerus ? ` · humerus stretch ${f(q.humerus + ' cm', q.humerus >= .6)}` : ''}`
+      + `${c.legs?.both?.foot === 'step' ? ` · stepping: COM outside support ${f(q.com + ' cm', q.com >= 4)} · travel ${Math.hypot(...c.travel)} cm/cycle` : ''}`
+      + ` · ${q.ms} ms/pose · cycle ${(c._c?.T ?? 0).toFixed(2)} s`;
   }
 
   let paused = false;
@@ -115,6 +118,8 @@
   const tog = (id, fn) => { const b = document.getElementById(id); b.onclick = () => { const on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', on); fn(on); }; };
   tog('trail', on => [...plates, ...threes].forEach(p => p.setTrail(on)));
   tog('breath', on => [...plates, ...threes].forEach(p => p.setBreath(on)));
+  tog('contacts', on => plates.forEach(p => p.setContacts(on)));   // feet points bearing weight (right red, left green)
+  if (params.has('contacts')) document.getElementById('contacts').click();
   document.getElementById('theme').onclick = () => {
     const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
     r.dataset.theme = dark ? 'light' : 'dark';
@@ -194,7 +199,25 @@
     const g = cv.getContext('2d'); g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface'); g.fillRect(0, 0, px, px); g.drawImage(img, 0, 0, px, px);
     return (await fetch(`/save?name=${name}`, { method: 'POST', body: cv.toDataURL('image/png') })).ok;
   }
-  window.kt2 = { players, plates, threes, CLIPS, ids, sheet, save, zoom, qaClip };
+  // filmstrip of one plate across times ts (stepping review / docs): frames left to right, time under each
+  async function strip(id, ts, name, { cell = 300, doc = false } = {}) {
+    const p = plates[ids.indexOf(id)], cv = document.createElement('canvas'), pad = 8, ch = Math.round(cell * .8) + 22;
+    cv.width = ts.length * (cell + pad) + pad; cv.height = ch + 36;
+    const g = cv.getContext('2d'), cs = getComputedStyle(document.documentElement);
+    g.fillStyle = cs.getPropertyValue('--bg'); g.fillRect(0, 0, cv.width, cv.height);
+    g.fillStyle = cs.getPropertyValue('--ink'); g.font = '600 16px Georgia, serif'; g.fillText(CLIPS[id].name, pad, 20);
+    p.pause();
+    for (let i = 0; i < ts.length; i++) {
+      p.seek(ts[i]);
+      const img = await svgImg(p.svg, cell), vb = p.svg.viewBox.baseVal, x = pad + i * (cell + pad);
+      g.fillStyle = cs.getPropertyValue('--surface'); g.fillRect(x, 28, cell, ch);
+      const h = Math.min(ch - 22, cell * vb.height / vb.width), w = h * vb.width / vb.height;
+      g.drawImage(img, x + (cell - w) / 2, 30, w, h);
+      g.fillStyle = cs.getPropertyValue('--ink-muted'); g.font = '12px system-ui'; g.fillText(`t = ${ts[i].toFixed(2)}`, x + 8, 28 + ch - 6);
+    }
+    return (await fetch(`/save?name=${encodeURIComponent(name)}${doc ? '&doc=1' : ''}`, { method: 'POST', body: cv.toDataURL('image/png') })).ok;
+  }
+  window.kt2 = { players, plates, threes, CLIPS, ids, sheet, save, zoom, strip, qaClip };
 </script>
 </body>
 </html>
