@@ -468,6 +468,13 @@ function leg(S, ch, ctx, sd, s) {
 // ---------------------------------------------------------------------------------------------------------------
 export function poseAt(clip, ts) {
   prepare(clip);
+  if (clip.swap) {                                  // unilateral: every other cycle is the mirror image (the other side)
+    const T = compile(clip).T, u = ((ts % (2 * T)) + 2 * T) % (2 * T);
+    return u >= T ? pose1(mirrored(clip), u - T) : pose1(clip, u);
+  }
+  return pose1(clip, ts);
+}
+function pose1(clip, ts) {
   const sm = sample(clip, ts);
   const ch = { ...sm.ch };
   const lag = clip.lag ? sample(clip, ts - clip.lag).ch : ch;
@@ -492,7 +499,33 @@ export function poseAt(clip, ts) {
   S.sm = sm;
   return S;
 }
-export const period = clip => compile(clip).T;
+export const period = clip => { prepare(clip); return compile(clip).T * (clip.swap ? 2 : 1); };
+export const swapTime = clip => (clip.swap ? compile(clip).T : 0);   // seconds per side (for the switch fade)
+
+// Mirror a whole clip left <-> right: keys and base mirrored, limb specs swapped between sides with their world
+// targets reflected in z, derive / balance / pin run on the mirrored channels and skeleton. Not for clips with
+// 'fixed' feet (side plank): a z-mirror would turn the body away from the camera.
+const OTHER = { R: 'L', L: 'R' }, fz = v => [v[0], v[1], -v[2]];
+const swapPt = S => ({ ...S, pt: Object.fromEntries(Object.entries(S.pt).map(([k, v]) => [/[RL]$/.test(k) ? k.slice(0, -1) + OTHER[k.slice(-1)] : k, fz(v)])) });
+function mirrorSpec(sp) {
+  if (!sp) return sp;
+  const o = { ...sp }, mc = ch => ch && mirrorPose(ch);
+  for (const k of ['ankle', 'ball', 'heel', 'target']) if (typeof sp[k] === 'function') o[k] = (sd, s, ch) => fz(sp[k](OTHER[sd], -s, mc(ch)));
+  for (const k of ['pole', 'dir']) if (typeof sp[k] === 'function') o[k] = (s, ch) => fz(sp[k](-s, mc(ch)));
+  for (const k of ['knee', 'lift']) if (typeof sp[k] === 'function') o[k] = (s, ch) => sp[k](-s, mc(ch));
+  return o;
+}
+const mirrorLimbs = L => L && { R: mirrorSpec(L.L || L.both), L: mirrorSpec(L.R || L.both) };
+function mirrored(c) {
+  if (c._mir) return c._mir;
+  const m = { ...c, swap: false, prep: null, _prepped: true, _c: null, _an: null, _mir: null,
+    base: mirrorPose(expand(c.base || {})), keys: Object.fromEntries(Object.entries(c.keys).map(([k, v]) => [k, mirrorPose(expand(v))])),
+    legs: mirrorLimbs(c.legs), arms: mirrorLimbs(c.arms) };
+  if (c.derive) m.derive = (ch, lag, sm) => { const x = mirrorPose(ch); c.derive(x, mirrorPose(lag), sm); Object.assign(ch, mirrorPose(x)); };
+  if (c.balance) m.balance = S => c.balance(swapPt(S));
+  if (c.pin) m.pin = { ...c.pin, pt: S => fz(c.pin.pt(swapPt(S))) };
+  return (c._mir = m);
+}
 // pin: a body point held at a world position (upper back in a bridge, knees in a knee push-up) by translating the root
 function settle(clip, ch, ctx) {
   let S = build(ch, ctx);

@@ -199,7 +199,7 @@ const bodyweight_squat = {
 
 // unilateral: right (near) foot forward and flat, left ball planted with the heel up; the back knee drops straight down
 const split_squat = {
-  name: 'Split squat', cam: { az: 30, el: 6 }, floor: true, trail: ['hipR'], still: .45,
+  name: 'Split squat', cam: { az: 30, el: 6 }, floor: true, trail: ['hipR'], still: .22, swap: true,   // sides alternate each rep
   muscles: { primary: ['quads', 'glutes'], secondary: ['adductors', 'hamstrings'] },
   lag: .16, headLag: .4, shift: .35, shiftRoll: .5,
   legs: {
@@ -240,7 +240,7 @@ const calf_raise = (() => {
 // (neck flexion solved per key)
 function bridge(single) {
   const c = {
-    name: single ? 'Single-leg glute bridge' : 'Glute bridge', cam: { az: 26, el: 11 }, floor: true, trail: ['pelvis'], still: .45,
+    name: single ? 'Single-leg glute bridge' : 'Glute bridge', cam: { az: 26, el: 11 }, floor: true, trail: ['pelvis'], still: single ? .22 : .45, swap: single,
     muscles: single ? { primary: ['glutes'], secondary: ['hamstrings', 'abs', 'obliques'] } : { primary: ['glutes'], secondary: ['hamstrings', 'abs'] },
     lag: .15, headLag: .1, shift: 0, shiftRoll: 0, _fx: 40, _ax: -20,
     pin: { pt: S => P(S.vert[T_INDEX(4)], [-7.5, 0, 0]), at: [0, 0] },

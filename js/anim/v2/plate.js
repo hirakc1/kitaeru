@@ -512,6 +512,11 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const clip = st.clip, cam = st.cam, T = K.period(clip);
     const tn = st.fixedT != null ? st.fixedT : (!st.playing && st.elapsed === 0 ? (clip.still ?? .45) : (st.elapsed / 1000 % T) / T);
     const S = K.poseAt(clip, tn * T);
+    if (clip.swap) {                                // side switch: a quick dip through the paper (a cut, not a teleport)
+      const h = K.swapTime(clip), ts = tn * T, d = Math.min(ts, Math.abs(ts - h), T - ts), u = Math.min(1, d / .35);
+      const op = f2(.15 + .85 * u * u * (3 - 2 * u));
+      if (st.op !== op) { st.op = op; if (op >= 1) root.removeAttribute('opacity'); else root.setAttribute('opacity', op); }
+    }
     S._strands = K.strands(S, st.groups);
     for (const k in G) G[k].begin(); over.begin();
     drawFloor(S, cam); drawBar(cam);

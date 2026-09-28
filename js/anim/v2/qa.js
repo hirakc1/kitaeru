@@ -5,13 +5,15 @@
 //                     height it landed at), or of a pinned point
 //   floor             lowest skeleton point (should be >= -0.3; contacts sit at 0..2.4)
 //   humerus           worst upper-arm stretch in forearm-plank contacts (cm)
-import { poseAt, period } from './core.js';
+import { poseAt, period, swapTime } from './core.js';
 
 export function qaClip(clip, { n = 240, pins = [] } = {}) {
   const T = period(clip), anc = {};
   const r = { reach: 0, reachLeg: 0, slide: 0, slideAt: '', floor: 1e9, floorAt: '', humerus: 0, ms: 0 };
   const t0 = performance.now();
+  const h = swapTime(clip);
   for (let i = 0; i <= n; i++) {
+    if (h && i / n * T >= h && (i - 1) / n * T < h) for (const k in anc) delete anc[k];   // side switch: new contacts
     const S = poseAt(clip, i / n * T);
     r.reach = Math.max(r.reach, S.reach || 0); r.reachLeg = Math.max(r.reachLeg, S.reachLeg || 0);
     r.humerus = Math.max(r.humerus, S.humerusErr || 0);
