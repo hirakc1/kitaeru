@@ -42,7 +42,7 @@ function gridHTML() {
     return `<li><a class="lib-card ${ok ? '' : 'na'}" href="#/library/${e.id}">
       <div class="lib-thumb" data-anim="${e.id}" data-size="104"></div>
       ${e.nativeName ? nativeNameHTML(e.nativeName, { roman: false, cls: 'lib-native' }) : ''}<span class="lib-name">${esc(e.name)}</span>
-      <span class="lib-meta">${esc(familyName(e.family))}${PROG(e) ? ` · L${e.level}` : ''}</span>
+      <span class="lib-meta">${esc(familyName(e.family))}${e.rung === false ? ' · Variety swap' : PROG(e) ? ` · L${e.level}` : ''}</span>
       ${ok ? '' : `<span class="lib-na">${e.equipment.some(q => !(profile?.equipment || []).includes(q)) ? 'needs kit' : 'not for you now'}</span>`}</a></li>`;
   }).join('')}</ul><p class="small muted center">${list.length} of ${EXERCISES.length} exercises</p>`;
 }

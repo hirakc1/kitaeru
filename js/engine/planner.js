@@ -185,7 +185,7 @@ function availabilityFn(profile, D) {
 const FLOW_DROP = { neck: ['baduanjin_look_back', 'baduanjin_sway_head_tail'], lower_back: ['rt_trunk_circle', 'baduanjin_touch_toes', 'baduanjin_sway_head_tail'],
   ankle: ['baduanjin_heel_bounce'] };
 const FLOW_RANGE = { knee: 'Knees only slightly bent; stay pain-free.', lower_back: 'Keep bends and twists small and pain-free.',
-  shoulder: 'Keep arm movements in a pain-free range.', neck: 'Keep head turns small and pain-free.' };
+  shoulder: 'Keep arm movements in a pain-free range.', neck: 'Keep head turns small and pain-free: turn less than the figure does.' };
 const FLOW_ROUNDS = { taichi_short_flow: 3, radio_taiso_1: 2 }; // how many times a flow may repeat in one block (default once)
 
 /** How a flow adapts to this profile: { skip: [moveId], replace: { moveId: moveId }, stance, notes } or null (unusable). */
@@ -1739,8 +1739,9 @@ export function explainPlan(profile, week) {
   if (ageTxt) out.push(ageTxt);
   const balS = week.sessions.filter(s => s.blocks.some(b => b.kind === 'balance'));
   if (balS.length) {
-    const tai = balS.some(s => s.blocks.some(b => b.kind === 'balance' && b.items.some(i => i.flow)));
-    out.push(`A balance block in ${balS.length} session${balS.length > 1 ? 's' : ''} (${tai ? 'Tai Chi forms and a one-leg hold' : 'single-leg and trunk-control work'}), with a wall or chair nearby.`);
+    const balIt = balS.flatMap(s => s.blocks.filter(b => b.kind === 'balance').flatMap(b => b.items));
+    const tai = balIt.some(i => i.flow), rooster = balIt.some(i => i.exerciseId === 'taichi_golden_rooster');   // name the one-leg hold only when planned
+    out.push(`A balance block in ${balS.length} session${balS.length > 1 ? 's' : ''} (${tai ? `Tai Chi forms${rooster ? ' and a one-leg hold' : ''}` : 'single-leg and trunk-control work'}), with a wall or chair nearby.`);
   }
 
   if (week.phase === 'deload') out.push('Deload week: same exercises at about half the sets. Lighter on purpose: this is when you adapt.');

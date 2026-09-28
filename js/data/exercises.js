@@ -221,11 +221,11 @@ const V12 = [
     sequence: [
       { move: 'rt_stretch_up', reps: 2, sec: 10, cue: 'Stretch up tall', breath: 'in-out' },
       { move: 'rt_arm_swing_knee_bend', reps: 8, sec: 12, cue: 'Swing and bend, light on your feet' },
-      { move: 'rt_arm_circles', reps: 4, sec: 10, cue: 'Big circles, in then out' },
+      { move: 'rt_arm_circles', reps: 4, sec: 10, cue: 'Big circles, out, then in' },
       { move: 'rt_chest_opener', reps: 4, sec: 12, cue: 'Open the chest' },
       { move: 'rt_side_bend', reps: 2, side: 'both', sec: 16, cue: 'Bend to the side' },
       { move: 'rt_forward_back_bend', reps: 2, sec: 16, cue: 'Forward, then back, gently' },
-      { move: 'rt_trunk_twist', reps: 4, side: 'both', sec: 16, cue: 'Twist; eyes follow your hands' },
+      { move: 'rt_trunk_twist', reps: 8, side: 'alternate', sec: 16, cue: 'Twist one way, then the other; eyes follow your hands' },
       { move: 'rt_arms_up_down', reps: 4, sec: 16, cue: 'Up, and down' },
       { move: 'rt_diagonal_bend', reps: 2, side: 'both', sec: 16, cue: 'Down diagonally, then open up' },
       { move: 'rt_trunk_circle', reps: 2, side: 'both', sec: 16, cue: 'Big slow circles' },
@@ -341,7 +341,7 @@ const V12 = [
     level: 3, category: 'flow', mode: 'flow', unilateral: false, equipment: [], space: 'medium', difficulty: 3, anim: 'baduanjin_hold_up_sky',
     planes: ['sagittal', 'frontal', 'transverse'], breath: { pattern: 'slow' }, stanceLevels: ['high', 'medium', 'low'],
     cues: ['Slow, even breathing', 'Pause softly at the end of each stretch', 'Knees soft, spine long'],
-    description: 'The eight standing movements in their standard order, each repeated slowly with the breath: about 12 minutes in full, or a shorter Kitaeru version with 4 repetitions each (7 for the last piece).',
+    description: 'The eight standing movements in their standard order, each repeated slowly with the breath: about 10 minutes in full, or a shorter Kitaeru version of about 7 minutes with 4 repetitions each (7 for the last piece).',
     sequence: [
       { move: null, anim: 'baduanjin_ready', sec: 10, cue: 'Stand with feet shoulder-width apart, knees soft', breath: 'natural' },
       { move: 'baduanjin_hold_up_sky', reps: 6, cue: 'Lift through the palms' },
