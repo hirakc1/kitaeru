@@ -433,7 +433,9 @@ let quickChecked = 0;
       if (reg && DRILL[reg].some(id => P.isAvailable(byId[id], eff))) ok(q.blocks[0].items.some(i => DRILL[reg].includes(i.exerciseId)), `${tag}: warm-up has no ${reg}-body drill (${q.blocks[0].items.map(i => i.exerciseId)})`);
     }
     const g = req.goal || 'health';
-    for (const it of main) if (it.reps && [...PUSH, ...PULL, 'squat', 'hinge'].includes(it.family) && !/Balance/.test(it.notes)) ok(it.reps.join() === RANGE[g].join(), `${tag}: ${it.exerciseId} reps ${it.reps} for ${g}`);
+    // v1.2: a goal-led muscle session (no area) works in 6-15 with a slow eccentric (research §1.1 allows 6-20)
+    const rng = g === 'muscle' && req.focus === 'full' && !req.muscles ? [6, 15] : RANGE[g];
+    for (const it of main) if (it.reps && [...PUSH, ...PULL, 'squat', 'hinge'].includes(it.family) && !/Balance/.test(it.notes)) ok(it.reps.join() === rng.join() || (rng !== RANGE[g] && it.reps.join() === RANGE[g].join()), `${tag}: ${it.exerciseId} reps ${it.reps} for ${g}`);
     ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${tag}: not deterministic`);
     return q;
   };
@@ -856,6 +858,197 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   }
 }
 
+// ---- Quick "train for a goal": the goal chooses the content, not only the dose (founder report, v1.2)
+let goalChecked = 0, poolChecked = 0;
+const contentOf = q => q.blocks.filter(b => !['warmup', 'cooldown'].includes(b.kind)).flatMap(b => b.items);
+const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline: { pushUps: 12, pullUps: 2, squats: 25, plankSec: 45 }, equipment: ['pullup_bar', 'resistance_band', 'wall'] });
+{
+  const GOALS = ['strength', 'muscle', 'health', 'endurance', 'flexibility', 'skill', 'balance'];
+  // Overlap limit (Jaccard of the content moves: everything outside warm-up and cool-down). At 5 min a goal has only 2-3 content moves,
+  // so one shared move out of a union of 3 is exactly 1/3 and is tolerated (e.g. one supporting move); two shared moves give >= 1/2.
+  const LIMIT = 0.34;
+  // The same limit holds for strength / muscle / health: they train the same patterns, so at 5 min they may share one anchor move
+  // (1 of a union of 3 = 0.33), but muscle takes the next rung and accessories and health is a mix, so they must not share two.
+  const jac = (a, b) => { const A = new Set(a), B = new Set(b), u = new Set([...A, ...B]); return u.size ? [...A].filter(x => B.has(x)).length / u.size : 0; };
+  const SKILL_IDS = ['crow_pose', 'wall_handstand', 'freestanding_handstand', 'l_sit', 'hollow_body_hold', 'taichi_golden_rooster'];
+  const balanceItem = (it, b) => { const ex = byId[it.exerciseId]; return b.kind === 'balance' || ex.category === 'balance' || ex.family === 'flow_taichi' || it.exerciseId === 'taichi_short_flow'
+    || ex.family === 'anti_rotation' || (ex.unilateral && ['squat', 'hinge', 'calves'].includes(ex.family)); };
+  const flexItem = it => { const ex = byId[it.exerciseId]; return ex.family === 'mobility' || ex.category === 'mobility' || ex.mode === 'flow' || /^flow_/.test(ex.family)
+    || (ex.family === 'rotation' && ex.level <= 3); };
+  const noProf = req => ({ ...mk({}), sex: 'unspecified', equipment: req.equipment ?? ['wall'], space: req.space || 'medium', lowImpact: !!req.lowImpact });
+  const PROFS = [[null, 'noprofile', true], [quickSample, 'sample', true], [mk({ equipment: ALL_EQ, experience: 'advanced', space: 'large' }), 'kit', true],
+    [mk({ injuries: ['wrist'] }), 'wrist'], [mk({ injuries: ['wrist', 'shoulder', 'neck'] }), 'wrist+shoulder+neck'], [mk({ injuries: ['knee', 'ankle'], age: 60 }), 'knee+ankle 60'],
+    [mk({ injuries: ['lower_back'], equipment: ['resistance_band'] }), 'lower back+band'], [mk({ lowImpact: true, space: 'small' }), 'low impact, small'],
+    [mk({ age: 70, experience: 'new', primaryGoal: 'health' }), '70 new'], [mk({ injuries: ['hip'], equipment: ['bench'] }), 'hip+bench'], [mk({ age: 16 }), '16']];
+  for (const [prof, pname, overlap] of PROFS) for (const minutes of [5, 10, 15, 20, 30, 45]) {
+    const qs = {};
+    for (const goal of GOALS) {
+      const req = { minutes, goal, date: '2026-09-28' };
+      const T = `goal ${goal} ${minutes}m ${pname}`;
+      let q;
+      try { q = P.generateQuickSession(req, prof, prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES); } catch (e) { ok(false, `${T}: threw ${e.stack}`); continue; }
+      qs[goal] = q; goalChecked++;
+      const eff = prof || noProf(req);
+      const its = allItems(q), content = contentOf(q), main = q.blocks.filter(b => b.kind === 'main').flatMap(b => b.items);
+      const est = P.estimateSeconds(q, EXERCISES) / 60;
+      ok(Math.abs(est - minutes) <= (minutes <= 10 ? 2 : 0.1 * minutes), `${T}: ${est.toFixed(1)} min`);
+      ok(q.blocks[0].kind === 'warmup' && content.length > 0, `${T}: warm-up first and some content (${q.blocks.map(b => b.kind)})`);
+      ok(new Set(its.map(i => i.exerciseId)).size === its.length, `${T}: duplicates`);
+      ok(its.every(i => byId[i.exerciseId] && P.isAvailable(byId[i.exerciseId], eff)), `${T}: unavailable ${its.filter(i => !P.isAvailable(byId[i.exerciseId], eff)).map(i => i.exerciseId)}`);
+      ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${T}: deterministic`);
+      const has = ids => ids.some(id => byId[id] && P.isAvailable(byId[id], eff));
+      if (minutes === 5) ok(content.length >= 2, `${T}: a 5-min session with a single move (${content.map(i => i.exerciseId)})`);
+      if (goal === 'muscle' && prof) { // one rung up at most in a one-off session
+        const lv = P.initialLevels(prof, EXERCISES);
+        for (const i of main) { const cur = byId[lv[i.family]]; if (cur) ok(byId[i.exerciseId].level <= cur.level + 1, `${T}: ${i.exerciseId} is more than one level above ${cur.id}`); }
+      }
+      if (goal === 'muscle') {
+        ok(main.some(i => /Lower for 3 s/.test(i.notes)), `${T}: no slow-eccentric note (${main.map(i => i.exerciseId)})`);
+        if (minutes >= 15 && main.length >= 2) ok(main.some(i => i.superset != null), `${T}: no supersets`);
+      }
+      if (goal === 'health' && minutes >= 15) {
+        const fam = i => byId[i.exerciseId].family;
+        const need = [['push or pull', i => [...PUSH, ...PULL].includes(fam(i))], ['lower body', i => ['squat', 'hinge'].includes(fam(i))],
+          ['balance / anti-rotation', i => ['anti_rotation', 'core_lateral'].includes(fam(i)) || (byId[i.exerciseId].unilateral && ['squat', 'hinge'].includes(fam(i)))],
+          ['mobility / rotation drill', i => fam(i) === 'mobility' || (fam(i) === 'rotation' && byId[i.exerciseId].level <= 3)], ['cardio', i => fam(i) === 'conditioning']];
+        const possible = need.filter(([, f]) => EXERCISES.some(e => P.isAvailable(e, eff) && f({ exerciseId: e.id })));
+        // 55+: the longer warm-up and cool-down (research §4) leave room for most, not all, of the mix at 15-20 min
+        const hits = possible.filter(([, f]) => content.some(f)).length;
+        ok(eff.age >= 55 && minutes <= 20 ? hits >= Math.min(3, possible.length) : hits === possible.length,
+          `${T}: health mix has only ${possible.filter(([, f]) => content.some(f)).map(([w]) => w)} (${content.map(i => i.exerciseId)})`);
+      }
+      if (goal === 'balance') {
+        const balOk = q.blocks.some(b => b.kind !== 'warmup' && b.kind !== 'cooldown' && b.items.some(i => balanceItem(i, b)));
+        ok(balOk, `${T}: no balance or single-leg item (${content.map(i => i.exerciseId)})`);
+        ok(!main.some(i => [...PUSH, ...PULL].includes(i.family)), `${T}: push/pull in a balance session (${main.map(i => i.exerciseId)})`);
+        ok(main.filter(i => ['squat', 'hinge', 'calves'].includes(i.family)).every(i => /Slow and controlled/.test(i.notes)), `${T}: single-leg work without the slow tempo note`);
+        ok(q.name === `${minutes}-min Balance`, `${T}: name ${q.name}`);
+      }
+      if (goal === 'skill') {
+        const skillBlk = q.blocks.find(b => b.kind === 'skill');
+        const anySkill = EXERCISES.some(e => (e.family === 'skill_balance' || SKILL_IDS.includes(e.id)) && P.isAvailable(e, eff));
+        if (anySkill) ok(skillBlk && q.blocks[1] === skillBlk && skillBlk.items.every(i => i.rir >= 3 && i.sets >= 2), `${T}: skill practice not first (${q.blocks.map(b => b.kind)})`);
+        const sb = EXERCISES.filter(e => e.family === 'skill_balance' && P.isAvailable(e, eff));
+        if (sb.length && skillBlk) ok(byId[skillBlk.items[0].exerciseId].family === 'skill_balance', `${T}: first skill item ${skillBlk.items[0].exerciseId} although a handbalance is possible`);
+        if (skillBlk) ok(P.estimateSeconds({ blocks: [skillBlk] }, EXERCISES) <= 630, `${T}: skill practice over 10 min`);
+      }
+      if (goal === 'flexibility') {
+        ok(!main.length && content.every(flexItem), `${T}: flexibility content is not mobility (${content.map(i => i.exerciseId)})`);
+        ok(q.blocks.some(b => b.kind === 'mobility' && b.items.some(i => byId[i.exerciseId].mode === 'hold')) || minutes <= 5, `${T}: no held stretch`);
+        ok(!q.blocks.some(b => b.kind === 'conditioning'), `${T}: conditioning in a flexibility session`);
+      }
+      if (goal === 'endurance') {
+        const cond = main.filter(i => i.family === 'conditioning');
+        const condAvail = EXERCISES.filter(e => e.family === 'conditioning' && P.isAvailable(e, eff)).length;
+        if (condAvail >= 2) ok(cond.length >= Math.min(2, condAvail), `${T}: fewer than 2 conditioning moves (${main.map(i => i.exerciseId)})`);
+        if (condAvail >= 3 && minutes >= 10) ok(cond.some(i => i.superset != null), `${T}: conditioning not in a circuit`);
+        ok(main.every(i => !i.reps || i.reps[0] >= 15 || /Balance/.test(i.notes) || i.family === 'conditioning' || ['core_anterior', 'core_lateral', 'anti_rotation'].includes(i.family)), `${T}: endurance reps below 15`);
+        ok(cond.every(i => i.restSec <= (eff.age >= 65 ? 90 : 45)), `${T}: long rests in the circuit (${cond.map(i => i.restSec)})`);
+      }
+    }
+    // strength, muscle, health: same patterns, different dose
+    const doseOf = q => q && JSON.stringify(q.blocks.filter(b => b.kind === 'main').flatMap(b => b.items).map(i => [i.reps, i.holdSec, i.restSec]));
+    for (const [a, b] of [['strength', 'muscle'], ['strength', 'health'], ['muscle', 'health']]) ok(doseOf(qs[a]) !== doseOf(qs[b]), `goal ${minutes}m ${pname}: ${a} and ${b} have the same dose`);
+    // 5-20 min: at 30+ a health session adds its own short conditioning block (research §1.3), which can share cardio moves with endurance
+    if (!overlap || ![5, 10, 15, 20].includes(minutes)) continue;
+    for (let i = 0; i < GOALS.length; i++) for (let k = i + 1; k < GOALS.length; k++) {
+      const [a, b] = [GOALS[i], GOALS[k]].sort();
+      if (!qs[a] || !qs[b]) continue;
+      const j = jac(contentOf(qs[a]).map(x => x.exerciseId), contentOf(qs[b]).map(x => x.exerciseId));
+      ok(j <= LIMIT, `goal overlap ${minutes}m ${pname} ${a}/${b}: Jaccard ${j.toFixed(2)} (${contentOf(qs[a]).map(x => x.exerciseId)} | ${contentOf(qs[b]).map(x => x.exerciseId)})`);
+    }
+  }
+  // the founder's reproduction: the four goals no longer give the same 5-min session
+  const five = ['balance', 'skill', 'strength', 'flexibility', 'muscle', 'health', 'endurance'].map(g => contentOf(P.generateQuickSession({ minutes: 5, goal: g }, null, null, EXERCISES)).map(i => i.exerciseId).join());
+  ok(new Set(five).size === 7, `5 min: every goal differs (${five.join(' | ')})`);
+  // body-area and muscle targeting are untouched: an area wins over the goal
+  const up = P.generateQuickSession({ minutes: 20, goal: 'balance', focus: 'upper', date: '2026-09-28' }, null, null, EXERCISES);
+  ok(up.name === '20-min Upper body · Balance' && !up.blocks.some(b => b.kind === 'balance') && contentOf(up).some(i => PUSH.includes(i.family)), `area wins over the goal (${up.name})`);
+  const gl = P.generateQuickSession({ minutes: 20, goal: 'flexibility', muscles: ['glutes'], date: '2026-09-28' }, null, null, EXERCISES);
+  ok(gl.name === '20-min Glutes · Flexibility' && contentOf(gl).some(i => byId[i.exerciseId].muscles.primary.includes('glutes')), `muscles win over the goal (${gl.name})`);
+  // gated library: with every tradition hidden the goals still hold (generic single-leg work, stretches without flows)
+  const saved = Object.fromEntries(Object.entries(TRADITIONS).map(([k, t]) => [k, t.verified]));
+  for (const t of Object.values(TRADITIONS)) if (t.kind !== 'explainer') t.verified = null;
+  const hiddenLib = ALL_EXERCISES.filter(isVisible);
+  for (const m of [5, 10, 20]) {
+    const b = P.generateQuickSession({ minutes: m, goal: 'balance' }, null, null, ALL_EXERCISES), f2 = P.generateQuickSession({ minutes: m, goal: 'flexibility' }, null, null, ALL_EXERCISES);
+    ok(allItems(b).concat(allItems(f2)).every(i => !ALL_BY_ID[i.exerciseId].tradition && isVisible(ALL_BY_ID[i.exerciseId])), `gated ${m}m: tradition items in balance/flexibility`);
+    ok(contentOf(b).some(i => ALL_BY_ID[i.exerciseId].unilateral), `gated ${m}m balance: single-leg work (${contentOf(b).map(i => i.exerciseId)})`);
+    ok(contentOf(f2).every(i => ALL_BY_ID[i.exerciseId].family === 'mobility' || ALL_BY_ID[i.exerciseId].category === 'mobility'), `gated ${m}m flexibility: stretches only`);
+  }
+  for (const [k, v] of Object.entries(saved)) TRADITIONS[k].verified = v;
+  void hiddenLib;
+}
+
+// ---- Library pool sessions: a workout of a chosen length from a tradition, a category or a family
+{
+  const TRADS = Object.keys(TRADITIONS);
+  const CATS = ['strength', 'core', 'skill', 'conditioning', 'mobility', 'warmup', 'flow', 'balance', 'breath'];
+  const FAMS = ['squat', 'mobility', 'flow_taichi', 'core_lateral', 'anti_rotation', 'skill_balance'];
+  const filters = [...TRADS.map(t => ({ tradition: t })), ...CATS.map(c => ({ category: c })), ...FAMS.map(f => ({ family: f })), { tradition: 'tai_chi', category: 'balance' }];
+  const PROFS = [[null, 'noprofile'], [quickSample, 'sample'], [mk({ injuries: ['knee', 'wrist'], age: 60, lowImpact: true, space: 'small' }), 'knee+wrist 60 small low'],
+    [mk({ injuries: ['lower_back', 'neck'], equipment: ['resistance_band', 'wall'] }), 'back+neck band'], [mk({ injuries: ['wrist', 'shoulder'] }), 'wrist+shoulder'],
+    [mk({ age: 70, experience: 'new', primaryGoal: 'health' }), '70 new']];
+  const noProf = () => ({ ...mk({}), sex: 'unspecified', equipment: ['wall'], space: 'medium', lowImpact: false });
+  for (const [prof, pname] of PROFS) for (const f of filters) for (const minutes of [5, 10, 20]) {
+    const req = { minutes, ...f, date: '2026-09-28' };
+    const T = `pool ${JSON.stringify(f)} ${minutes}m ${pname}`;
+    let q;
+    try { q = P.generateQuickSession(req, prof, prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES); } catch (e) { ok(false, `${T}: threw ${e.stack}`); continue; }
+    poolChecked++;
+    const eff = prof || noProf();
+    const pool = new Set(P.quickPoolIds(f, prof, EXERCISES));
+    const its = allItems(q);
+    const content = f.category === 'warmup' ? its.filter(i => !q.blocks.find(b => b.kind === 'cooldown')?.items.includes(i)) : contentOf(q);
+    ok(content.length > 0, `${T}: empty session`);
+    ok(f.category === 'warmup' || q.blocks[0].kind === 'warmup', `${T}: warm-up first`);
+    ok(new Set(its.map(i => i.exerciseId)).size === its.length, `${T}: duplicates`);
+    ok(its.every(i => byId[i.exerciseId] && P.isAvailable(byId[i.exerciseId], eff) && isVisible(byId[i.exerciseId])), `${T}: unavailable ${its.filter(i => !P.isAvailable(byId[i.exerciseId], eff)).map(i => i.exerciseId)}`);
+    ok([...pool].every(id => P.isAvailable(byId[id], eff)), `${T}: pool lists unavailable items`);
+    const est = P.estimateSeconds(q, EXERCISES) / 60;
+    ok(Math.abs(est - minutes) <= (minutes <= 10 ? 2 : 0.1 * minutes), `${T}: ${est.toFixed(1)} min (${q.blocks.map(b => b.kind + ':' + b.items.map(i => i.exerciseId + 'x' + i.sets))})`);
+    ok(q.id === 'Q' && q.name.startsWith(`${minutes}-min `) && q.estMinutes === P.estimateMinutes(q, EXERCISES), `${T}: id/name/estMinutes ${q.name}`);
+    ok(JSON.stringify(q.pool) === JSON.stringify(f), `${T}: pool echo ${JSON.stringify(q.pool)}`);
+    ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${T}: deterministic`);
+    const inPool = content.filter(i => pool.has(i.exerciseId));
+    const secOf = list => P.estimateSeconds({ blocks: [{ items: list.map(i => ({ ...i, superset: null })) }] }, EXERCISES);
+    if (!pool.size) ok(typeof q.note === 'string' && /suit you right now/.test(q.note), `${T}: empty pool without a note`);
+    else {
+      ok(inPool.length > 0, `${T}: nothing from the pool (${content.map(i => i.exerciseId)})`);
+      // mostly inside the pool: anything else in the content, or pool work under half the content time, must come with a note
+      const outside = content.filter(i => !pool.has(i.exerciseId));
+      if (outside.length || secOf(inPool) < 0.5 * secOf(content)) ok(typeof q.note === 'string' && q.note.length > 20, `${T}: filled outside the pool without a note (${outside.map(i => i.exerciseId)})`);
+      if (!q.note) ok(!outside.length, `${T}: no note but outside items`);
+    }
+  }
+  // specifics the founder named
+  const tc5 = P.generateQuickSession({ minutes: 5, tradition: 'tai_chi' }, null, null, EXERCISES);
+  ok(contentOf(tc5).every(i => ALL_BY_ID[i.exerciseId].tradition === 'tai_chi'), `5-min Tai Chi is all Tai Chi (${contentOf(tc5).map(i => i.exerciseId)})`);
+  const bd10 = P.generateQuickSession({ minutes: 10, tradition: 'baduanjin' }, null, null, EXERCISES);
+  ok(contentOf(bd10).some(i => i.exerciseId === 'baduanjin_sequence'), `10-min Baduanjin has the sequence (${contentOf(bd10).map(i => i.exerciseId + (i.flow ? ':' + i.flow.variant : ''))})`);
+  const rt10 = P.generateQuickSession({ minutes: 10, tradition: 'radio_taiso' }, null, null, EXERCISES);
+  const rtIt = contentOf(rt10).find(i => i.exerciseId === 'radio_taiso_1');
+  ok(rtIt && (rtIt.sets >= 2 || contentOf(rt10).length > 1), `10-min Morning Taisō repeats or adds related moves (${contentOf(rt10).map(i => i.exerciseId + 'x' + i.sets)})`);
+  const hs = P.generateQuickSession({ minutes: 20, tradition: 'horse_stance' }, null, null, EXERCISES);
+  ok(/single hold/.test(hs.note || '') && contentOf(hs).some(i => i.exerciseId === 'horse_stance') && contentOf(hs).some(i => ['squat', 'hinge', 'calves'].includes(i.family)), `20-min Horse stance: leg work around it, with a note (${hs.note})`);
+  const cardio = P.generateQuickSession({ minutes: 10, category: 'conditioning', lowImpact: true }, null, null, EXERCISES);
+  ok(allItems(cardio).every(i => ALL_BY_ID[i.exerciseId].impact !== 'high'), 'low-impact cardio has no jumping');
+  // precedence: muscles > pool > focus / goal
+  const mp = P.generateQuickSession({ minutes: 15, muscles: ['chest'], tradition: 'tai_chi' }, null, null, EXERCISES);
+  ok(!mp.pool && /Chest/.test(mp.name), `muscles win over a pool (${mp.name})`);
+  const pg = P.generateQuickSession({ minutes: 15, goal: 'strength', focus: 'upper', category: 'mobility' }, null, null, EXERCISES);
+  ok(pg.name === '15-min Mobility' && contentOf(pg).every(i => ALL_BY_ID[i.exerciseId].category === 'mobility' || i.flow), `a pool wins over focus and goal (${pg.name})`);
+  ok(P.quickPoolIds({ tradition: 'no_such_tradition' }, null, EXERCISES).length === 0 && P.quickPoolIds({ category: 'mobility' }, null, EXERCISES).length > 5, 'quickPoolIds: unknown ids match nothing');
+  // accuracy and animation gates: a hidden tradition gives an empty pool, whichever library is passed
+  const v = TRADITIONS.tai_chi.verified; TRADITIONS.tai_chi.verified = null;
+  const hid = P.generateQuickSession({ minutes: 10, tradition: 'tai_chi' }, null, null, ALL_EXERCISES);
+  ok(!allItems(hid).some(i => ALL_BY_ID[i.exerciseId].tradition === 'tai_chi') && /suit you right now/.test(hid.note || '') && P.quickPoolIds({ tradition: 'tai_chi' }, null, ALL_EXERCISES).length === 0,
+    `unverified Tai Chi: nothing offered (${allItems(hid).map(i => i.exerciseId)})`);
+  TRADITIONS.tai_chi.verified = v;
+  const full = P.generateQuickSession({ minutes: 20, category: 'mobility' }, null, null, ALL_EXERCISES);
+  ok(allItems(full).every(i => isVisible(ALL_BY_ID[i.exerciseId])), 'full library: pool sessions offer only visible (verified, animated) items');
+}
+
 // ---- sample
 {
   const p = grid[0 + 13];
@@ -869,9 +1062,9 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
 }
 
 const el = document.getElementById('summary');
-el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions · ${v12Checked} v1.2 sessions`;
+el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions · ${v12Checked} v1.2 sessions · ${goalChecked} goal-led · ${poolChecked} pool sessions`;
 document.getElementById('fails').textContent = fails.join('\n') || 'All tests passed.';
-window.__results = { pass, fail, fails, sessionsChecked, worstDev, quickChecked, v12Checked, passBeforeV12, failBeforeV12 };
+window.__results = { pass, fail, fails, sessionsChecked, worstDev, quickChecked, v12Checked, passBeforeV12, failBeforeV12, goalChecked, poolChecked };
 </script>
 </body>
 </html>

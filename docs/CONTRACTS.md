@@ -188,6 +188,10 @@ request = {
   goal: 'strength',               // optional: strength | muscle | endurance | flexibility | skill | health | balance (default 'health')
   focus: 'upper',                 // optional: full | upper | lower | core | push | pull | legs | mobility | (v1.2) flow | balance | rotation (default 'full')
   muscles: ['glutes','hamstrings'], // optional: specific muscle ids (from tapping the body map); overrides focus when present
+  // (v1.2) Library pool: a session built from one Library filter. All optional and combined with AND.
+  tradition: 'tai_chi',           // a TRADITIONS id: radio_taiso | tai_chi | baduanjin | pehlwani | horse_stance | rotation (the explainer: its generic families)
+  category: 'mobility',           // an exercise category, as the Library chips: strength | core | skill | conditioning ("Cardio") | mobility | warmup | flow | balance | breath
+  family: 'squat',                // an exercise family id
   equipment: [], space: 'medium', lowImpact: false, // used when profile is null; profile values win otherwise
   date: 'YYYY-MM-DD'              // seed for deterministic variety (same request same day → same session)
 }
@@ -196,6 +200,25 @@ request = {
 - Honour the profile's injuries, equipment and levels when present.
 - A 'Q' session log counts toward the day streak and the weekly target, like any session. applySessionLog progresses the families it trained.
 - The session's `name` is descriptive, e.g. "20-min Lower body · Strength" or "15-min Glutes & hamstrings".
+- **Precedence:** `muscles` > pool (`tradition` / `category` / `family`) > `focus` > `goal`. A later `moment` option will slot in the same way: a request field that picks a pool and its filler.
+
+**Train for a goal (v1.2).** With no area (`focus` absent or `'full'`) and no muscles, the goal chooses the content, not only the dose. Content = every block except the warm-up and cool-down.
+- `balance`: a balance block first (Tai Chi and the golden rooster when visible, otherwise single-leg holds), then single-leg strength (split squat, single-leg RDL, single-leg calf raise), anti-rotation and lateral core, each with a slow-tempo note. No push or pull. Name "N-min Balance".
+- `skill`: skill practice first while fresh (the user's handbalance level and at most one level either side; L-sit, hollow hold or the golden rooster when handbalances are excluded), 2–5 quality sets at RIR ≥ 3, capped at 10 min; then short supporting strength (vertical push, anterior core, rows). The warm-up starts with wrist prep. Name "N-min Skill practice".
+- `flexibility`: mobility-led. A dynamic opener or gentle rotation (levels 1–3), then held stretches (20–30 s; longer at 30+ min or 65+); Baduanjin or Tai Chi flows at 15+ min when visible. No strength block, no conditioning. Name "N-min Flexibility".
+- `endurance`: a circuit of 2–4 conditioning moves near the user's level (seeded), 30–45 s efforts or 15–30 reps, 45 s between rounds (90 s at 65+), then high-rep push, core and squat work if time allows. Name "N-min Endurance circuit".
+- `strength`: the full-body patterns at the user's levels, 4–8 reps, long rests (unchanged).
+- `muscle`: the next rung up each ladder (one level at most, only what the profile allows, e.g. knee → full push-up, band-assisted pull-up → chin-up, split squat → reverse lunge; with no +1 rung it stays at the current level and relies on the tempo note and volume), a vertical pull first, then hip thrust or a harder hinge, dips (or pike) and calf and core accessories; 6–15 reps with a "Lower for 3 s" tempo note, supersets from 15 min, breadth first (2 sets each) then up to 3–4. No 40+ in-main balance item. Name "N-min Full body · Muscle".
+- `health`: a bit of everything at 1–3 sets, breadth first: a lower-body move, a push or pull (alternating by day), an anti-rotation or lateral-core item (single-leg work if none), a mobility or rotation drill (levels 1–3), and an easy cardio piece (20–30 reps or 30–45 s); then the other push/pull and lower move, calves. At 30+ min its usual conditioning block too. Name "N-min Full body · Health".
+- At 5 min every goal has at least two content moves (a second move may run up to a minute over; the warm-up and cool-down shrink to their minimum first).
+- Two different goals at the same length share few content moves: tested for every pair, Jaccard ≤ 0.34 at 5–20 min (one shared anchor move out of three at 5 min is allowed, two are not). Strength, muscle and health must also differ in dose.
+
+**Library pool sessions (v1.2).** `generateQuickSession({ minutes, tradition?, category?, family? }, profile|null, levels|null, library)`.
+- The pool is every visible, animated item available to this profile that matches the filter. Flows are used whole (short version or repeated rounds to fit), then single forms and stretches; strength, core and cardio items get their normal prescriptions around the user's level; skill items become a practice block (≤ 10 min).
+- A short warm-up and cool-down frame it (none for the `warmup` category, which is the warm-up).
+- If the pool can't fill the time, related work is added (e.g. leg and hip work around horse stance, mobility around Morning Taisō) and `session.note` says so in one sentence. If nothing in the pool suits the profile (injuries, kit, space, or the tradition is hidden), a related session is returned with a note: the result is never empty.
+- The session carries `pool: { tradition?, category?, family? }` (the filter, echoed) and, when relevant, `note: string`. Its `name` is "N-min {tradition name | category label | family name}", e.g. "10-min Tai Chi", "5-min Cardio".
+- `quickPoolIds(filter, profile|null, library) -> string[]`: the ids a pool session would draw from, so the UI can hide the button when the pool is empty.
 
 ## v1.2 world movement (streams A and B)
 
