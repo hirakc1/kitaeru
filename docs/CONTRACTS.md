@@ -221,6 +221,26 @@ request = {
 - The session carries `pool: { tradition?, category?, family? }` (the filter, echoed) and, when relevant, `note: string`. Its `name` is "N-min {tradition name | category label | family name}", e.g. "10-min Tai Chi", "5-min Cardio".
 - `quickPoolIds(filter, profile|null, library) -> string[]`: the ids a pool session would draw from, so the UI can hide the button when the pool is empty.
 
+**Moments (v1.2).** `generateQuickSession({ minutes, moment, date, equipment?, space?, lowImpact? }, profile|null, levels|null, library)`. Blueprint: `docs/moments.md`.
+- `moment` ∈ `morning | desk | energy | after_meal | before_sport | after_sport | wind_down | on_the_road | low_energy` (`travel` is accepted as an alias of `on_the_road`). A moment wins over everything else (goal, focus, muscles, pool); it uses `health` for loading.
+- `minutes` snaps to the moment's allowed chips (nearest; ties go to the shorter). `momentMinutes(request)` returns the snapped value.
+- **Metadata for the UI:** `MOMENTS[id] = { label, mark, minutes, def, helper, why, grade, always?, darkPlayer? }`. Marks: 朝 伸 活 食 備 整 静 旅 息. `always` is the permanent doctor line (Wind down, Low-energy day); `darkPlayer` asks for the dark player theme (Wind down).
+- **Session:** `id 'Q'`, `name "N-min {label}"`, `moment`, `light` (true at 10 min or less), `focus`, optional `note` (e.g. moderate bursts), `darkPlayer` (Wind down). Blocks carry their own titles (Raise / Activate / Mobilise / Potentiate, Loosen up, Bursts, Breathe…).
+- **Rules** (moments.md §3.3), after every normal safety filter (kit, space, injuries, age, BMI, low impact, visibility and animation gates):
+  - strength and conditioning items never above the user's current family level (Low-energy day: one level below, floor = the family's easiest available);
+  - `morning`: Morning Taisō first when available (once), standing moves first, no early forward flexion (`standing_hamstring_stretch`, `pancake_stretch`, `childs_pose`, `lying_leg_raise`, `hollow_body_hold`, `baduanjin_touch_toes`), static holds ≤ 30 s, light strength (RIR 3) from 10 min, a balance hold from 15;
+  - `desk`: standing or seated only (`posture`), small space, no jumps; a Dempsey-style move block, then openers;
+  - `energy`: an easy start, 2 (5 min) or 4 (10 min) bursts of 30–40 s with ~45 s easy marching between, openers. **Vigorous gate:** pre-screen Q1–Q3 or Q7 "yes", pregnancy, age ≥ 65 or BMI ≥ 35 → 60 s moderate marching or squats only, and `note` says so;
+  - `after_meal`: no warm-up block, standing or seated only, no impact (Morning Taisō always without hops), Tai Chi short flow first when visible;
+  - `before_sport`: RAMP (about 20/30/35/15 %); at 5 min Morning Taisō + Mobilise; Mobilise is dynamic only; static holds ≤ 30 s; RIR ≥ 3; Potentiate only when impact is allowed and under 65 (otherwise its time goes to Activate, or to Raise at 65+);
+  - `after_sport`: easy marching, Baduanjin (short) from 10 min when visible, stretches with longer holds, paced breathing to close; no strength or conditioning;
+  - `wind_down`: a slow flow, floor stretches with longer holds, 60–90 s paced breathing to close; no strength, conditioning, impact, Morning Taisō, plank or hollow hold;
+  - `on_the_road`: the normal Quick full-body health session with forced low impact, small space, kit limited to wall / bench / table, and no bear crawl, burpee or dead hang;
+  - `low_energy`: paced breathing first (and last from 10 min), gentle moves and a slow flow, optional light strength from 15 min (RIR 4, one level down); no impact, no Morning Taisō.
+  - Breath blocks use `paced_breathing` only (never a breath hold); if it isn't visible, the block is left out and the time goes to the moment's own moves.
+  - Sessions land within ±10 % of the requested minutes and always have at least two moves.
+- **Streaks and progression.** A moment session of **10 min or less** keeps the day streak alive but does not count toward the weekly target, like Morning Taisō: `isShortMomentLog(log)` (a `'Q'` log whose `request.moment` is set and whose snapped minutes are ≤ 10). `computeStreak`, the re-entry gap and the UI's `isTrainingLog` / `sessionsThisWeek` / `weekDays` all use it. Longer moments count like any Quick workout. `applySessionLog` never changes levels for `RECOVERY_MOMENTS` (`before_sport`, `after_sport`, `wind_down`, `low_energy`, `after_meal`); `morning`, `energy`, `desk` and `on_the_road` logs progress normally.
+
 ## v1.2 world movement (streams A and B)
 
 Research: `docs/world-movement.md` (§3 rotation, §4 programming, §5 cultural rules, §6 schema). Plan: `docs/v1.2-plan.md`.

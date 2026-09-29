@@ -1071,6 +1071,144 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
   ok(allItems(full).every(i => isVisible(ALL_BY_ID[i.exerciseId])), 'full library: pool sessions offer only visible (verified, animated) items');
 }
 
+// ---- moments (docs/moments.md §3): a session shaped by the time of day or what someone is doing
+let momentChecked = 0;
+{
+  const M = P.MOMENTS;
+  const IDS = ['morning', 'desk', 'energy', 'after_meal', 'before_sport', 'after_sport', 'wind_down', 'on_the_road', 'low_energy'];
+  const MARKS = ['朝', '伸', '活', '食', '備', '整', '静', '旅', '息'];
+  ok(JSON.stringify(Object.keys(M)) === JSON.stringify(IDS) && IDS.every((id, i) => M[id].mark === MARKS[i]), `MOMENTS: the nine ids and marks (${Object.values(M).map(m => m.mark).join('')})`);
+  ok(IDS.every(id => M[id].minutes.includes(M[id].def) && M[id].label && M[id].helper.length <= 90 && M[id].why), 'MOMENTS: default among the allowed minutes, label, helper (≤ 90 chars), why');
+  ok(/Good before lunch, too/.test(M.energy.helper) && M.after_meal.label === 'After a meal' && !IDS.includes('before_meal'), 'Energy boost helper mentions lunch; After a meal replaces Before a meal');
+  ok(IDS.every(id => !/\b(burn|detox|boost metabolism|fat|cure)\b/i.test(M[id].helper + ' ' + M[id].why)), 'moment copy avoids banned words');
+  ok(M.wind_down.always && M.low_energy.always && M.wind_down.darkPlayer, 'Wind down and Low-energy day carry the doctor line; Wind down asks for the dark player');
+  const EARLY = ['standing_hamstring_stretch', 'pancake_stretch', 'childs_pose', 'lying_leg_raise', 'hollow_body_hold', 'baduanjin_touch_toes'];
+  const parq = on => ({ parq: [on, false, false, false, false, false, false], unwell: false, pregnant: false, changed: false });
+  const PROFS = [[null, 'noprofile'], [quickSample, 'sample'], [mk({ injuries: ['knee', 'wrist'], age: 60, lowImpact: true, space: 'small' }), 'knee+wrist 60 small low'],
+    [mk({ injuries: ['lower_back', 'neck'], equipment: ['resistance_band', 'wall'] }), 'back+neck band'], [mk({ injuries: ['wrist', 'shoulder'], equipment: ALL_EQ, space: 'large', experience: 'advanced' }), 'wrist+shoulder kit'],
+    [mk({ age: 70, experience: 'new', primaryGoal: 'health' }), '70 new'], [mk({ bmi: 36 }), 'BMI 36'], [mk({ health: parq(true) }), 'pre-screen flag'], [mk({ lowImpact: true }), 'low impact'],
+    [mk({ age: 16 }), '16']];
+  const noProf = () => ({ ...mk({}), sex: 'unspecified', equipment: ['wall'], space: 'medium', lowImpact: false });
+  const content = q => q.blocks.flatMap(b => b.items);
+  const tenMin = {};
+  for (const [prof, pname] of PROFS) for (const id of IDS) for (const minutes of M[id].minutes) {
+    const req = { minutes, moment: id, date: '2026-09-29' };
+    const T = `moment ${id} ${minutes}m ${pname}`;
+    let q;
+    try { q = P.generateQuickSession(req, prof, prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES); } catch (e) { ok(false, `${T}: threw ${e.stack}`); continue; }
+    momentChecked++;
+    const eff = prof || noProf();
+    const its = content(q), ex = i => byId[i.exerciseId];
+    const est = P.estimateSeconds(q, EXERCISES) / 60;
+    ok(Math.abs(est - minutes) <= 0.1 * minutes, `${T}: ${est.toFixed(1)} min (${q.blocks.map(b => b.title + ':' + b.items.map(i => i.exerciseId + 'x' + i.sets))})`);
+    ok(q.id === 'Q' && q.moment === id && q.name === `${minutes}-min ${M[id].label}` && q.light === (minutes <= 10) && q.estMinutes === P.estimateMinutes(q, EXERCISES), `${T}: id/name/moment/light ${q.name}`);
+    ok(its.length >= 2, `${T}: fewer than two moves`);
+    ok(its.every(i => ex(i) && isVisible(ex(i)) && P.isAvailable(ex(i), eff)), `${T}: unavailable or hidden ${its.filter(i => !ex(i) || !P.isAvailable(ex(i), eff)).map(i => i.exerciseId)}`);
+    const ids = its.map(i => i.exerciseId).filter(x => x !== 'paced_breathing');
+    ok(new Set(ids).size === ids.length, `${T}: duplicates ${ids}`);
+    ok(its.every(i => i.sets >= 1 && (i.reps || i.holdSec) && !(i.reps && i.holdSec)), `${T}: bad prescription`);
+    ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${T}: deterministic`);
+    const high = its.filter(i => ex(i).impact === 'high' && !(i.flow && Object.keys(i.flow.replace || {}).length));
+    const stat = its.filter(i => ex(i).category === 'mobility' && i.holdSec && !i.flow);
+    const loadIt = its.filter(i => ['strength', 'conditioning', 'core', 'skill'].includes(ex(i).category) && !/^flow_/.test(ex(i).family) && i.exerciseId !== 'marching_in_place');
+    const lv = prof ? P.initialLevels(prof, EXERCISES) : null;
+    const capOk = off => !lv || its.every(i => { const e = ex(i), cur = byId[lv[e.family]]; if (!cur || e.rung === false || e.category === 'mobility' || ['mobility', 'warmup', 'breath'].includes(e.family) || /^flow_/.test(e.family)) return true;
+      const floor = Math.min(...EXERCISES.filter(x => x.family === e.family && x.rung !== false && P.isAvailable(x, eff)).map(x => x.level)); return e.level <= Math.max(floor, cur.level + off); });
+    const breathOk = EXERCISES.some(e => e.id === 'paced_breathing') && P.isAvailable(byId.paced_breathing, eff);
+    switch (id) {
+      case 'morning':
+        ok(!its.some(i => EARLY.includes(i.exerciseId)), `${T}: deep forward bend in the morning`);
+        ok(stat.every(i => i.holdSec[1] <= 30), `${T}: long static hold in the morning`);
+        ok(capOk(0), `${T}: strength above the current level`);
+        if (P.availableFlows(prof, EXERCISES).includes('radio_taiso_1') && P.isAvailable(byId.radio_taiso_1, eff)) ok(its[0].exerciseId === 'radio_taiso_1', `${T}: Morning Taisō not first`);
+        break;
+      case 'desk':
+        ok(its.every(i => ['standing', 'seated'].includes(ex(i).posture)), `${T}: floor or kneeling at the desk (${its.filter(i => !['standing', 'seated'].includes(ex(i).posture)).map(i => i.exerciseId)})`);
+        ok(!high.length && its.every(i => ex(i).space === 'small'), `${T}: jumps or big space at the desk`);
+        break;
+      case 'energy': {
+        const vig = !(eff.age >= 65 || (prof && P.lowImpactInfo(prof).bmi >= 35) || eff.health?.parq?.[0]);
+        const bursts = q.blocks.find(b => b.kind === 'conditioning');
+        ok(bursts && bursts.items.length && bursts.items.every(i => i.holdSec && i.holdSec[1] <= 60 && i.holdSec[0] >= 20), `${T}: bursts 20-60 s`);
+        if (!vig) ok(!high.length && /moderate/i.test(q.note || '') && bursts.items.every(i => /Moderate/.test(i.notes)), `${T}: vigorous bursts despite the gate`);
+        if (vig) ok(bursts.items.reduce((n, i) => n + i.sets, 0) >= (minutes <= 5 ? 2 : 4), `${T}: too few bursts`);
+        ok(capOk(0), `${T}: bursts above the current level`);
+        break;
+      }
+      case 'after_meal':
+        ok(its.every(i => ['standing', 'seated'].includes(ex(i).posture)) && !high.length, `${T}: floor or impact after a meal`);
+        ok(!q.blocks.some(b => b.kind === 'warmup'), `${T}: a warm-up block after a meal`);
+        ok(its.filter(i => i.exerciseId === 'radio_taiso_1').every(i => i.flow.replace.rt_two_foot_hops === 'rt_heel_raise'), `${T}: Morning Taisō with hops after a meal`);
+        break;
+      case 'before_sport':
+        ok(stat.every(i => i.holdSec[1] <= 30), `${T}: static hold over 30 s before sport`);
+        ok(q.blocks.filter(b => b.title === 'Mobilise').every(b => b.items.every(i => !i.holdSec || i.flow || ex(i).category !== 'mobility')), `${T}: static stretching in Mobilise`);
+        ok(!q.blocks.some(b => b.title === 'Potentiate') || (!eff.lowImpact && eff.age < 65), `${T}: potentiate despite low impact or 65+`);
+        ok(capOk(0), `${T}: harder than the current level before sport`);
+        ok(its.filter(i => i.rir != null).every(i => i.rir >= 3), `${T}: to near failure before sport`);
+        break;
+      case 'after_sport':
+        ok(!loadIt.length && !high.length, `${T}: strength or conditioning after sport (${loadIt.map(i => i.exerciseId)})`);
+        if (breathOk) ok(its[its.length - 1].exerciseId === 'paced_breathing', `${T}: no breathing to close`);
+        break;
+      case 'wind_down':
+        ok(!loadIt.length && !high.length && !its.some(i => ['radio_taiso_1', 'plank', 'hollow_body_hold'].includes(i.exerciseId)), `${T}: effort in the wind down (${loadIt.map(i => i.exerciseId)})`);
+        if (breathOk) ok(its[its.length - 1].exerciseId === 'paced_breathing' && its[its.length - 1].holdSec[0] >= 60, `${T}: no breathing to close`);
+        break;
+      case 'on_the_road':
+        ok(!high.length && its.every(i => ex(i).space === 'small' && ex(i).equipment.every(e => ['wall', 'bench', 'table'].includes(e)) && !['bear_crawl', 'burpee', 'dead_hang'].includes(i.exerciseId)),
+          `${T}: jumps, kit or big space on the road`);
+        break;
+      case 'low_energy':
+        ok(!high.length && !its.some(i => i.exerciseId === 'radio_taiso_1'), `${T}: brisk work on a low-energy day`);
+        if (breathOk) ok(its[0].exerciseId === 'paced_breathing', `${T}: breath not first`);
+        ok(its.filter(i => i.rir != null).every(i => i.rir >= 4) && capOk(-1), `${T}: strength not one level down or not easy`);
+        break;
+    }
+    ok(its.every(i => !/hold your breath/i.test(i.notes) || /never|No breath holds/i.test(i.notes)), `${T}: breath holds`);
+    if (minutes === 10 && !prof) tenMin[id] = new Set(ids);
+  }
+  // distinct: at 10 min (no profile) no two moments share most of their moves
+  const ten = Object.entries(tenMin);
+  for (let i = 0; i < ten.length; i++) for (let k = i + 1; k < ten.length; k++) {
+    const [a, A] = ten[i], [b, B] = ten[k], inter = [...A].filter(x => B.has(x)).length, j = inter / new Set([...A, ...B]).size;
+    ok(j <= 0.5, `moments ${a}/${b} at 10 min share too much (Jaccard ${j.toFixed(2)}: ${[...A]} | ${[...B]})`);
+  }
+  // minutes snap to the moment's chips; moment wins over goal, focus, muscles and pools
+  const snap = P.generateQuickSession({ minutes: 7, moment: 'desk', goal: 'strength', focus: 'upper', muscles: ['chest'], tradition: 'tai_chi' }, null, null, EXERCISES);
+  ok(snap.name === '5-min Desk reset' && P.momentMinutes({ moment: 'on_the_road', minutes: 5 }) === 10 && P.momentMinutes({ moment: 'travel', minutes: 60 }) === 45, `minutes snap to the allowed chips (${snap.name})`);
+  // traditions hidden: every moment still works from generic moves
+  const saved = Object.fromEntries(Object.entries(TRADITIONS).map(([k, t]) => [k, t.verified]));
+  for (const t of Object.values(TRADITIONS)) if (t.kind !== 'explainer') t.verified = null;
+  for (const id of IDS) for (const minutes of M[id].minutes) {
+    const q = P.generateQuickSession({ minutes, moment: id, date: '2026-09-29' }, null, null, ALL_EXERCISES);
+    const est = P.estimateSeconds(q, ALL_EXERCISES) / 60;
+    ok(content(q).length >= 2 && content(q).every(i => !ALL_BY_ID[i.exerciseId].tradition && isVisible(ALL_BY_ID[i.exerciseId])) && Math.abs(est - minutes) <= 0.1 * minutes,
+      `traditions hidden: ${id} ${minutes}m (${est.toFixed(1)} min, ${content(q).map(i => i.exerciseId)})`);
+  }
+  for (const [k, v] of Object.entries(saved)) TRADITIONS[k].verified = v;
+  // streak rule: a moment of 10 min or less keeps the day streak alive but is not a training session for the weekly target
+  const ps = mk({ daysPerWeek: 3, preferredDays: [1, 3, 5] });
+  const day = s2 => { const [y, m, d] = s2.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+  const Q = (d, moment, minutes) => ({ id: d + moment, date: d, sessionId: 'Q', request: { moment, minutes }, items: [] });
+  ok(P.isShortMomentLog(Q('2026-09-07', 'desk', 5)) && P.isShortMomentLog(Q('2026-09-07', 'morning', 10)) && !P.isShortMomentLog(Q('2026-09-07', 'morning', 15))
+    && P.isShortMomentLog(Q('2026-09-07', 'desk', 12)) && !P.isShortMomentLog({ sessionId: 'Q', request: { minutes: 5, goal: 'health' } }), 'isShortMomentLog: moments of 10 min or less (after snapping) only');
+  let st = P.computeStreak(['2026-09-07', '2026-09-09', '2026-09-11'].map(d => Q(d, 'desk', 5)), ps, day('2026-09-12'));
+  ok(st.current === 3 && st.weekly.current === 0, `short moments: day streak 3, weekly target not met (${JSON.stringify(st)})`);
+  st = P.computeStreak(['2026-09-07', '2026-09-09', '2026-09-11'].map(d => Q(d, 'on_the_road', 20)), ps, day('2026-09-12'));
+  ok(st.current === 3 && st.weekly.current === 1, `a 20-min moment counts like any Quick workout (${JSON.stringify(st)})`);
+  // no progression on recovery moments; morning strength may progress
+  const pl = mk({ equipment: ALL_EQ });
+  const lv0 = { ...P.initialLevels(pl, EXERCISES), push_horizontal: 'push_up' };
+  const easy = (moment, idx) => ({ id: 'm' + idx, date: '2026-09-1' + idx, sessionId: 'Q', request: { moment, minutes: 15, date: '2026-09-1' + idx }, feel: 2,
+    items: [{ exerciseId: 'push_up', family: 'push_horizontal', sets: [30, 30, 30].map(r => ({ reps: r, done: true })), rating: 'easy' }] });
+  for (const mo of P.RECOVERY_MOMENTS) {
+    const r = P.applySessionLog(lv0, pl, easy(mo, 2), EXERCISES, [easy(mo, 1)]);
+    ok(!r.changes.length && JSON.stringify(r.levels) === JSON.stringify(lv0), `${mo}: a recovery moment never moves a ladder`);
+  }
+  ok(JSON.stringify(P.RECOVERY_MOMENTS.slice().sort()) === JSON.stringify(['after_meal', 'after_sport', 'before_sport', 'low_energy', 'wind_down']), 'recovery moments per moments.md §3.5');
+}
+
 // ---- sample
 {
   const p = grid[0 + 13];
@@ -1084,9 +1222,9 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
 }
 
 const el = document.getElementById('summary');
-el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions · ${v12Checked} v1.2 sessions · ${goalChecked} goal-led · ${poolChecked} pool sessions`;
+el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions · ${v12Checked} v1.2 sessions · ${goalChecked} goal-led · ${poolChecked} pool sessions · ${momentChecked} moment sessions`;
 document.getElementById('fails').textContent = fails.join('\n') || 'All tests passed.';
-window.__results = { pass, fail, fails, sessionsChecked, worstDev, quickChecked, v12Checked, passBeforeV12, failBeforeV12, goalChecked, poolChecked };
+window.__results = { pass, fail, fails, sessionsChecked, worstDev, quickChecked, v12Checked, passBeforeV12, failBeforeV12, goalChecked, poolChecked, momentChecked };
 </script>
 </body>
 </html>

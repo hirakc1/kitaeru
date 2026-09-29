@@ -2209,7 +2209,7 @@ function fitLength(sess, T, ctx, P, caps = {}) {
   if (!cool) { cool = { kind: 'cooldown', title: 'Cool-down', items: [] }; sess.blocks.push(cool); }
   const bump = (list, cap) => () => { // +1 set to the first item (or superset group) that still fits
     for (const it of list()) {
-      const grp = it.superset != null ? main.items.filter(x => x.superset === it.superset) : [it];
+      const grp = it.superset != null ? sess.blocks.find(b => b.items.includes(it)).items.filter(x => x.superset === it.superset) : [it];
       if (grp.some(x => x.sets >= (x.flow ? (FLOW_ROUNDS[x.exerciseId] || 1) : cap))) continue;
       grp.forEach(x => { x.sets++; if (x.flow && x.sets > 1) x.restSec = 20; });
       if (secs() <= hi) return true;
