@@ -13,7 +13,7 @@
   --paper: radial-gradient(120% 80% at 10% 0%, rgba(255, 255, 255, .55), transparent 55%),
     repeating-linear-gradient(112deg, rgba(120, 96, 50, .028) 0 1px, transparent 1px 6px),
     repeating-linear-gradient(21deg, rgba(120, 96, 50, .022) 0 1px, transparent 1px 13px);
-  --serif: "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", Georgia, "Times New Roman", serif;
+  --serif: "Source Serif 4", "Noto Serif JP", "Yu Mincho", "Hiragino Mincho ProN", Georgia, "Times New Roman", serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Hiragino Sans", "Yu Gothic UI", sans-serif;
   --r: 16px; --r-sm: 11px; --gut: 20px; --tabh: 64px;
   --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
