@@ -1,19 +1,24 @@
 // Kitaeru animation v2 clips: Morning Taisō (v1.2), the 13 steps of radio_taiso_1 plus Kitaeru's heel-raise swap.
-// Brisk, on the count (about 1 count per second). Every step shares one stance, one camera and one frame (`frame: 'rt'`)
-// and starts and ends standing tall with the arms hanging, so the flow player can chain them without a jump.
+// Brisk, on the count (about 1 count per second). Every step shares one camera and one frame (`frame: 'rt'`) and starts
+// and ends standing tall; the flow player blends from one step to the next.
+// Stance (fact-check 2026-09-29, Kampo standing guide figs 1-13 and the NHK sheet): heels together, toes turned out
+// (TOG) for steps 1-3, 11 (the first hops), 12 and 13 and the heel-raise swap; feet apart (APART, 開脚) for steps 4-7,
+// 9 and 10 (step 4 opens with 左あしを横に出しながら, steps 7 and 10 end with 左あしをもどして直立); step 8 steps out and
+// back on every rep (左あしを出す (1) … 左あしをもどす (4), then the right).
 // `counts`: the counted reps in one clip cycle. The flow player sets the pace from the step (sec / count), so one cycle
 // lasts counts × that; on its own (library, warm-ups) a clip plays at its natural brisk tempo.
 // Free hands are placed in the upper-chest (T4) frame: handX forward, handY up the spine, handZ out to that hand's side.
 // Every clip follows the fact-checked cues in js/data/exercises.js.
-import { CLIPS, stand, feet, arm } from './lib.js';
+import { CLIPS, stand, feet, arm, swing } from './lib.js';
 
-const W = 20;                                           // half stance width (cm): feet about hip-width apart
-const RT_FEET = { R: [-5, W, 8], L: [-5, -W, 8] };
+const W = 20;                                           // half stance width (cm) of the open stance: feet a little wider than the hips
+const APART = { R: [-5, W, 8], L: [-5, -W, 8] };
+const TOG = { R: [-5, 4.5, 26], L: [-5, -4.5, 26] };   // heels together, toes turned out (about 50° between the feet)
 const CAM = { az: 60, el: 8 };
 // The T4 frame leans forward about 21° when standing tall, so world directions from the shoulder (glenoid at about
 // (2, 3, 15.5) in it) are: straight down (19, -50), straight up (-19, 50), forward (50, 19), for an arm of ~53 cm.
 const NEUT = { handX: 20, handY: -47, handZ: 19, palm: 90, fingers: 20, wrist: 4 };   // arms hanging straight, relaxed
-const rt = (name, over) => stand(RT_FEET, { name, cam: CAM, frame: 'rt', still: 0, ...over, base: { ...NEUT, ...(over.base || {}) } });
+const rt = (name, over, at = APART) => stand(at, { name, cam: CAM, frame: 'rt', still: 0, ...over, base: { ...NEUT, ...(over.base || {}) } });
 const heels = up => ({ footPitchR: -up, footPitchL: -up, onBalls: 1 });   // heels rise (about the balls), degrees; weight on the balls
 // hand targets (T4 frame), both sides mirrored unless given per side
 const H = (x, y, z, extra = {}) => ({ handX: x, handY: y, handZ: z, ...extra });
@@ -29,39 +34,49 @@ const ARC_UP = { from: 'a', via: ['f1', 'f', 'f2'], to: 'up' }, ARC_DOWN = { fro
 const HIPS = H(-6, -30, 20, { palm: 90, fingers: 0, elbow: 60 });   // hands on the hips, elbows out
 
 // 1. Stretch up (伸びの運動): arms swing forward and up overhead, stretch tall, lower out to the sides. 1 rep ≈ 5 s.
+// Heels together (Kampo fig. 1, NHK fig. 1; founder observation 2026-09-29).
 const rt_stretch_up = rt('Stretch up', {
   counts: 1, trail: ['palmR'],
   keys: { a: {}, ...ARC, up: { ...UP, rootY: 89, scapElev: .6, head: -4 } },
   timeline: [{ ...ARC_UP, dur: 1.8, r1: .3, r2: .3, breath: 'in' }, { hold: 'up', dur: .6, b: 1 },
     { ...ARC_DOWN, dur: 2.2, r1: .3, r2: .35, breath: 'out' }, { hold: 'a', dur: .4, b: 0 }],
-});
+}, TOG);
 
-// 2 and 12. Arm swing and knee bend: the arms cross in front as the knees bend, then swing out to the sides as the
-// legs straighten and the heels lower and lift, in time; light and springy. 1 rep ≈ 1.5 s.
+// 2 and 12. Arm swing and knee bend (腕を振って脚を曲げ伸ばす運動), heels together. From the arms crossed in front at chest
+// height with the heels up (Kampo fig. 2 かかとを引き上げ腕を交差した状態から), the arms swing down and out to the sides
+// as the knees bend deeply and straighten (NHK 腕を横に振りながらあしのまげのばし (1); knees over the toes), then swing
+// back and cross as the heels lower and lift (腕を振りもどして交差しながら、かかとをおろしてあげる (2)). NHK: bend and
+// lift じゅうぶんに (fully). Fact-check 2026-09-29 (founder observation: the knees bend more deeply than they did).
+// 1 rep (2 counts) ≈ 1.5 s at the natural tempo; the loop runs from the crossed position back to it.
+const XR = arm(84, -38, 44, {}, 'R'), XL = arm(84, -38, 44, {}, 'L');
+XR.handXR += 3; XR.handYR += 1.5;   // (the right forearm crosses in front of the left)
 const rt_arm_swing_knee_bend = rt('Arm swing and knee bend', {
   counts: 1, trail: ['palmR'],
   keys: {
-    a: {},
-    cross: { ...H(24, -34, -6, { palm: 90, fingers: 15 }), rootY: 83, pitch: 5, onBalls: .8 },
-    open: { ...H(15, -29, 51, { palm: 90, fingers: 10 }), rootY: 90, ...heels(18) },
-    down: { onBalls: .8 },
+    x: { ...XR, ...XL, palm: 90, fingers: 10, rootY: 89.5, ...heels(16) },                                   // crossed, heels up
+    bend: { ...ARM(34, 78, { palm: 90, fingers: 15 }, 51), rootY: 80, pitch: 5, onBalls: .9 },                  // arms swing down and out, knees deep
+    open: { ...ARM(90, 86, { palm: 90, fingers: 10 }, 51), rootY: 89, ...heels(8) },                            // legs straight, arms out to the sides
+    back: { ...ARM(42, 62, { palm: 90, fingers: 15 }, 51), rootY: 87, onBalls: .8 },                            // swinging back in, heels down
   },
-  timeline: [{ from: 'a', to: 'cross', dur: .5, r1: .3, r2: .3 }, { from: 'cross', to: 'open', dur: .55, r1: .3, r2: .3 },
-    { from: 'open', via: ['down'], to: 'a', at: [0, .75, 1], dur: .45, r1: .3, r2: .3 }],
-});
+  timeline: [{ cyclic: ['x', 'bend', 'open', 'back'], dur: 1.5 }],
+}, TOG);
 
 // 3. Arm circles (腕を回す運動): big, loose circles from the shoulders, alternating one each way; shoulders relaxed.
 // Fact-check 2026-09-29 (Kampo seated sheet, NHK fig. 1, Federation FAQ): the first circle (外まわし) goes out and up the
 // sides, the arms cross overhead and come down in front; the second goes up in front and down the sides.
 // One cycle = one circle each way = one counted rep (NHK 4呼間×4回: four of these). ≈ 5 s at the natural tempo.
-const CIRC = { x: H(31, -28, -2, { palm: 90 }), m: H(32, 36, 6, { palm: 0 }), u: H(-11, 48, 17, { palm: 0 }), s: H(-2, 14, 61, { palm: 90 }),
-  l: H(15, -26, 49, { palm: 90 }), su: ARM(140, 70, { palm: 90 }, 50), ux: H(-4, 47, -3, { palm: 0 }) };   // su: high at the side; ux: crossed overhead
+// Heels together. At the top of both circles the straight arms reach right up and cross at the wrists overhead, the upper
+// arms by the ears (Kampo fig. 3 and NHK fig. 3 draw both tops this way; NHK: ひじをよくのばし、肩を中心に大きく円を描く).
+// Fact-check 2026-09-29 (founder observation: the arms went only about head-high, elbows bent).
+const OVERX = ARM(161, -78, { palm: 0, fingers: 5 }, 52.5);   // straight arms, wrists crossed overhead
+const CIRC = { x: H(31, -28, -2, { palm: 90 }), m: ARM(125, -8, { palm: 0 }, 49), u: OVERX, s: H(-2, 14, 61, { palm: 90 }),
+  l: H(15, -26, 49, { palm: 90 }), su: ARM(150, 72, { palm: 90 }, 52), ux: OVERX };   // su: high at the side; ux: crossed overhead
 const rt_arm_circles = rt('Taisō arm circles', {
   counts: 1, trail: ['palmR'],
-  keys: { a: {}, ...CIRC },
+  keys: { a: H(19, -45.5, 19), ...CIRC },   // (a: elbows a touch soft, so the circles' curve never overreaches)
   timeline: [{ cyclic: ['a', 'l', 's', 'su', 'ux', 'm', 'x'], dur: 2.6 },   // out and up the sides, cross overhead, down in front
     { cyclic: ['a', 'x', 'm', 'u', 's', 'l'], dur: 2.4 }],                  // then back: across and up the front, overhead, down the sides
-});
+}, TOG);
 
 // 4. Chest opener (胸を反らす運動): arms swing across the front, then out and up; the chest lifts and opens and the eyes
 // look up a little; the lower back stays easy. 1 rep ≈ 3 s.
@@ -136,20 +151,30 @@ const rt_trunk_twist = rt('Trunk twist', {
 // 8. Arms up and down (腕を上下に伸ばす運動): hands to the shoulders, stretch straight up (heels rise), back to the
 // shoulders, then stretch straight down; crisp, on the count. 1 rep = 4 counts ≈ 4 s. The last extension is down (NHK
 // 腕を下にのばし; fact-check 2026-09-29): the rep ends there, with no extra return to the shoulders.
+// Stance (fact-check 2026-09-29, NHK fig. 8 and Kampo fig. 8): from heels together, the left foot steps out to the side
+// as the hands come to the shoulders (左あしを出す (1)) and back in as the arms stretch down (左あしをもどす (4)); the next
+// rep steps out with the right (次に右あしを出してくり返す). One cycle = one rep each side = 2 counted reps.
 const SH = H(10, 4, 16, { palm: 0, fingers: 60, elbow: 130 });
-const rt_arms_up_down = rt('Arms up and down', {
-  counts: 1, trail: ['palmR'],
-  keys: { a: {}, sh: SH, shB: { ...SH, onBalls: 1 }, up: { ...UP, rootY: 92, ...heels(22) }, dn: H(19, -47, 18, { palm: 0, fingers: 5 }) },
-  timeline: [{ from: 'a', to: 'sh', dur: .55, r1: .25, r2: .3 }, { from: 'sh', via: ['shB'], to: 'up', at: [0, .3, 1], dur: .6, r1: .2, r2: .35 }, { hold: 'up', dur: .3, b: 1 },
-    { from: 'up', via: ['shB'], to: 'sh', at: [0, .7, 1], dur: .6, r1: .25, r2: .3 }, { hold: 'sh', dur: .3 }, { from: 'sh', to: 'dn', dur: .55, r1: .2, r2: .35 },
-    { hold: 'dn', dur: .6 }, { from: 'dn', to: 'a', dur: .5, r1: .3, r2: .35 }],
-});
+const OUT8 = feet({ L: [-5, -22, 12] });   // the left foot a short step out: feet about hip-width
+const rt_arms_up_down = (() => {
+  const k = { a: {}, aS: { weight: .9 }, sh: { ...SH, ...OUT8 }, shB: { ...SH, ...OUT8, onBalls: 1 }, up: { ...UP, rootY: 92, ...heels(22), ...OUT8 },
+    dnS: { ...H(19, -47, 18, { palm: 0, fingers: 5 }), ...OUT8, weight: .9 }, dn: H(19, -47, 18, { palm: 0, fingers: 5 }) };   // dnS: arms down, weight on the right
+  return rt('Arms up and down', {
+    counts: 2, swap: true, trail: ['palmR'], keys: k,
+    timeline: [{ from: 'a', to: 'aS', dur: .15, r1: .3, r2: .3 }, swing(k, 'o', 'aS', 'sh', 'L', TOG.L, [-5, -22, 12], { lift: 3, dur: .4 }),
+      { from: 'sh', via: ['shB'], to: 'up', at: [0, .3, 1], dur: .6, r1: .2, r2: .35 }, { hold: 'up', dur: .3, b: 1 },
+      { from: 'up', via: ['shB'], to: 'sh', at: [0, .7, 1], dur: .6, r1: .25, r2: .3 }, { hold: 'sh', dur: .3 }, { from: 'sh', to: 'dnS', dur: .55, r1: .2, r2: .35 },
+      swing(k, 'i', 'dnS', 'dn', 'L', [-5, -22, 12], TOG.L, { lift: 3, dur: .45 }), { hold: 'dn', dur: .15 }, { from: 'dn', to: 'a', dur: .5, r1: .3, r2: .35 }],
+  }, TOG);
+})();
 
 // 9. Diagonal bend and chest opener (体を斜め下に曲げ胸を反らす運動): bend down diagonally towards one foot with small
 // bounces, rise facing forward and open the arms wide, arching the chest; two per side, then switch. This side: left foot.
+// The arms open diagonally down, elbows straight (NHK 起こして正面を向いて腕を斜め下に開き胸をそらせる; Kampo fig. 9 and
+// tip 肘を伸ばし; fact-check 2026-09-29: they used to open up and out, like step 4).
 const DIAG = (pitch) => ({ pitch, yaw: 22, twist: 8, rootY: 84, weight: .38, handXR: 20, handYR: -36, handZR: -12, handXL: 18, handYL: -36, handZL: 6,
   palm: 90, fingers: 20, head: 6 });
-const WIDE = { ...H(-15, 33, 54, { palm: 0, fingers: 5 }), thoracic: -9, lumbar: -3, cervical: -5, head: -12, scapProt: -6 };
+const WIDE = { ...ARM(50, 78, { palm: 20, fingers: 5 }, 52), thoracic: -9, lumbar: -3, cervical: -5, head: -12, scapProt: -8 };
 const rt_diagonal_bend = rt('Diagonal bend and chest opener', {
   counts: 4, swap: true, trail: ['palmR'],
   keys: { a: {}, d1: DIAG(60), d1u: DIAG(50), d2: DIAG(68), open: WIDE },
@@ -175,37 +200,45 @@ const rt_trunk_circle = rt('Trunk circle', {
     { from: 'l', via: ['o2', 'o1'], to: 'a', dur: 1.1, r1: 0, r2: .35 }],
 });
 
-// 11. Two-foot hops: small, springy hops on both feet, then hops with the feet apart and together; land softly.
-// 4 hops ≈ 3.5 s.
-const AIR = (w) => ({ rootY: 92, onBalls: 1, ...feet({ R: [-5, w, 8, 4, -12], L: [-5, -w, 8, 4, -12] }) });
+// 11. Two-foot hops (両脚で跳ぶ運動): four light hops with the feet together, then big open-and-close jumps, the arms
+// rising out to the sides as the feet land apart and lowering as they close; land softly on the balls of the feet.
+// Fact-check 2026-09-29 (Kampo fig. 11 両脚を揃えて軽く4回跳ぶ / 腕を横へ上げながら大きく開脚跳び, tip 前半は軽く、後半の
+// 開脚跳びは大きく; NHK fig. 11 両あしをそろえて4回とび (1-4), 開いて閉じて… 腕を横にあげておろす (5-8)): they used to
+// hop with the feet apart and without the arms. One cycle = 8 hops ≈ 7 s (NHK 8呼間: two of these in the flow).
+const AIR = (at, up = 91) => ({ rootY: up, onBalls: 1, ...feet({ R: [at.R[0], at.R[1], at.R[2], 4, -12], L: [at.L[0], at.L[1], at.L[2], 4, -12] }) });
+const WIDE11 = { R: [-5, 22, 10], L: [-5, -22, 10] };
+const HOP_ARMS = ARM(88, 86, { palm: 90, fingers: 10 });
 const rt_two_foot_hops = rt('Two-foot hops', {
-  counts: 4, trail: [],
+  counts: 8, trail: [],
   keys: {
-    a: { rootY: 86, onBalls: 1 }, air: AIR(W), land: { rootY: 85, onBalls: 1 },
-    airN: AIR(14), shut: { rootY: 85, onBalls: 1, ...feet({ R: [-5, 8, 6], L: [-5, -8, 6] }) }, airW: AIR(20),
+    a: { rootY: 86, onBalls: 1 }, air: AIR(TOG), land: { rootY: 85, onBalls: 1 },
+    airO: { ...AIR({ R: [-5, 14, 18], L: [-5, -14, 18] }, 94), ...ARM(60, 86, { palm: 90 }) },          // a big jump, the feet opening
+    wide: { rootY: 84, onBalls: 1, ...feet(WIDE11), ...HOP_ARMS },                                        // lands apart, arms out to the sides
+    airC: { ...AIR({ R: [-5, 14, 18], L: [-5, -14, 18] }, 94), ...ARM(50, 86, { palm: 90 }) },          // closing
   },
   // each hop: spring up (0.3 s), come down (0.3 s), a short soft landing on the balls (0.28 s)
-  timeline: [['a', 'air', 'land'], ['land', 'air', 'land'], ['land', 'airN', 'shut'], ['shut', 'airW', 'a']].flatMap(([g, air, l]) => [
+  timeline: [['a', 'air', 'land'], ['land', 'air', 'land'], ['land', 'air', 'land'], ['land', 'air', 'land'],
+    ['land', 'airO', 'wide'], ['wide', 'airC', 'land'], ['land', 'airO', 'wide'], ['wide', 'airC', 'a']].flatMap(([g, air, l]) => [
     { from: g, to: air, dur: .3, r1: .2, r2: .6 }, { from: air, to: l, dur: .3, r1: .6, r2: .2 }, { hold: l, dur: .28 }]),
-});
+}, TOG);
 
 // Heel raises (no-hop option; Kitaeru's own swap for the hops, not part of the sequence): rise onto the balls of the
-// feet, lower with control, in time with the count. 1 rep ≈ 0.9 s.
+// feet, lower with control, in time with the count. 1 rep ≈ 0.9 s. Heels together, as the steps around it.
 const rt_heel_raise = rt('Heel raises', {
   counts: 1, trail: ['heelR'],
   keys: { a: {}, pre: { onBalls: 1 }, up: { rootY: 92.5, ...heels(26) } },
   timeline: [{ from: 'a', via: ['pre'], to: 'up', at: [0, .3, 1], dur: .45, r1: .3, r2: .35 }, { hold: 'up', dur: .1, b: 1 },
     { from: 'up', via: ['pre'], to: 'a', at: [0, .7, 1], dur: .45, r1: .3, r2: .35 }],
-});
+}, TOG);
 
 // 13. Deep breath (深呼吸): the arms rise forwards and up as you breathe in and lower out to the sides as you breathe
 // out; slow and full, no breath holding. On its own (v1.3a single, breath blocks) 1 rep ≈ 10 s: about 4.5 s in and 5.5 s out
-// (flow-and-breath.md §2.1.8, [practice]); in the flow the count sets the pace (about 5 s).
+// (flow-and-breath.md §2.1.8, [practice]); in the flow the count sets the pace (about 5 s). Heels together (Kampo fig. 13).
 const rt_deep_breath = rt('Deep breath', {
   counts: 1, trail: ['palmR'],
   keys: { a: {}, ...ARC, up: { ...UP, head: -6, cervical: -3, thoracic: -3 } },
   timeline: [{ ...ARC_UP, dur: 4.5, r1: .35, r2: .35, breath: 'in' }, { ...ARC_DOWN, dur: 5.5, r1: .35, r2: .4, breath: 'out' }],
-});
+}, TOG);
 
 Object.assign(CLIPS, {
   rt_stretch_up, rt_arm_swing_knee_bend, rt_arm_circles, rt_chest_opener, rt_side_bend, rt_forward_back_bend, rt_trunk_twist,

@@ -1,5 +1,5 @@
 // Kitaeru service worker: cache-first app shell, versioned caches, runtime caching for fonts.
-const VERSION = 'v2026.09.29-1447';
+const VERSION = 'v2026.09.29-1525';
 const SHELL = `kitaeru-shell-${VERSION}`;
 const RUNTIME = `kitaeru-runtime-${VERSION}`;
 
@@ -53,7 +53,9 @@ self.addEventListener('fetch', event => {
   }
   if (url.origin !== self.location.origin) return;
 
-  // Navigations: serve the cached shell (hash routing means one document).
+  // Navigations: serve the cached shell (hash routing means one document). Other pages at the root (the review tools:
+  // anim-review.html, taiso-check.html) are not the app: they go straight to the network, and never replace the shell.
+  if (req.mode === 'navigate' && /\.html$/.test(url.pathname) && !/\/index\.html$/.test(url.pathname)) return;
   if (req.mode === 'navigate') {
     event.respondWith((async () => {
       const cache = await caches.open(SHELL);

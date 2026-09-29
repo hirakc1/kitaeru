@@ -273,3 +273,15 @@ All are tagged "(fact-check 2026-09-29)". Facts only; no design choices changed.
 13. §6.2 `systema_breath_walk`: Systema Sydney not independent of A; fact-check result paragraph (no independent source; generic sources found).
 14. §7.1 yoga card: "household practice" → "age-old practice".
 15. §7.2 Makkō-hō card: card timing note with suggested sentence.
+
+## 8. Founder observations on the standing Taisō clips (2026-09-29, later)
+
+The founder watched an unofficial video (KeikoFlex, youtube `K2ACdJrb48A`) and reported three things. Each was checked against the Kampo standing guide (figs 1–13, https://www.jp-life.japanpost.jp/radio/instruction/radio_first.html; figure images `/assets/img/i_hlt_rdo_d1_NN.png`), the NHK sheet (https://www.nhk.or.jp/program/radio-taisou/pdf/radio.pdf, No. 1 panel) and Kampo's official video (youtube `SGPBSqxKGAc`, channel ラジオ体操チャンネル【かんぽ生命公式】).
+
+1. **Stretch up: feet together.** CONFIRMED. Kampo fig. 1 and NHK fig. 1 draw the heels together, toes turned out; the video agrees.
+2. **Arm swing and knee bend: deeper knees.** CONFIRMED. NHK point: 腕の振りにあわせてあしの屈伸とかかとのあげおろしをじゅうぶんに行い; Kampo fig. 2 and NHK fig. 2 show a clear bend, knees over the toes. Also found: the start is arms crossed at chest height with the heels up (Kampo かかとを引き上げ腕を交差した状態から; NHK step 1 ends (8)で腕を前に交差してかかとをあげる), and the knees bend as the arms swing out (NHK 腕を横に振りながらあしのまげのばし (1)、腕を振りもどして交差しながら、かかとをおろしてあげる (2)).
+3. **Arm circles: arms brush the ears at the top.** PARTLY. Kampo fig. 3 and NHK fig. 3 draw both circles with straight arms crossed at the wrists right overhead, upper arms by the head, and NHK says ひじをよくのばし、肩を中心に大きく円を描くように. The words 耳をこするようにして are NHK's point for No. 2's arm circles, not No. 1's.
+
+Stance check, every step (Kampo figs, NHK text): heels together for 1, 2, 3, 12, 13; 4 opens with 左あしを横に出しながら and the feet stay apart (開脚) through 7, which ends 左あしをもどして直立; 8 steps out and back on every rep (腕を肩にまげ、左あしを出す (1) … 腕を下にのばし、左あしをもどす (4)、次に右あし); 9 and 10 apart, 10 ending 左あしをもどして直立; 11 is four hops with the feet together (両脚を揃えて軽く4回跳ぶ), then open-and-close jumps with the arms rising to the sides (腕を横へ上げながら大きく開脚跳び). Also found: in 9 the arms open diagonally down (NHK 起こして正面を向いて腕を斜め下に開き胸をそらせる, Kampo fig. 9), not up.
+
+Changed: `js/anim/v2/clips/taiso.js` (stances per step; 2 rebuilt from the crossed start with a deeper bend; 3 with straight arms crossed overhead; 8 steps out and back, alternating; 9 arms diagonally down; 11 four hops together, then open and close with the arms); `js/anim/v2/core.js` (a flow blend that changes a foothold lifts the foot instead of sliding it); cues, descriptions and `verified` notes in `js/data/exercises.js`. Review page: `taiso-check.html`.

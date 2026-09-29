@@ -581,6 +581,15 @@ export function blendPose(Sa, offA, Sb, offB, e) {
     c.rootX -= sg * o[0]; c.rootZ -= sg * o[2]; c.footXR -= sg * o[0]; c.footXL -= sg * o[0]; c.footZR -= sg * o[2]; c.footZL += sg * o[2]; return c; };
   const a = rel(Sa.ch, offA, 1), b = rel(Sb.ch, offB, 1), ch = {};
   for (const k of CHANNELS) ch[k] = (a[k] ?? 0) + ((b[k] ?? 0) - (a[k] ?? 0)) * e;
+  // a planted foot whose spot changes (a flow step that opens or closes the stance) steps there, lifting clear of the
+  // floor, rather than sliding: the left foot first, then the right when both move (the Morning Taisō steps out left)
+  const moves = ['L', 'R'].filter(sd => Math.hypot((b['footX' + sd] ?? 0) - (a['footX' + sd] ?? 0), (b['footZ' + sd] ?? 0) - (a['footZ' + sd] ?? 0)) > 2
+    && !(a['footLift' + sd] > .5) && !(b['footLift' + sd] > .5));
+  moves.forEach((sd, i) => {
+    const [w0, w1] = moves.length > 1 ? (i ? [.45, 1] : [0, .55]) : [0, 1], u = clamp((e - w0) / (w1 - w0), 0, 1), us = u * u * (3 - 2 * u);
+    for (const k of ['footX', 'footZ', 'footTurn']) ch[k + sd] = (a[k + sd] ?? 0) + ((b[k + sd] ?? 0) - (a[k + sd] ?? 0)) * us;
+    ch['footLift' + sd] = Math.max(ch['footLift' + sd], 3.5 * Math.sin(Math.PI * u));
+  });
   const S = build(rel(ch, offB, -1), { clip: Sb.src, breath: Sb.breath });
   S.sm = Sb.sm; S.src = Sb.src;
   return S;

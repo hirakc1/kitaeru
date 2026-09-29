@@ -329,10 +329,10 @@ function loggerHTML() {
     const target = holdTarget();
     const running = hold && hold.idx === w.idx;
     const v = running ? holdView() : { lead: 0, left: target };
-    return `<div class="logger hold">${ring({ progress: running ? v.done / target : 0, size: 168, label: `<span data-hold-sec>${v.lead || v.left}</span><small data-hold-unit>${v.lead ? '' : 's'}</small>`, sub: `<span data-hold-sub>${v.lead ? 'get ready' : `target ${it.holdSec ? `${it.holdSec[0]}–${it.holdSec[1]}` : target} s`}</span>`, cls: running ? 'running' : '' })}
+    return `<div class="logger hold">${ring({ progress: running ? v.done / target : 0, size: 168, label: `<span data-hold-sec>${v.lead || v.left}</span><small data-hold-unit>${v.lead ? '' : 's'}</small>`, sub: `<span data-hold-sub>${holdSub(v, target)}</span>`, cls: running ? 'running' : '' })}
       <div class="btn-row">${running ? `<button class="btn btn-primary btn-lg" data-act="hold-stop">${icon('check', { size: 20 })} <span data-hold-btn>${v.lead ? 'Cancel' : 'Stop & log'}</span></button>`
         : `<button class="btn btn-primary btn-lg" data-act="hold-start">${icon('play', { size: 20 })} Start</button>
-           <button class="btn btn-ghost" data-act="hold-log" aria-label="Log ${target} seconds without the timer">Log ${target}s</button>`}</div></div>`;
+           <button class="btn btn-ghost" data-act="hold-log" aria-label="Log ${target} seconds${bothSides() ? ' per side' : ''} without the timer">Log ${target}s${bothSides() ? ' each side' : ''}</button>`}</div></div>`;
   }
   const last = l.sets[l.sets.length - 1];
   const def = last?.reps ?? (it.reps ? it.reps[1] : 10);
@@ -420,11 +420,15 @@ function tick() {
     const key = v.lead ? `L${v.lead}` : String(v.left);
     if (key === hold.shown) return;
     const was = hold.shown; hold.shown = key;
+    if (v.left <= 0 && bothSides() && hold.side === 1) {
+      // First side done: a short switch countdown, then the same hold on the other side.
+      beep('go'); buzz([120, 60, 120]); hold.side = 2; hold.start = Date.now() + SWITCH_IN * 1000; hold.shown = null; tick(); return;
+    }
     if (v.left <= 0) { beep('done'); buzz([200, 100, 200]); hold = null; logSet({ sec: target }); return; }
     const el = root.querySelector('[data-hold-sec]'); if (el) el.textContent = v.lead || v.left;
     const u = root.querySelector('[data-hold-unit]'); if (u) u.textContent = v.lead ? '' : 's';
-    const sub = root.querySelector('[data-hold-sub]'); if (sub) sub.textContent = v.lead ? 'get ready' : `target ${item().holdSec ? `${item().holdSec[0]}–${item().holdSec[1]}` : target} s`;
-    const b = root.querySelector('[data-hold-btn]'); if (b) b.textContent = v.lead ? 'Cancel' : 'Stop & log';
+    const sub = root.querySelector('[data-hold-sub]'); if (sub) sub.textContent = holdSub(v, target);
+    const b = root.querySelector('[data-hold-btn]'); if (b) b.textContent = v.lead && hold.side !== 2 ? 'Cancel' : 'Stop & log';
     const r = root.querySelector('.ring'); if (r) setRing(r, v.done / target);
     if (v.lead) beep('tick');
     else if (was && was[0] === 'L') { beep('go'); buzz([60]); }
@@ -433,7 +437,14 @@ function tick() {
 }
 
 // Timed holds: a short get-ready countdown, then count down to the target and log automatically at zero.
-const LEAD_IN = 3;
+// One-sided holds (side plank, single-leg stand, stretches) run the target once per side, with a switch countdown between.
+const LEAD_IN = 3, SWITCH_IN = 5;
+const bothSides = () => !flowNow() && !!(item().perSide || ex().unilateral);
+function holdSub(v, target) {
+  const side = bothSides() && hold && hold.idx === w.idx ? ` · side ${hold.side} of 2` : bothSides() ? ' each side' : '';
+  if (v.lead) return hold?.side === 2 ? 'switch sides' : 'get ready';
+  return `target ${item().holdSec ? `${item().holdSec[0]}–${item().holdSec[1]}` : target} s${side}`;
+}
 // A flow counts down as a whole: its target is the sum of its (adapted) steps.
 const holdTarget = () => (flowNow() ? flowInfo().total : item().holdSec ? item().holdSec[1] : 30);
 function holdView() {
@@ -544,9 +555,10 @@ async function onClick(e) {
   const a = e.target.closest('[data-act]'); if (!a) return;
   switch (a.dataset.act) {
     case 'log-set': { const v = +root.querySelector('[data-stepper="reps"] [data-val]').textContent; buzz([40]); logSet({ reps: v }); break; }
-    case 'hold-start': hold = { idx: w.idx, start: Date.now() + LEAD_IN * 1000, shown: null }; draw(); tick(); break;
+    case 'hold-start': hold = { idx: w.idx, start: Date.now() + LEAD_IN * 1000, shown: null, side: 1 }; draw(); tick(); break;
     case 'hold-stop': {
-      const ms = Date.now() - hold.start; hold = null;
+      const ms = Date.now() - hold.start, side = hold.side; hold = null;
+      if (side === 2 && ms < 1000) { logSet({ sec: holdTarget() }); break; } // stopped at the switch: the first side was held in full
       if (ms < 1000) { draw(); break; } // cancelled during the get-ready countdown
       const sec = Math.min(holdTarget(), Math.floor(ms / 1000));
       if (flowNow()) { logSet({ sec, completedSteps: flowInfo().steps.filter(s => s.end <= sec + 0.5).length }); break; }
