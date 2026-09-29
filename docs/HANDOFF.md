@@ -45,7 +45,7 @@ This is the current state for a new Claude session picking up the project. Claud
   - The trademark status of the name is unconfirmed.
 - A `balance` goal is added. Morning Taisō keeps the day streak alive but doesn't count towards the weekly target.
 
-## v1.3 founder feedback (branch `worktree-agent-a40366e84087e403c`, not deployed)
+## v1.3 founder feedback (deployed as v2026.09.29-1147)
 - Quick, moments and Library "Make a workout": **Kit today** chips (profile kit by default, changed for the day only, never written to the profile) and a **Level** −2…+2 control; the preview says what the level changed.
 - **Shuffle** gives a different workout each press while the pool allows (`request.shuffle`, logged with the request); a small pool says so.
 - Warm-up, mobility and cardio moves get **Swap** (same region and purpose) instead of Easier / Harder; the Library detail lists "Similar moves".
@@ -53,14 +53,33 @@ This is the current state for a new Claude session picking up the project. Claud
 - The player shows the motion trail (fainter) and the breath ring on holds, breathing and flows, following Me → Animation extras. Flow copy: "Follow the count on screen. There's no music to keep time with."
 - Tests: 141,938 passed. Screenshots in `docs/v1.3-ui/`.
 
+## Shipped 2026-09-29
+- **v1.2** (v2026.09.29-1055):
+  - All 132 exercises are on anim v2. v1 is only a fallback.
+  - 5 fact-checked traditions (Morning Taisō, Tai Chi, Baduanjin, Pehlwani, Horse stance) with culture cards.
+  - Rotation and anti-rotation families.
+  - The 7 Quick goals give distinct content.
+  - Library "Make a workout" from any discipline or category.
+  - 9 moments (朝 伸 活 食 備 整 静 旅 息); research in `docs/moments.md`.
+  - A Balance goal.
+  - Japanese label fixes (耐, 軽・中・重, 自分).
+  - New Welcome copy. No tilt anywhere.
+- **App name** is now "Kitaeru 鍛える".
+- **Updates auto-apply:** the app reloads when a new version activates, never mid-workout, and checks for updates when it comes back to the foreground. Users never need to reinstall, except to refresh the home-screen icon or name.
+- **v1.3** (v2026.09.29-1147): see the section above.
+- **Founder animation fixes:** marching arm swing, side-bend and trunk-circle arm path, diamond push-up hands plus a generic `detail` inset, and baithak on the balls of the feet.
+- **Animation review page:** `anim-review.html`, live at https://hirakc1.github.io/kitaeru/anim-review.html. The founder marks each clip Good or Needs work with a comment and exports the notes.
+
 ## In progress / next
-1. **Logo B into the app:** seal(), splash, Welcome, icons, favicon, and a 済 stamp. Designer agent, branch `worktree-agent-a77ca9ac54c00de37`.
-2. **Anim v2 for v1.2 content:** rotation and anti-rotation (14 clips, generic, can ship first), then dand, baithak and horse stance, then Morning Taisō, Tai Chi and Baduanjin. Animator agent, branch `worktree-agent-a9739dc712fdd0781`.
-   - After that, batches 3–5 for the remaining 45 v1 exercises: core/skill, conditioning (needs an airborne mode), and mobility.
-3. **v1.2 world movement:** plan in `docs/v1.2-plan.md`.
-   - Data, planner and UI are done on branch `worktree-agent-af2910817cf165163` (115,203 tests).
-   - **All 5 traditions are verified** (Morning Taisō, Tai Chi, Baduanjin, Pehlwani, Horse stance).
-   - Still hidden, because an animation gate means nothing unanimated is planned. It ships when the clips land and the founder has reviewed it.
+1. **Founder animation review:** the founder is reviewing all 132 clips on `anim-review.html` and will send the exported notes. Route each note to the animator (anim branch `worktree-agent-a9739dc712fdd0781`, which is merged into main). The generic `detail` inset exists for hand and foot close-ups.
+2. **Founder is still reviewing v1.2/v1.3** in depth. Expect more feedback.
+3. **Follow-ups worth doing:**
+   - Measure phone performance on the founder's Android. Final QA saw 29 ms median frames at 4× CPU throttle; the player drops to half rate above 8 ms.
+   - Lazy-load the v1.2 data and planner: the first load grew to about 230 KB gzip, +72 KB.
+   - Check the Radio Taisō trademark (J-PlatPat or Japan Post Insurance) before using the name anywhere beyond the credit line.
+   - "Suggest a correction" is parked: it needs a way to filter bad information.
+   - B-direction 3D view later.
+   - v1.3+ traditions from `docs/world-movement.md` §7.
 3. **Known gaps:**
    - A reactive deload isn't done.
    - Deleting a log doesn't roll back level changes.
