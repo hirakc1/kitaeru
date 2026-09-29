@@ -200,6 +200,7 @@ request = {
 - Honour the profile's injuries, equipment and levels when present.
 - A 'Q' session log counts toward the day streak and the weekly target, like any session. applySessionLog progresses the families it trained.
 - The session's `name` is descriptive, e.g. "20-min Lower body · Strength" or "15-min Glutes & hamstrings".
+- **Same drill, once:** near-identical drills never share a session, in plans or Quick (`open_book` and `thoracic_opener`, shown as "Side-lying chest opener").
 - **Precedence:** `muscles` > pool (`tradition` / `category` / `family`) > `focus` > `goal`. A later `moment` option will slot in the same way: a request field that picks a pool and its filler.
 
 **Train for a goal (v1.2).** With no area (`focus` absent or `'full'`) and no muscles, the goal chooses the content, not only the dose. Content = every block except the warm-up and cool-down.
@@ -263,8 +264,9 @@ Research: `docs/world-movement.md` (§3 rotation, §4 programming, §5 cultural 
   stanceLevels: ['high', 'medium', 'low'],
   sources: [{ label, url, kind: 'official' | 'reference' | 'research' }],
   verified: null | { date: 'YYYY-MM-DD', notes },  // set ONLY by the separate fact-check pass
-  rung: false,                       // a variety swap, not a ladder rung (the daṇḍ): listed and swappable (varietyFor / the workout
-                                     // player's variety button, next to Easier / Harder) but never a level or a planned item
+  rung: false,                       // a variety swap (the daṇḍ): never a ladder rung and never auto-planned in plans, goal workouts or
+                                     // moments; listed and swappable (varietyFor / the workout player's variety button). It may appear
+                                     // in a Library "Make a workout" only when the user explicitly picks its own tradition pool.
   flowOnly: true,                    // a step used inside a flow; never shown, planned or swapped on its own (promoted in v1.3)
   adaptation: true,                  // Kitaeru's own substitute, not part of the tradition (e.g. rt_heel_raise); say so in the UI
 }
@@ -326,7 +328,7 @@ export function clearRegisteredAnimationIds()   // tests only
 ### Planner additions (`js/engine/planner.js`)
 
 - **Goal `balance`.** It isn't a loading goal: loading falls back to the next goal, or to health. As primary goal it adds a light flow day (days ≥ 3).
-- **Balance block** (`kind: 'balance'`, world-movement.md §4.6.1). It runs on ≥ 2 hard sessions a week (3 when balance is the primary goal) for age ≥ 55 or the `balance` goal, and lasts 5–10 min (3 min minimum under 25-min sessions; none under 15 min). Content is Tai Chi (`taichi_short_flow` + `taichi_golden_rooster`) when visible, otherwise generic single-leg and anti-rotation work with a support note. It replaces the in-main balance item in that session.
+- **Balance block** (`kind: 'balance'`, world-movement.md §4.6.1). It runs on ≥ 2 hard sessions a week (3 when balance is the primary goal) for age ≥ 55 or the `balance` goal, and lasts 5–10 min (3 min minimum under 25-min sessions; none under 15 min). Content is Tai Chi (`taichi_short_flow` + `taichi_golden_rooster`, one set of the one-leg hold in short blocks) when visible, otherwise generic single-leg and anti-rotation work with a support note. The minimum is kept: extra one-leg holds, then single-leg work, fill a Tai Chi block that would fall short. It replaces the in-main balance item in that session.
 - **Rotation / anti-rotation** are progression families (`PROGRESSION_FAMILIES`), with `initialLevels` entries.
   - One rotation drill at levels 1–3 in every warm-up.
   - Full body C's essential core slot is anti-rotation.

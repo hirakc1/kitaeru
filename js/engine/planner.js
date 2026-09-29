@@ -106,6 +106,15 @@ const FALLBACK = {
 const PRI = { push_horizontal: 1, pull_horizontal: 2, pull_noequip: 2, squat: 3, balance: 3.5, hinge: 4, pull_vertical: 5, push_vertical: 6, dip: 6,
   core_anterior: 7, core_lateral: 8, core_posterior: 8, anti_rotation: 8, rotation: 8.5, calves: 9, stance: 9 };
 
+// Near-identical drills never share a session (QA: "Open book" and the side-lying chest opener are the same movement).
+const SAME_DRILL = [['open_book', 'thoracic_opener']];
+const TWIN = {};
+for (const g of SAME_DRILL) for (const id of g) TWIN[id] = g.filter(x => x !== id);
+/** A set of used exercise ids that also marks each id's same-drill twins as used. */
+class DrillSet extends Set {
+  add(id) { super.add(id); for (const t of TWIN[id] || []) super.add(t); return this; }
+}
+const drillSet = ids => { const s = new DrillSet(); for (const id of ids || []) s.add(id); return s; };
 const mid = r => (r[0] + r[1]) / 2;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const patternOf = fam => PUSH.includes(fam) ? 'push' : PULL.includes(fam) ? 'pull' : LEGS.includes(fam) || fam === 'stance' ? 'legs'
@@ -293,9 +302,18 @@ function balanceBlock(ctx, target, used, info) {
       const gr = ctx.byId.taichi_golden_rooster;
       if (gr && ctx.isAvail(gr) && !used.has(gr.id)) {
         const g = flatItem(gr, { hold: [5, 15], sets: 2, rest: 15, notes: [BAL_NOTE, ...injNotes(gr, D)].join(' ') });
-        if (blockSec({ items: [...block.items, g] }, info) <= target + 30) { block.items.push(g); used.add(gr.id); }
+        if (blockSec({ items: [...block.items, g] }, info) > target + 30) g.sets = 1; // short blocks still get the one-leg hold (CONTRACTS: Tai Chi + golden rooster)
+        if (blockSec({ items: [...block.items, g] }, info) <= target + (ctx.quick ? 30 : 75)) { block.items.push(g); used.add(gr.id); }
       }
       addRounds(block, it, target, info);
+      // plans: the block keeps its minimum (5 min; 3 min under 25-min sessions): more one-leg holds, then single-leg work
+      const floor = ctx.quick ? 0 : Math.min(target, D.M < 25 ? 180 : 300);
+      const g = block.items.find(i => i.exerciseId === 'taichi_golden_rooster');
+      while (g && g.sets < 4 && blockSec(block, info) < floor) g.sets++;
+      if (blockSec(block, info) < floor) {
+        const more = BALANCE_GENERIC.map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !used.has(e.id));
+        fillFlat(block, more, floor, target + 30, ex => flatItem(ex, { reps: [6, 10], hold: [20, 40], sets: 1, rest: 30, notes: [BAL_NOTE, ...injNotes(ex, D)].join(' ') }), 3, used, info);
+      }
       return block;
     }
   }
@@ -1015,7 +1033,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   const sess = { patternSeen: new Set(), muscle: {}, groups: 0, targeted: !!tpl.targeted,
     capOf: m => tpl.kind !== 'hard' ? CONFIG.maxSetsPerMuscleSession
       : Math.min(CONFIG.maxSetsPerMuscleSession, D.B.weeklyCap / Math.max(1, ctx.hitCount[MUSCLE_REGION[m] || 'core'] || 1)) };
-  const used = new Set();
+  const used = new DrillSet();
   const region = tpl.region || regionOf(tpl.focus);
 
   // --- balance (§4): 40-54 one item on 2 sessions/week, 55-64 >= 2 min, 65+ >= 3 min in every session
@@ -1059,7 +1077,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
     if (over > 0) {
       const cut = Math.min(over, tcond); tcond -= cut;
       const cut2 = Math.min(tskill, over - cut); tskill -= cut2;
-      tbal = Math.max(Math.min(tbal, 180), tbal - (over - cut - cut2));
+      tbal = Math.max(Math.min(tbal, M < 25 ? 180 : 300), tbal - (over - cut - cut2)); // CONTRACTS: never under 5 min (3 min under 25-min sessions)
     }
   }
 
@@ -1310,7 +1328,7 @@ function padSession(s, ctx) {
   const info = ctx.info, T = ctx.D.M * 60;
   let cool = s.blocks.find(b => b.kind === 'cooldown' || b.kind === 'mobility');
   if (!cool) { cool = { kind: 'cooldown', title: 'Cool-down', items: [] }; s.blocks.push(cool); }
-  const used = new Set(s.blocks.flatMap(b => b.items.map(i => i.exerciseId)));
+  const used = drillSet(s.blocks.flatMap(b => b.items.map(i => i.exerciseId)));
   const main = s.blocks.find(b => b.kind === 'main');
   let t = sessionSec(s, info);
   if (main) for (const it of main.items) {
@@ -1970,7 +1988,8 @@ function goalTemplate(goal, ctx, seed, minutes, quick) {
       const cardio = nearest(cav.filter(e => e.level <= clvl), clvl) || nearest(cav, 1);
       quick.warmAvoid = new Set([drills[0]?.id, cardio?.id].filter(Boolean));
       if (minutes < 30) quick.cond = 0;
-      const pp = odd ? ['push_horizontal', ...HPULL] : [...HPULL, 'push_horizontal'], lower = odd ? [['hinge'], ['squat']] : [['squat'], ['hinge']];
+      // the hinge leads (strength leads with the squat), so the two goals share at most the push or the pull on any date
+      const pp = odd ? ['push_horizontal', ...HPULL] : [...HPULL, 'push_horizontal'], lower = [['hinge'], ['squat']];
       const steady = ctx.avail.anti_rotation.length || ctx.avail.core_lateral.length;
       const two = { maxSets: 2, minSets: 1 }, three = { maxSets: 3, minSets: 1 }; // research §1.1 health: 1-3 sets
       // breadth first (one of each, then sets): lower body, push or pull, a balance / anti-rotation item, a mobility drill, easy cardio
@@ -2073,6 +2092,7 @@ function poolItems(filter, ctx, library) {
     if (tr && (tr.kind === 'explainer' ? !(tr.families || []).includes(ex.family) || !!ex.tradition : ex.tradition !== filter.tradition)) return false;
     if (filter.category && ex.category !== filter.category) return false;
     if (filter.family && ex.family !== filter.family) return false;
+    if (ex.rung === false && !(filter.tradition && ex.tradition === filter.tradition)) return false; // a variety swap: only in its own tradition's pool
     // tradition single forms belong to their tradition (or a gentle category), not to a strength or core session
     if (!filter.tradition && LOAD_CATS.includes(filter.category) && /^flow_/.test(ex.family)) return false;
     return true;
@@ -2202,7 +2222,7 @@ function fitLength(sess, T, ctx, P, caps = {}) {
     cb.items.pop();
   }
   sess.blocks = sess.blocks.filter(b => b.items.length);
-  const used = new Set(sess.blocks.flatMap(b => b.items.map(i => i.exerciseId)));
+  const used = drillSet(sess.blocks.flatMap(b => b.items.map(i => i.exerciseId)));
   const poolBlk = sess.blocks.find(b => P && b.kind === P.kind && b.title === P.title);
   const main = sess.blocks.find(b => b.kind === 'main');
   let cool = kinds('cooldown')[0];
@@ -2376,7 +2396,7 @@ function momentSession(request, profile, levels, library) {
   };
   const ok = ex => !!ex && ctx.isAvail(ex) && (!R.posture || R.posture.includes(ex.posture)) && !(R.noImpact && ex.impact === 'high') && !(R.exclude || []).includes(ex.id)
     && !(R.noLoad && ['strength', 'conditioning', 'core', 'skill'].includes(ex.category) && !/^flow_/.test(ex.family) && ex.id !== 'marching_in_place') && levelOk(ex);
-  const used = new Set();
+  const used = new DrillSet();
   const pick = ids => ids.map(i => ctx.byId[i]).filter(e => ok(e) && !used.has(e.id));
   const firstOf = alts => pick(alts).sort((a, b) => b.level - a.level)[0] || null; // the hardest allowed of the alternatives (never above the level)
   // static stretches only: timed dynamic moves (marching, bursts) keep their length
