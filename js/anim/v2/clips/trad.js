@@ -36,22 +36,23 @@ const baithak = (() => {
   const c = {
     name: 'Baiṭhak (Hindu squat)', cam: { az: 30, el: 6 }, floor: true, trail: ['hipR'], still: .5,
     lag: .12, headLag: .35, shift: .25, shiftRoll: .4, _h0: .9,
-    // the balls stay planted; the heels lift exactly as much as the knee target needs (flat at the top)
-    legs: { both: { mode: 'ik', foot: 'toes', toeOut: 10, knee: (s, ch) => ch[s > 0 ? 'kneeR' : 'kneeL'], ball: (sd, s) => [0, 0, 13 * s], pole: s => [1, 0, .22 * s] } },
+    // the balls of the feet stay planted and the toes flat; the heels rise by a keyed foot pitch (footPitch, degrees: flat at
+    // the top, about 40° at the bottom), so the weight is on the balls, not on the tips of the toes
+    legs: { both: { mode: 'ik', foot: 'toes', toeOut: 10, lift: (s, ch) => ch[s > 0 ? 'footPitchR' : 'footPitchL'], ball: (sd, s) => [0, 0, 13 * s], pole: s => [1, 0, .22 * s] } },
     balance: S => { const u = Math.min(1, Math.max(0, (S.pt.heelR[1] - c._h0) / 6)); return S.pt.ballR[0] - 8 + 7 * u; },
     base: { pitch: 2, elbow: 10, palm: 90, fingers: 45, wrist: 0 },
     keys: {
-      top: { rootY: 90, knee: 3, shFlex: 92, head: 0 },
-      down: { rootY: 70, knee: 80, shFlex: 20, pitch: 8, head: -3 },
-      bottom: { rootY: 42, knee: 140, shFlex: -42, pitch: 16, thoracic: 4, lumbar: -2, head: -6, cervical: -3 },
-      up: { rootY: 68, knee: 80, shFlex: 55, pitch: 8, head: -3 },
+      top: { rootY: 90, footPitch: 0, shFlex: 92, head: 0 },
+      down: { rootY: 70, footPitch: 24, shFlex: 20, pitch: 8, head: -3 },
+      bottom: { rootY: 42, footPitch: 40, shFlex: -42, pitch: 16, thoracic: 4, lumbar: -2, head: -6, cervical: -3 },
+      up: { rootY: 68, footPitch: 22, shFlex: 55, pitch: 8, head: -3 },
     },
     timeline: [{ hold: 'top', dur: .15, b: .2 }, { from: 'top', via: ['down'], to: 'bottom', at: [0, .45, 1], dur: .85, r1: .25, r2: .3, breath: 'in' },
       { from: 'bottom', via: ['up'], to: 'top', at: [0, .5, 1], dur: .95, r1: .25, r2: .35, breath: 'out', effort: 1 }],
     prep({ settle }) {
       const k = c.keys;
-      c._h0 = settle({ ...k.top, rootY: 70 }).pt.heelR[1];
-      k.top.rootY = solve(70, 105, y => settle({ ...k.top, rootY: y }).pt.heelR[1], c._h0 + .05) - .5;   // heels just down
+      k.top.rootY = solve(70, 100, y => settle({ ...k.top, rootY: y }).reachLeg, .985);   // standing tall, heels flat
+      c._h0 = settle(k.top).pt.heelR[1];
     },
   };
   return c;
