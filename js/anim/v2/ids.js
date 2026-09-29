@@ -18,6 +18,8 @@ export const V2_GROUPS = {
   mob: ['cat_cow', 'wrist_prep', 'childs_pose', 'cobra_stretch', 'deep_squat_hold', 'hip_flexor_stretch', 'standing_hamstring_stretch',
     'pigeon_stretch', 'calf_stretch', 'doorway_chest_stretch', 'shoulder_dislocate', 'arm_circles', 'leg_swings', 'hip_circles',
     'worlds_greatest_stretch', 'pancake_stretch', 'inchworm'],
+  // Moments: short everyday pauses
+  moments: ['standing_hip_flexor_stretch', 'wall_angel', 'seated_calf_raise', 'paced_breathing'],
   strength: ['prone_ytw', 'superman_pull', 'reverse_lunge', 'cossack_squat', 'pistol_squat', 'shrimp_squat', 'single_leg_rdl', 'nordic_curl_negative'],
   // v1.2: rotation / anti-rotation, then the strength traditions
   rot: ['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'bodyweight_woodchop', 'rotational_lunge',
