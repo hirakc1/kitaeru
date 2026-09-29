@@ -858,6 +858,23 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   }
 }
 
+// ---- moments content (docs/moments.md §6): posture on every exercise, the new standing / seated / breath items
+{
+  const POSTURES = ['standing', 'seated', 'kneeling', 'floor', 'hanging'];
+  ok(ALL_EXERCISES.every(e => POSTURES.includes(e.posture)), `every exercise has a posture (${ALL_EXERCISES.filter(e => !POSTURES.includes(e.posture)).map(e => e.id)})`);
+  const NEW = { standing_hip_flexor_stretch: 'standing', wall_angel: 'standing', seated_calf_raise: 'seated', paced_breathing: 'seated' };
+  for (const [id, post] of Object.entries(NEW)) {
+    const e = ALL_BY_ID[id];
+    ok(e && e.posture === post && !e.tradition && !e.flowOnly && (e.sources || []).length >= 2 && e.cues.length >= 3 && e.evidence, `moments item ${id}: posture, sources, cues`);
+    ok(e && (e.muscles.primary || []).concat(e.muscles.secondary || []).every(m => MUSCLE_IDS.includes(m)), `moments item ${id}: muscle ids`);
+    ok(e && isVisible(e) === hasAnimation(e.anim || e.id), `moments item ${id}: visible exactly when animated`);
+  }
+  ok(ALL_BY_ID.seated_calf_raise.rung === false && P.initialLevels(mk({ equipment: ALL_EQ }), ALL_EXERCISES).calves !== 'seated_calf_raise', 'seated calf raise is a variety item, never a rung of the calf ladder');
+  ok(ALL_BY_ID.paced_breathing.category === 'breath' && /never hold your breath/i.test(ALL_BY_ID.paced_breathing.cues.join(' ')) && /No breath holds/.test(ALL_BY_ID.paced_breathing.description), 'paced breathing: no breath holds, said plainly');
+  ok(['taichi_cloud_hands', 'marching_in_place', 'rt_stretch_up'].every(id => ALL_BY_ID[id].posture === 'standing') && ['cat_cow', 'glute_bridge', 'childs_pose'].every(id => ALL_BY_ID[id].posture === 'floor')
+    && ALL_BY_ID.hip_flexor_stretch.posture === 'kneeling' && ALL_BY_ID.radio_taiso_1.posture === 'standing', 'posture spot checks');
+}
+
 // ---- Quick "train for a goal": the goal chooses the content, not only the dose (founder report, v1.2)
 let goalChecked = 0, poolChecked = 0;
 const contentOf = q => q.blocks.filter(b => !['warmup', 'cooldown'].includes(b.kind)).flatMap(b => b.items);

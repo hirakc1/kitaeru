@@ -66,6 +66,17 @@ const SRC = {
   horseWiki: { label: 'Wikipedia: Horse stance', url: 'https://en.wikipedia.org/wiki/Horse_stance', kind: 'reference' },
   karateWiki: { label: 'Wikipedia: Karate stances (kiba-dachi)', url: 'https://en.wikipedia.org/wiki/Karate_stances', kind: 'reference' },
   wushuWiki: { label: 'Wikipedia: Wushu stances (mǎbù)', url: 'https://en.wikipedia.org/wiki/Wushu_stances', kind: 'reference' },
+  // v1.2 moments (docs/moments.md §6): generic items, no tradition
+  hssHip: { label: 'Hospital for Special Surgery: hip flexor stretches from a physical therapist', url: 'https://www.hss.edu/health-library/move-better/hip-flexor-stretch', kind: 'reference' },
+  kinRevHip: { label: 'Kinetic Revolution: standing hip flexor stretch', url: 'https://kinetic-revolution.com/standing-hip-flexor-stretch', kind: 'reference' },
+  garber: { label: 'Garber et al. 2011, ACSM position stand (flexibility dose)', url: 'https://pubmed.ncbi.nlm.nih.gov/21694556/', kind: 'research' },
+  wallSlide: { label: 'Hardwick et al. 2006, JOSPT: serratus anterior activation during a wall slide', url: 'https://www.jospt.org/doi/10.2519/jospt.2006.2306', kind: 'research' },
+  chenNeck: { label: 'Chen et al. 2018, Phys Ther: workplace exercise for neck pain in office workers (meta-analysis)', url: 'https://pubmed.ncbi.nlm.nih.gov/29088401/', kind: 'research' },
+  hamiltonSol: { label: 'Hamilton et al. 2022, iScience: sustained seated soleus contractions and post-meal glucose', url: 'https://pubmed.ncbi.nlm.nih.gov/36034224/', kind: 'research' },
+  uhSoleus: { label: 'University of Houston: how to do the soleus push-up', url: 'https://stories.uh.edu/2022-soleus-pushup/index.html', kind: 'reference' },
+  dempsey: { label: 'Dempsey et al. 2016, Diabetes Care: simple resistance activity breaks in prolonged sitting', url: 'https://pubmed.ncbi.nlm.nih.gov/27208318/', kind: 'research' },
+  zaccaro: { label: 'Zaccaro et al. 2018, Front Hum Neurosci: slow breathing (systematic review)', url: 'https://www.frontiersin.org/journals/human-neuroscience/articles/10.3389/fnhum.2018.00353/full', kind: 'research' },
+  balban: { label: 'Balban et al. 2023, Cell Rep Med: brief exhale-focused breathing (RCT)', url: 'https://pubmed.ncbi.nlm.nih.gov/36630953/', kind: 'research' },
   horseGzgs: { label: 'Guangzhou College of Technology and Business: university wushu course plan, basic stances (马步)', url: 'https://www.gzgs.edu.cn/__local/7/D6/39/AB29C045F11DC31F11D99E4EC9C_E7669F1F_27A40B.pdf', kind: 'reference' },
 };
 const RT = { tradition: 'radio_taiso', origin: { region: 'East Asia', countries: ['JP'] }, attribution: RADIO_TAISO_ATTRIBUTION, cultural: 'attributed',
@@ -149,6 +160,31 @@ const V12 = [
     planes: ['frontal', 'transverse'], tempo: { secPerRep: 4 }, evidence: 'C',
     cues: ['Side plank, top arm up', 'Thread the top arm under your body with a slow, controlled turn', 'Open back to the ceiling; hips stay high'],
     description: 'A side plank with a slow turn under and back, bridging to the hardest side-core work.' },
+
+  // ---- v1.2 moments (docs/moments.md §6): standing and seated options for Desk reset, After a meal, Wind down and Low-energy day.
+  // Generic (no tradition, never gated by review); hidden by the animation gate until their clips exist.
+  { ...BASE, id: 'standing_hip_flexor_stretch', name: 'Standing hip flexor stretch', family: 'mobility', level: 15, category: 'mobility', mode: 'hold', unilateral: true,
+    posture: 'standing', muscles: { primary: ['hip_flexors'], secondary: ['quads'] }, difficulty: 1, planes: ['sagittal'], evidence: 'C',
+    sources: [SRC.hssHip, SRC.kinRevHip, SRC.garber], aka: ['Split-stance hip flexor stretch'],
+    cues: ['Split stance, a hand on a wall or chair if you like; back heel lifted', 'Tuck your pelvis under and squeeze the back glute', 'Shift forward only until you feel the front of the back hip; torso stays tall'],
+    description: 'A standing hip opener for when kneeling isn’t practical: the stretch comes from tucking the pelvis, not from leaning or arching.',
+    commonMistakes: ['Arching the lower back instead of tucking', 'Lunging deeper instead of tucking the pelvis'] },
+  { ...BASE, id: 'wall_angel', name: 'Wall angel', family: 'mobility', level: 16, category: 'mobility', mode: 'reps', posture: 'standing',
+    muscles: { primary: ['upper_back'], secondary: ['rear_delts', 'traps'] }, equipment: ['wall'], stress: ['shoulder'], difficulty: 1, planes: ['frontal'], evidence: 'C',
+    tempo: { secPerRep: 4 }, sources: [SRC.wallSlide, SRC.chenNeck], aka: ['Wall slide'],
+    cues: ['Back against a wall, feet a step away, knees soft; ribs down', 'Arms in a “goalpost”, backs of the hands towards the wall', 'Slide the arms up and down slowly, only as far as stays comfortable; don’t force the hands to touch'],
+    description: 'A standing upper-back and shoulder drill for desk breaks. Slow, easy and pain-free; it moves the shoulder blades rather than building strength.',
+    commonMistakes: ['Arching the lower back to get the arms higher', 'Shrugging the shoulders towards the ears'] },
+  { ...BASE, id: 'seated_calf_raise', rung: false, name: 'Seated calf raise', family: 'calves', level: 0.5, category: 'strength', mode: 'reps', posture: 'seated',
+    muscles: { primary: ['calves'], secondary: [] }, equipment: ['bench'], difficulty: 1, planes: ['sagittal'], evidence: 'C', tempo: { secPerRep: 2 },
+    sources: [SRC.hamiltonSol, SRC.uhSoleus, SRC.dempsey], aka: ['Soleus raise', 'Soleus push-up'],
+    cues: ['Sit tall, feet flat, knees over your heels', 'Lift your heels while the balls of your feet stay down', 'Let them lower and keep a slow, steady rhythm'],
+    description: 'A quiet calf move you can do at a desk or after a meal. Easy effort; keep it steady rather than hard.' },
+  { ...BASE, id: 'paced_breathing', name: 'Paced breathing', family: 'breath', level: 2, category: 'breath', mode: 'hold', posture: 'seated',
+    muscles: { primary: [], secondary: [] }, difficulty: 1, evidence: 'B', breath: { in: 'about 4 s', out: 'about 6 s' },
+    sources: [SRC.zaccaro, SRC.balban], aka: ['Longer out-breath'],
+    cues: ['Sit or stand tall, shoulders soft', 'Breathe in through your nose for about 4 seconds', 'Breathe out slowly for about 6 seconds; never hold your breath, and stop if you feel dizzy'],
+    description: 'Slow breathing with a longer out-breath (about six breaths a minute). No breath holds.' },
 
   // ---- Morning Taisō steps (tradition radio_taiso). Standalone in v1.2: stretch up, side bend, trunk twist.
   { ...BASE, ...RT, id: 'rt_stretch_up', sources: [SRC.rtA, SRC.rtC, SRC.rtD], name: 'Stretch up', nativeName: ja('伸びの運動', 'nobi no undō'), family: 'warmup', level: 6, category: 'warmup', mode: 'reps',
@@ -1890,6 +1926,33 @@ for (const ex of RAW) {
   ex.impact = high ? 'high' : 'low';
   if (!ex.estSec) ex.estSec = Math.round(flowSeconds(ex));
 }
+
+// ---- posture (docs/moments.md §6.1): where the body is. 'standing' | 'seated' | 'kneeling' | 'floor' | 'hanging'.
+// Explicit on new items; backfilled here for the rest (every id is listed, so nothing is guessed). Flows are standing.
+const POSTURE_OF = {
+  standing: ['bodyweight_woodchop', 'rotational_lunge', 'band_woodchop', 'standing_windmill', 'pallof_press', 'pallof_press_overhead', 'rt_stretch_up', 'rt_side_bend',
+    'rt_trunk_twist', 'rt_arm_swing_knee_bend', 'rt_arm_circles', 'rt_chest_opener', 'rt_forward_back_bend', 'rt_arms_up_down', 'rt_diagonal_bend', 'rt_trunk_circle',
+    'rt_two_foot_hops', 'rt_heel_raise', 'rt_deep_breath', 'taichi_commencement', 'taichi_closing', 'taichi_cloud_hands', 'taichi_white_crane', 'taichi_part_horse_mane',
+    'taichi_brush_knee', 'taichi_golden_rooster', 'baduanjin_hold_up_sky', 'baduanjin_draw_bow', 'baduanjin_look_back', 'baduanjin_separate_heaven_earth',
+    'baduanjin_heel_bounce', 'baduanjin_touch_toes', 'baduanjin_clench_fists', 'baduanjin_sway_head_tail', 'baithak', 'horse_stance', 'wall_push_up', 'incline_push_up',
+    'band_row', 'box_squat', 'bodyweight_squat', 'split_squat', 'reverse_lunge', 'bulgarian_split_squat', 'cossack_squat', 'shrimp_squat', 'pistol_squat', 'single_leg_rdl',
+    'calf_raise', 'single_leg_calf_raise', 'marching_in_place', 'jumping_jack', 'high_knees', 'squat_jump', 'deep_squat_hold', 'standing_hamstring_stretch', 'calf_stretch',
+    'shoulder_dislocate', 'doorway_chest_stretch', 'arm_circles', 'leg_swings', 'hip_circles'],
+  seated: ['seated_trunk_rotation'],
+  kneeling: ['half_kneeling_pallof_hold', 'hip_flexor_stretch', 'nordic_curl_negative'],
+  hanging: ['dead_hang', 'scapular_pull', 'negative_pull_up', 'band_assisted_pull_up', 'chin_up', 'pull_up', 'archer_pull_up', 'hanging_knee_raise', 'hanging_leg_raise',
+    'bar_dip', 'ring_dip'],
+  floor: ['open_book', 'thread_the_needle', 'bird_dog_row', 'plank_shoulder_tap', 'side_plank_reach_through', 'dand', 'knee_push_up', 'push_up', 'decline_push_up',
+    'diamond_push_up', 'archer_push_up', 'pseudo_planche_push_up', 'pike_push_up', 'elevated_pike_push_up', 'wall_handstand_push_up', 'bench_dip', 'table_row',
+    'inverted_row', 'archer_row', 'prone_ytw', 'superman_pull', 'glute_bridge', 'single_leg_glute_bridge', 'hip_thrust', 'dead_bug', 'plank', 'hollow_body_hold',
+    'lying_leg_raise', 'l_sit', 'side_plank', 'side_plank_hip_dip', 'bird_dog', 'superman', 'mountain_climber', 'bear_crawl', 'burpee', 'crow_pose', 'wall_handstand',
+    'freestanding_handstand', 'cat_cow', 'worlds_greatest_stretch', 'pigeon_stretch', 'childs_pose', 'cobra_stretch', 'thoracic_opener', 'wrist_prep', 'pancake_stretch',
+    'scapular_push_up', 'inchworm'],
+};
+for (const [p, ids] of Object.entries(POSTURE_OF)) for (const id of ids) if (RAW_BY_ID[id] && !RAW_BY_ID[id].posture) RAW_BY_ID[id].posture = p;
+for (const ex of RAW) if (!ex.posture && ex.mode === 'flow') ex.posture = 'standing';
+/** Where the body is for an exercise: 'standing' | 'seated' | 'kneeling' | 'floor' | 'hanging' (moments filter on it). */
+export const postureOf = ex => ex?.posture || null;
 
 /** Every exercise, including hidden ones (unverified traditions, flow-only steps). For flow players and data tools. */
 export const ALL_EXERCISES = RAW;
