@@ -175,7 +175,7 @@ const V12 = [
     cues: ['Back against a wall, feet a step away, knees soft; ribs down', 'Arms in a “goalpost”, backs of the hands towards the wall', 'Slide the arms up and down slowly, only as far as stays comfortable; don’t force the hands to touch'],
     description: 'A standing upper-back and shoulder drill for desk breaks. Slow, easy and pain-free; it moves the shoulder blades rather than building strength.',
     commonMistakes: ['Arching the lower back to get the arms higher', 'Shrugging the shoulders towards the ears'] },
-  { ...BASE, id: 'seated_calf_raise', rung: false, name: 'Seated calf raise', family: 'calves', level: 0.5, category: 'strength', mode: 'reps', posture: 'seated',
+  { ...BASE, id: 'seated_calf_raise', name: 'Seated calf raise', family: 'calves', level: 0.5, category: 'strength', mode: 'reps', posture: 'seated',
     muscles: { primary: ['calves'], secondary: [] }, equipment: ['bench'], difficulty: 1, planes: ['sagittal'], evidence: 'C', tempo: { secPerRep: 2 },
     sources: [SRC.hamiltonSol, SRC.uhSoleus, SRC.dempsey], aka: ['Soleus raise', 'Soleus push-up'],
     cues: ['Sit tall, feet flat, knees over your heels', 'Lift your heels while the balls of your feet stay down', 'Let them lower and keep a slow, steady rhythm'],
@@ -1748,7 +1748,7 @@ const RAW = [
   },
   {
     id: 'thoracic_opener',
-    name: 'Thoracic open book',
+    name: 'Side-lying chest opener',
     family: 'mobility',
     level: 11,
     category: 'mobility',

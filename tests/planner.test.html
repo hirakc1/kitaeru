@@ -869,7 +869,7 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     ok(e && (e.muscles.primary || []).concat(e.muscles.secondary || []).every(m => MUSCLE_IDS.includes(m)), `moments item ${id}: muscle ids`);
     ok(e && isVisible(e) === hasAnimation(e.anim || e.id), `moments item ${id}: visible exactly when animated`);
   }
-  ok(ALL_BY_ID.seated_calf_raise.rung === false && P.initialLevels(mk({ equipment: ALL_EQ }), ALL_EXERCISES).calves !== 'seated_calf_raise', 'seated calf raise is a variety item, never a rung of the calf ladder');
+  ok(ALL_BY_ID.seated_calf_raise.rung !== false && ALL_BY_ID.seated_calf_raise.level < ALL_BY_ID.calf_raise.level && P.initialLevels(mk({ equipment: ALL_EQ }), ALL_EXERCISES).calves === 'calf_raise', 'seated calf raise: the easiest calf rung (moments use it); starting level stays the standing calf raise');
   ok(ALL_BY_ID.paced_breathing.category === 'breath' && /never hold your breath/i.test(ALL_BY_ID.paced_breathing.cues.join(' ')) && /No breath holds/.test(ALL_BY_ID.paced_breathing.description), 'paced breathing: no breath holds, said plainly');
   ok(['taichi_cloud_hands', 'marching_in_place', 'rt_stretch_up'].every(id => ALL_BY_ID[id].posture === 'standing') && ['cat_cow', 'glute_bridge', 'childs_pose'].every(id => ALL_BY_ID[id].posture === 'floor')
     && ALL_BY_ID.hip_flexor_stretch.posture === 'kneeling' && ALL_BY_ID.radio_taiso_1.posture === 'standing', 'posture spot checks');
@@ -1207,6 +1207,70 @@ let momentChecked = 0;
     ok(!r.changes.length && JSON.stringify(r.levels) === JSON.stringify(lv0), `${mo}: a recovery moment never moves a ladder`);
   }
   ok(JSON.stringify(P.RECOVERY_MOMENTS.slice().sort()) === JSON.stringify(['after_meal', 'after_sport', 'before_sport', 'low_energy', 'wind_down']), 'recovery moments per moments.md §3.5');
+}
+
+// ---- final QA nits (v1.2)
+{
+  const GOALS = ['strength', 'muscle', 'health', 'endurance', 'flexibility', 'skill', 'balance'];
+  const dates = Array.from({ length: 30 }, (_, i) => { const d = new Date(Date.UTC(2026, 8, 20 + i)); return d.toISOString().slice(0, 10); });
+  // 1. goal overlap holds on every date (Jaccard ≤ 0.34 for every pair, 5-20 min), not just one
+  let worst = 0, worstTag = '';
+  for (const [prof, pname] of [[null, 'noprofile'], [quickSample, 'sample'], [mk({ equipment: ALL_EQ, experience: 'advanced', space: 'large' }), 'kit']]) {
+    const lv = prof ? P.initialLevels(prof, EXERCISES) : null;
+    for (const date of dates) for (const minutes of [5, 10, 15, 20]) {
+      const c = Object.fromEntries(GOALS.map(g => [g, new Set(contentOf(P.generateQuickSession({ minutes, goal: g, date }, prof, lv, EXERCISES)).map(i => i.exerciseId))]));
+      for (let i = 0; i < GOALS.length; i++) for (let k = i + 1; k < GOALS.length; k++) {
+        const A = c[GOALS[i]], B = c[GOALS[k]], j = [...A].filter(x => B.has(x)).length / new Set([...A, ...B]).size;
+        if (j > worst) { worst = j; worstTag = `${pname} ${date} ${minutes}m ${GOALS[i]}/${GOALS[k]}: ${[...A]} | ${[...B]}`; }
+        ok(j <= 0.34, `goal overlap ${pname} ${date} ${minutes}m ${GOALS[i]}/${GOALS[k]}: Jaccard ${j.toFixed(2)} (${[...A]} | ${[...B]})`);
+      }
+    }
+  }
+  void worstTag;
+  // 2. the balance block keeps its contract minimum: 5-10 min (3 min under 25-min sessions), Tai Chi + golden rooster when visible
+  for (const lib of [EXERCISES, ALL_EXERCISES]) {
+    if (lib === ALL_EXERCISES) setTraditionPreview(true);
+    for (const p of [mk({ age: 60, primaryGoal: 'balance', goals: ['balance'], daysPerWeek: 3, minutesPerSession: 30 }), mk({ age: 60, primaryGoal: 'health', minutesPerSession: 30 }),
+      mk({ age: 70, primaryGoal: 'health', minutesPerSession: 45, daysPerWeek: 4 }), mk({ primaryGoal: 'balance', goals: ['balance'], minutesPerSession: 20 }),
+      mk({ age: 58, primaryGoal: 'balance', goals: ['balance', 'strength'], minutesPerSession: 60, equipment: ALL_EQ, injuries: ['knee'] })]) {
+      for (const w of [0, 2]) {
+        const wk = P.generateWeek(p, P.initialLevels(p, lib), lib, w);
+        for (const s of wk.sessions) for (const b of s.blocks.filter(x => x.kind === 'balance')) {
+          const min = P.estimateSeconds({ blocks: [b] }, lib) / 60, floor = p.minutesPerSession < 25 ? 3 : 5;
+          ok(min >= floor - 0.05 && min <= 10.5, `balance block ${p.age} ${p.primaryGoal} ${p.minutesPerSession}m w${w} ${s.id}: ${min.toFixed(1)} min (${b.items.map(i => i.exerciseId + 'x' + i.sets)})`);
+          const rooster = byId.taichi_golden_rooster || ALL_BY_ID.taichi_golden_rooster;
+          if (b.items.some(i => i.exerciseId === 'taichi_short_flow') && P.isAvailable(rooster, p)) ok(b.items.some(i => i.exerciseId === 'taichi_golden_rooster'), `balance block with Tai Chi has the golden rooster (${b.items.map(i => i.exerciseId)})`);
+        }
+      }
+    }
+    if (lib === ALL_EXERCISES) setTraditionPreview(false);
+  }
+  // 3. rung:false = never a ladder rung, never auto-planned (plans, goals, moments, other pools); only in its own tradition's pool
+  const swaps = EXERCISES.filter(e => e.rung === false);
+  ok(swaps.length > 0 && swaps.every(e => e.tradition), `variety swaps belong to a tradition (${swaps.map(e => e.id)})`);
+  const planned = [];
+  for (const p of grid.slice(0, 12)) { const lv = P.initialLevels(p, EXERCISES); ok(Object.values(lv).every(id => typeof id !== 'string' || byId[id]?.rung !== false), 'no rung:false level'); planned.push(...P.generateWeek(p, lv, EXERCISES, 1).sessions.flatMap(allItems)); }
+  for (const g of GOALS) for (const m of [10, 30]) planned.push(...allItems(P.generateQuickSession({ minutes: m, goal: g, date: '2026-09-29' }, mk({ equipment: ALL_EQ }), null, EXERCISES)));
+  for (const f of ['full', 'upper', 'push']) planned.push(...allItems(P.generateQuickSession({ minutes: 30, focus: f, date: '2026-09-29' }, null, null, EXERCISES)));
+  for (const mo of Object.keys(P.MOMENTS)) for (const m of P.MOMENTS[mo].minutes) planned.push(...allItems(P.generateQuickSession({ minutes: m, moment: mo, date: '2026-09-29' }, null, null, EXERCISES)));
+  for (const c of ['strength', 'conditioning']) for (const m of [10, 20]) planned.push(...allItems(P.generateQuickSession({ minutes: m, category: c }, null, null, EXERCISES)));
+  planned.push(...allItems(P.generateQuickSession({ minutes: 20, family: 'push_horizontal' }, mk({ equipment: ALL_EQ, experience: 'regular' }), null, EXERCISES)));
+  ok(!planned.some(i => byId[i.exerciseId]?.rung === false), `a variety swap was auto-planned (${[...new Set(planned.filter(i => byId[i.exerciseId]?.rung === false).map(i => i.exerciseId))]})`);
+  ok(!P.quickPoolIds({ category: 'strength' }, null, EXERCISES).includes('dand') && !P.quickPoolIds({ family: 'push_horizontal' }, null, EXERCISES).includes('dand'), 'daṇḍ is not in category or family pools');
+  const pw = P.generateQuickSession({ minutes: 10, tradition: 'pehlwani', date: '2026-09-29' }, null, null, EXERCISES);
+  ok(P.quickPoolIds({ tradition: 'pehlwani' }, null, EXERCISES).includes('dand') && allItems(pw).some(i => i.exerciseId === 'dand'), 'daṇḍ appears when the user explicitly picks Pehlwani');
+  // 4. same-drill twins never share a session; their names differ
+  ok(byId.open_book.name !== byId.thoracic_opener.name && !/open book/i.test(byId.thoracic_opener.name), `open book vs side-lying chest opener names (${byId.thoracic_opener.name})`);
+  const sessions = [];
+  for (const p of grid) sessions.push(...P.generateWeek(p, P.initialLevels(p, EXERCISES), EXERCISES, 2).sessions);
+  for (const date of dates.slice(0, 10)) {
+    for (const mo of ['wind_down', 'after_sport', 'morning', 'low_energy']) for (const m of P.MOMENTS[mo].minutes) sessions.push(P.generateQuickSession({ minutes: m, moment: mo, date }, null, null, EXERCISES));
+    for (const g of ['flexibility', 'health']) for (const m of [10, 20, 45]) sessions.push(P.generateQuickSession({ minutes: m, goal: g, date }, null, null, EXERCISES));
+    for (const f of ['mobility', 'rotation', 'upper']) sessions.push(P.generateQuickSession({ minutes: 30, focus: f, date }, null, null, EXERCISES));
+    sessions.push(P.generateQuickSession({ minutes: 20, category: 'mobility', date }, null, null, EXERCISES));
+  }
+  const both = sessions.filter(s => { const ids = allItems(s).map(i => i.exerciseId); return ids.includes('open_book') && ids.includes('thoracic_opener'); });
+  ok(!both.length, `open book and the side-lying chest opener together in ${both.length} of ${sessions.length} sessions (${both[0]?.name})`);
 }
 
 // ---- sample
