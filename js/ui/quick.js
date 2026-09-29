@@ -149,23 +149,45 @@ function previewHTML() {
 /**
  * Morning wake-up after today's Morning Taisō (moments.md §4.3; UI-only, the engine doesn't know): at every length the
  * session follows on from the Taisō instead of repeating it. We build one chip longer (to make up the Taisō's ~3 min),
- * drop the Taisō block, trim to the chosen length, and name the session by what it really is ("6-min Morning wake-up").
+ * drop the Taisō block, trim to the chosen length (never the balance block the chosen length would have) or top it up
+ * from other Morning builds' moves, and name the session by what it really is. `light` follows the CHOSEN chip.
  */
 function afterTaiso(req, build) {
   const opts = MOMENTS.morning.minutes;
-  const longer = opts.find(m => m > req.minutes) ?? req.minutes;
+  const target = req.minutes;
+  const isTaiso = it => it.exerciseId === 'radio_taiso_1';
+  const longer = opts.find(m => m > target) ?? target;
   const full = build({ ...req, minutes: longer });
   if (!full) return null;
-  const blocks = full.blocks.filter(b => !b.items?.some(it => it.exerciseId === 'radio_taiso_1')).map(b => ({ ...b, items: [...b.items] }));
-  const out = { ...full, blocks, note: 'Follows on from this morning’s Morning Taisō, so it doesn’t repeat it.' };
+  // The balance hold comes with 15 min and up (engine rule): keep it then, leave it out below.
+  const keepBal = target >= 15;
+  const blocks = full.blocks.filter(b => !b.items?.some(isTaiso) && (keepBal || b.kind !== 'balance')).map(b => ({ ...b, items: [...b.items] }));
+  const out = { ...full, blocks, light: target <= 10, note: 'Follows on from this morning’s Morning Taisō, so it doesn’t repeat it.' };
   const count = () => blocks.reduce((a, b) => a + b.items.length, 0);
-  while (sessionMinutes(out) > req.minutes && count() > 2) {
-    const last = [...blocks].reverse().find(b => b.items.length);
+  const est = () => sessionMinutes(out);
+  // Too long: trim from the end, but never the balance block.
+  while (est() > target && count() > 2) {
+    const last = [...blocks].reverse().find(b => b.kind !== 'balance' && b.items.length);
+    if (!last) break;
     last.items.pop();
+  }
+  // Too short (nothing longer to build from, e.g. 20 min): top up with more of the moment's own moves.
+  if (est() < target * 0.9) {
+    const loosen = blocks.find(b => b.kind === 'mobility') || blocks[0];
+    const have = new Set(blocks.flatMap(b => b.items.map(i => i.exerciseId)));
+    for (let k = 1; k <= 8 && est() < target * 0.95; k++) {
+      const alt = build({ ...req, minutes: target, date: `${req.date}~${k}` });
+      for (const it of (alt?.blocks || []).filter(b => b.kind === 'mobility').flatMap(b => b.items)) {
+        if (have.has(it.exerciseId) || isTaiso(it)) continue;
+        loosen.items.push(it); have.add(it.exerciseId);
+        if (est() > target * 1.1) { loosen.items.pop(); have.delete(it.exerciseId); break; }
+        if (est() >= target * 0.95) break;
+      }
+    }
   }
   out.blocks = blocks.filter(b => b.items.length);
   if (count() < 2) return null;
-  out.name = `${Math.max(1, sessionMinutes(out))}-min ${MOMENTS.morning.label}`;
+  out.name = `${Math.max(1, est())}-min ${MOMENTS.morning.label}`;
   return out;
 }
 
