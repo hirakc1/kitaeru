@@ -23,7 +23,7 @@ This is the current state for a new Claude session picking up the project. Claud
   - One stage only: no pulsing boot square, and the splash is skipped before setup because the Welcome screen is the opening.
   - It shows the seal, the name, "鍛える · to forge" and the line "Movement disciplines from around the world, brought together to strengthen body and mind."
   - It runs 3.6 s (the founder found 2.8 s too fast) and can be tapped to skip.
-  - The logo seal sits straight. Only the earned "workout complete" stamp is tilted.
+  - Nothing in the app is tilted: the logo seal, every stamp (forge, completion, 済) and the seal-like marks all sit straight (founder, 2026-09-28).
 - **Anim v2, direction A** (deployed as v2026.09.28-1455):
   - 37 of the 82 exercises (batches 1 and 2) use it, lazy-loaded (~2 KB at first load). v1 is the fallback for the rest.
   - The breath ring and motion trail are controlled by Me → Animation extras.
