@@ -1,5 +1,5 @@
 // Welcome hero.
-import { seal } from './components.js';
+import { seal } from './base.js';
 
 export function render(root, ctx) {
   root.innerHTML = `

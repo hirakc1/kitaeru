@@ -4,7 +4,8 @@ import { explainPlan } from './deps.js';
 import { esc, icon, openSheet, mountAnims, fmtTarget, exName, DOW_LONG, seal, fmtDate } from './components.js';
 import { todayISO } from '../store.js';
 import { getWeek, weekDays, sessionMinutes, startWorkout, sessionById, groupLabel, withOptions, optionMinutes } from './model.js';
-import { beginEdit } from './onboarding.js';
+// onboarding.js loads only when editing, so Today does not wait for it.
+const beginEdit = step => import('./onboarding.js').then(m => m.beginEdit(step));
 import { update } from '../store.js';
 
 const KIND_LABEL = { warmup: 'Warm-up', skill: 'Skill', main: 'Main', conditioning: 'Conditioning', mobility: 'Mobility', cooldown: 'Cool-down', balance: 'Balance', flow: 'Flow' };

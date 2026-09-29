@@ -1,17 +1,20 @@
 // Kitaeru app shell: theme, hash router, tab bar, service worker.
 import { getState, subscribe, getActiveWorkout } from './store.js';
-import { icon, seal, wordmark, $, $$, closeAllSheets, reducedMotion } from './ui/components.js';
-import * as welcome from './ui/welcome.js';
-import * as onboarding from './ui/onboarding.js';
-import * as today from './ui/today.js';
-import * as plan from './ui/plan.js';
-import * as progress from './ui/progress.js';
-import * as library from './ui/library.js';
-import * as me from './ui/me.js';
-import * as workout from './ui/workout.js';
-import * as quick from './ui/quick.js';
+import { icon, seal, wordmark, $, $$, closeAllSheets, reducedMotion } from './ui/base.js';
 
-const ROUTES = { welcome, onboarding, today, plan, progress, library, me, workout, quick };
+// Screens load on first visit, so the opening screen never waits for the planner and exercise data.
+// Welcome needs only base.js; the rest are fetched in the background once it has painted (see prefetch).
+const ROUTES = {
+  welcome: () => import('./ui/welcome.js'),
+  onboarding: () => import('./ui/onboarding.js'),
+  today: () => import('./ui/today.js'),
+  plan: () => import('./ui/plan.js'),
+  progress: () => import('./ui/progress.js'),
+  library: () => import('./ui/library.js'),
+  me: () => import('./ui/me.js'),
+  workout: () => import('./ui/workout.js'),
+  quick: () => import('./ui/quick.js'),
+};
 const TABS = new Set(['today', 'plan', 'progress', 'library', 'me']);
 const view = $('#view');
 const tabbar = $('#tabbar');
@@ -52,11 +55,15 @@ function guard(r) {
   return null;
 }
 
-function route() {
+let routeSeq = 0;
+async function route() {
   const r = parseHash();
   const redirect = guard(r);
   if (redirect) { history.replaceState(null, '', redirect); return route(); }
-  const mod = ROUTES[r.name];
+  const seq = ++routeSeq;
+  let mod;
+  try { mod = await ROUTES[r.name](); } catch (e) { console.error(e); return; }
+  if (seq !== routeSeq) return; // the hash changed while this screen was loading
   const ctx = { ...r, go, rerender: () => render(true) };
 
   function render(force = false) {
@@ -113,7 +120,14 @@ $$('[data-icon]', tabbar).forEach(el => { el.innerHTML = icon(el.dataset.icon); 
 applyTheme();
 lastTheme = getState().settings.theme;
 window.addEventListener('hashchange', route);
-route();
+route().then(prefetch);
+
+// Warm the other screens once the first one is up, so later taps are instant (and offline-safe before the
+// service worker finishes precaching). Idle time only; import() of an already-loaded module is free.
+function prefetch() {
+  const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
+  idle(() => Object.values(ROUTES).forEach(load => load().catch(() => {})));
+}
 
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   if (new URLSearchParams(location.search).has('nosw')) {
