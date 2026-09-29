@@ -120,6 +120,15 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     // Developer escape hatch: ?nosw unregisters the worker so edits show immediately.
     navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
   } else {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW registration failed', e)));
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js')
+      .then(reg => document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); }))
+      .catch(e => console.warn('SW registration failed', e)));
+    // A new version activates straight away (skipWaiting + claim); reload once so it shows now, not on the next open.
+    // Never mid-workout: wait until the user leaves the player. First install has no controller, so no reload then.
+    const hadController = !!navigator.serviceWorker.controller;
+    let pending = false;
+    const reloadIfSafe = () => { if (pending && !location.hash.startsWith('#/workout')) { pending = false; location.reload(); } };
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) { pending = true; reloadIfSafe(); } });
+    window.addEventListener('hashchange', reloadIfSafe);
   }
 }

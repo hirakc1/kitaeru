@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Animation review</title>
+<style>
+  :root {
+    --bg: #F5F1E8; --surface: #FFFDF7; --ink: #1C1B19; --ink-muted: #6B665C; --line: #E3DCCB;
+    --accent: #C8372D; --accent-2: #D9A441; --ok: #3F7D58;
+    --muscle-primary: #C8372D; --muscle-secondary: #D9A441; --bone: #EFE8D8; --joint: #8A8374;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121110; --surface: #1C1A18; --ink: #EFEAE0; --ink-muted: #A39D90; --line: #2E2B27;
+      --accent: #E0503F; --accent-2: #E3B45A; --ok: #6FB38A; --muscle-primary: #E0503F; --muscle-secondary: #E3B45A; --bone: #3A3631; --joint: #A39D90;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121110; --surface: #1C1A18; --ink: #EFEAE0; --ink-muted: #A39D90; --line: #2E2B27;
+    --accent: #E0503F; --accent-2: #E3B45A; --ok: #6FB38A; --muscle-primary: #E0503F; --muscle-secondary: #E3B45A; --bone: #3A3631; --joint: #A39D90;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  header h1 { font: 600 17px Georgia, serif; margin: 0 8px 0 0; }
+  .prog { color: var(--ink-muted); font-size: 13px; }
+  .bar { flex: 1 1 120px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; min-width: 80px; }
+  .bar i { display: block; height: 100%; background: var(--ok); }
+  button, select, textarea { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+  button, select { min-height: 40px; padding: 4px 12px; cursor: pointer; }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  main { max-width: 760px; margin: 0 auto; padding: 12px 16px 60px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .top h2 { font: 600 20px Georgia, serif; margin: 0; }
+  .meta { color: var(--ink-muted); font-size: 13px; }
+  .stage { position: relative; aspect-ratio: 4 / 3; margin: 8px 0; }
+  .stage > svg { position: absolute; inset: 0; width: 100% !important; height: 100% !important; max-width: none !important; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .controls input[type=range] { flex: 1 1 140px; accent-color: var(--accent); }
+  details { margin: 8px 0; font-size: 14px; }
+  details ul { margin: 6px 0; padding-left: 20px; }
+  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 8px; }
+  .verdict button { min-height: 48px; font-weight: 600; }
+  .verdict [data-v="good"][aria-pressed="true"] { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .verdict [data-v="fix"][aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  textarea { width: 100%; min-height: 84px; padding: 8px; resize: vertical; }
+  .nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .nav button { min-height: 48px; }
+  .list { margin-top: 18px; }
+  .list h3 { font: 600 14px system-ui; color: var(--ink-muted); margin: 14px 0 6px; text-transform: capitalize; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button { min-height: 32px; padding: 2px 10px; font-size: 13px; border-radius: 999px; }
+  .chips button.good { border-color: var(--ok); color: var(--ok); }
+  .chips button.fix { border-color: var(--accent); color: var(--accent); }
+  .chips button.cur { outline: 2px solid var(--ink); }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: var(--bg);
+    padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.on { opacity: 1; }
+  .hint { color: var(--ink-muted); font-size: 13px; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>鍛える · animation review</h1>
+  <span class="prog" id="prog"></span>
+  <span class="bar"><i id="bar"></i></span>
+  <select id="filter" aria-label="Show">
+    <option value="all">All</option><option value="todo">Not reviewed</option><option value="fix">Needs work</option><option value="good">Good</option>
+  </select>
+  <button id="theme">Theme</button>
+  <button id="export">Export notes</button>
+  <button id="import">Import</button>
+</header>
+<main>
+  <section class="card" id="card"></section>
+  <p class="hint">Notes save automatically on this device. When you're done (or partway), press <strong>Export notes</strong> and send the file or paste the copied text to Claude.</p>
+  <section class="list" id="list"></section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<input type="file" id="file" accept=".json,application/json" hidden>
+<script type="module">
+  // Founder review of every v2 animation: one clip at a time, Good / Needs work + comment, saved locally, exported as a file.
+  import { createPlatePlayer } from './js/anim/v2/plate.js';
+  import { CLIPS, CLIP_IDS } from './js/anim/v2/clips.js';
+  import { V2_GROUP_OF } from './js/anim/v2/ids.js';
+  import { ALL_BY_ID } from './js/data/exercises.js';
+
+  const KEY = 'kitaeru.animReview.v1';
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+  let notes = load();
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(notes)); } catch { /* private mode: export still works */ } };
+
+  const ids = CLIP_IDS.filter(id => V2_GROUP_OF[id]);
+  const nameOf = id => ALL_BY_ID[id]?.name || CLIPS[id]?.name || id;
+  const groupOf = id => V2_GROUP_OF[id] || 'other';
+  const $ = s => document.querySelector(s);
+  let idx = 0, player = null, paused = false;
+
+  function visible() {
+    const f = $('#filter').value;
+    return ids.filter(id => f === 'all' || (f === 'todo' ? !notes[id]?.verdict : notes[id]?.verdict === f));
+  }
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); }
+
+  function progress() {
+    const done = ids.filter(id => notes[id]?.verdict).length, fix = ids.filter(id => notes[id]?.verdict === 'fix').length;
+    $('#prog').textContent = `${done} of ${ids.length} reviewed · ${fix} need work`;
+    $('#bar').style.width = `${(100 * done / ids.length).toFixed(1)}%`;
+  }
+
+  function show(i) {
+    idx = (i + ids.length) % ids.length;
+    const id = ids[idx], ex = ALL_BY_ID[id], c = CLIPS[id], n = notes[id] || {};
+    const m = ex ? ex.muscles : (c.muscles || { primary: [], secondary: [] });
+    $('#card').innerHTML = `
+      <div class="top"><h2>${esc(nameOf(id))}</h2><span class="meta">${idx + 1} / ${ids.length} · ${esc(groupOf(id))} · <code>${esc(id)}</code></span></div>
+      <div class="stage" id="stage"></div>
+      <div class="controls">
+        <button id="pp" aria-label="Pause or play">${paused ? 'Play' : 'Pause'}</button>
+        <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" aria-label="Scrub through the movement">
+        <button id="trail" aria-pressed="false">Trail</button><button id="breath" aria-pressed="false">Breath</button>
+      </div>
+      ${ex ? `<details><summary>What it should show (cues)</summary><ul>${(ex.cues || []).map(q => `<li>${esc(q)}</li>`).join('')}</ul>${ex.description ? `<p class="meta">${esc(ex.description)}</p>` : ''}</details>` : ''}
+      <div class="verdict" role="group" aria-label="Verdict">
+        <button data-v="good" aria-pressed="${n.verdict === 'good'}">✓ Good</button>
+        <button data-v="fix" aria-pressed="${n.verdict === 'fix'}">✗ Needs work</button>
+      </div>
+      <label class="meta" for="note">Comment (what looks wrong, and when in the movement)</label>
+      <textarea id="note" placeholder="e.g. left arm bends backwards at the top; feet slide at the start">${esc(n.note)}</textarea>
+      <div class="nav"><button id="prev">← Previous</button><button id="next">Next →</button></div>`;
+    try { player && player.destroy(); } catch { /* ignore */ }
+    player = createPlatePlayer($('#stage'), id, { primary: m.primary, secondary: m.secondary, size: 720 });
+    if (paused) player.pause();
+    $('#pp').onclick = () => { paused = !paused; paused ? player.pause() : player.play(); $('#pp').textContent = paused ? 'Play' : 'Pause'; };
+    $('#scrub').oninput = e => { paused = true; $('#pp').textContent = 'Play'; player.pause(); player.seek(+e.target.value); };
+    for (const k of ['trail', 'breath']) $('#' + k).onclick = e => {
+      const on = e.target.getAttribute('aria-pressed') !== 'true'; e.target.setAttribute('aria-pressed', on);
+      k === 'trail' ? player.setTrail(on) : player.setBreath(on);
+    };
+    $('#card').querySelectorAll('.verdict button').forEach(b => b.onclick = () => {
+      const v = b.dataset.v; notes[id] = { ...notes[id], verdict: notes[id]?.verdict === v ? null : v, at: new Date().toISOString() };
+      save(); show(idx); list(); progress();
+    });
+    $('#note').oninput = e => { notes[id] = { ...notes[id], note: e.target.value, at: new Date().toISOString() }; save(); };
+    $('#prev').onclick = () => step(-1);
+    $('#next').onclick = () => step(1);
+    list();
+  }
+  function step(d) {
+    const vis = visible(); if (!vis.length) return show(idx + d);
+    const cur = vis.indexOf(ids[idx]);
+    const nextId = cur < 0 ? vis[d > 0 ? 0 : vis.length - 1] : vis[(cur + d + vis.length) % vis.length];
+    show(ids.indexOf(nextId)); window.scrollTo({ top: 0 });
+  }
+
+  function list() {
+    const vis = new Set(visible()), groups = {};
+    for (const id of ids) if (vis.has(id)) (groups[groupOf(id)] ||= []).push(id);
+    $('#list').innerHTML = Object.entries(groups).map(([g, gids]) => `<h3>${esc(g)} (${gids.length})</h3><div class="chips">${gids.map(id =>
+      `<button data-id="${id}" class="${notes[id]?.verdict || ''}${id === ids[idx] ? ' cur' : ''}">${esc(nameOf(id))}</button>`).join('')}</div>`).join('')
+      || '<p class="meta">Nothing in this view.</p>';
+    $('#list').querySelectorAll('[data-id]').forEach(b => b.onclick = () => { show(ids.indexOf(b.dataset.id)); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  }
+
+  function exportNotes() {
+    const reviewed = ids.filter(id => notes[id]?.verdict || notes[id]?.note);
+    const lines = [`Kitaeru animation review · ${new Date().toISOString().slice(0, 10)}`, `${ids.filter(id => notes[id]?.verdict).length}/${ids.length} reviewed`, ''];
+    for (const v of ['fix', 'good', null]) {
+      const set = reviewed.filter(id => (notes[id]?.verdict || null) === v); if (!set.length) continue;
+      lines.push(v === 'fix' ? '## Needs work' : v === 'good' ? '## Good' : '## Comment only');
+      for (const id of set) lines.push(`- ${nameOf(id)} (${id})${notes[id]?.note ? `: ${notes[id].note.replace(/\s+/g, ' ').trim()}` : ''}`);
+      lines.push('');
+    }
+    const text = lines.join('\n');
+    try { navigator.clipboard?.writeText(text); } catch { /* ignore */ }
+    const blob = new Blob([JSON.stringify({ version: 1, exported: new Date().toISOString(), notes }, null, 2)], { type: 'application/json' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `kitaeru-anim-review-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a); a.click(); a.remove();
+    toast('Notes copied and downloaded');
+  }
+  $('#export').onclick = exportNotes;
+  $('#import').onclick = () => $('#file').click();
+  $('#file').onchange = async e => {
+    try { const d = JSON.parse(await e.target.files[0].text()); if (!d.notes) throw 0; notes = { ...notes, ...d.notes }; save(); show(idx); progress(); toast('Notes imported'); }
+    catch { toast('That file is not a review export'); }
+    e.target.value = '';
+  };
+  $('#filter').onchange = () => { list(); };
+  $('#theme').onclick = () => {
+    const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = dark ? 'light' : 'dark';
+  };
+  document.addEventListener('keydown', e => { if (e.target.tagName === 'TEXTAREA') return; if (e.key === 'ArrowRight') step(1); if (e.key === 'ArrowLeft') step(-1); });
+
+  const first = ids.findIndex(id => !notes[id]?.verdict);
+  show(first < 0 ? 0 : first); progress();
+</script>
+</body>
+</html>
