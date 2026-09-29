@@ -31,11 +31,11 @@ const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
 export const profileKit = () => (getState().profile ? [...(getState().profile.equipment || [])] : null);
 /**
  * What the user has to hand today. With a profile: their usual kit unless they changed it today (remembered for the day,
- * never written to the profile). Quick-only: their last Quick picks (none to start with).
+ * never written to the profile). Quick-only: their last Quick picks (a wall to start with; almost everyone has one).
  */
 export function kitToday() {
   const s = getState(), q = s.settings.quick || {};
-  if (!s.profile) return [...(q.equipment || [])];
+  if (!s.profile) return Array.isArray(q.equipment) ? [...q.equipment] : ['wall'];
   return q.kit && q.kit.date === todayISO() && Array.isArray(q.kit.equipment) ? [...q.kit.equipment] : profileKit();
 }
 export function setKitToday(list) {
