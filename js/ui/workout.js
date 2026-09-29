@@ -1,6 +1,6 @@
 // Full-screen workout player with per-set logging, rest timer, swaps, ratings, completion & celebration.
 // v1.2: flow items (mode 'flow') play step by step with Kitaeru's own visual count. No music, ever.
-import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, applySessionLog, MORNING_TAISO_SESSION_ID } from './deps.js';
+import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, applySessionLog, MORNING_TAISO_SESSION_ID, MOMENTS, RECOVERY_MOMENTS, isShortMomentLog } from './deps.js';
 import { getState, update, getActiveWorkout, saveActiveWorkout, clearActiveWorkout } from '../store.js';
 import { esc, icon, seal, fmtTarget, exName, muscleName, familyName, neighbour, varietySwaps, stepper, handleStepper, ring, setRing,
   beep, buzz, unlockAudio, openSheet, reducedMotion, clamp, plural, isFlowItem, isProgression, nativeNameHTML, fmtDur, stepName, stepCount } from './components.js';
@@ -13,6 +13,31 @@ let w = null, root = null, stageEl = null, player = null, timer = 0, hold = null
 let lastRestSecond = null;
 
 const save = () => saveActiveWorkout(w);
+// Moments whose sessions sit below the user's level on purpose: the planner never moves a ladder on them.
+const RECOVERY = new Set(RECOVERY_MOMENTS);
+
+// ---------- dark player (Wind down): dark for this session only, whatever the app theme; restored on leaving ----------
+let themeRestore = null;
+function darkPlayerOn() {
+  if (themeRestore) return;
+  const html = document.documentElement;
+  const metas = [...document.querySelectorAll('meta[name="theme-color"]')];
+  const had = html.dataset.theme;
+  themeRestore = { had, metas: metas.map(m => m.content) };
+  html.dataset.theme = 'dark';
+  html.classList.add('dark-player');
+  metas.forEach(m => { m.content = '#121110'; });
+}
+function darkPlayerOff() {
+  if (!themeRestore) return;
+  const html = document.documentElement;
+  const { had, metas } = themeRestore;
+  if (had === undefined) delete html.dataset.theme; else html.dataset.theme = had;
+  html.classList.remove('dark-player');
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m, i) => { if (metas[i] != null) m.content = metas[i]; });
+  themeRestore = null;
+}
+const wantsDark = x => !!(x?.session?.darkPlayer || MOMENTS[x?.session?.moment || x?.session?.request?.moment]?.darkPlayer);
 const item = () => w.items[w.idx];
 const log = () => w.logs[w.idx];
 const ex = () => byId[item().exerciseId] || ALL_BY_ID[item().exerciseId];
@@ -26,6 +51,7 @@ export function render(host, ctx) {
   flowCache.clear();
   if (!w) { ctx.go('#/today', { replace: true }); return; }
   if (w.phase === 'rest' && w.restEndsAt && Date.now() >= w.restEndsAt) { w.phase = 'set'; w.restEndsAt = null; save(); }
+  if (wantsDark(w)) darkPlayerOn();
   root.innerHTML = `<div class="player" role="region" aria-label="Workout player">
     <header class="pl-head">
       <button class="icon-btn" data-act="close" aria-label="Pause or leave workout">${icon('close')}</button>
@@ -49,6 +75,7 @@ export function render(host, ctx) {
     try { player && player.destroy(); } catch { /* ignore */ }
     player = null; hold = null;
     releaseWake();
+    darkPlayerOff();
   };
 }
 
@@ -568,7 +595,10 @@ function drawCelebrate() {
   const wk = after.weekly?.current ?? 0;
   const isMain = L.sessionId !== 'M';
   const isTaiso = L.sessionId === MORNING_TAISO_SESSION_ID;
-  const firstEver = isMain && !isTaiso && getState().logs.filter(isTrainingLog).length === 1;
+  const shortMoment = isShortMomentLog(L);
+  const moment = L.request?.moment;
+  const light = isTaiso || shortMoment;   // day streak only: no weekly credit (v1.2)
+  const firstEver = isMain && !light && getState().logs.filter(isTrainingLog).length === 1;
   const durLabel = celebrate.shortSec != null ? 'under a minute' : plural(L.durationMin, 'minute');
   const lv = changes.map(c => {
     if (c.flow) { // flow progression: same flow, next stage (stance, support, tempo or the full version)
@@ -587,11 +617,13 @@ function drawCelebrate() {
     <div class="cele-stats">
       ${wk > 0 ? `<div class="cstat ${wkUp ? 'up' : ''}"><span class="cnum">${wk}</span><span class="clab">week streak${wkUp ? ' ↑' : ''}</span></div>`
         : `<div class="cstat up"><span class="cnum cnum-jp" lang="ja">${firstEver ? '初' : '印'}</span><span class="clab">${firstEver ? 'First stamp earned' : 'Stamp earned'}</span></div>`}
-      <div class="cstat up"><span class="cnum">${Math.min(sessionsThisWeek(), weeklyTarget())}<small>/${weeklyTarget()}</small></span><span class="clab">${wk > 0 ? 'this week' : `Week ${Math.max(1, (L.weekIndex ?? 0) + 1)} underway`}</span></div>
+      <div class="cstat ${light ? '' : 'up'}"><span class="cnum">${Math.min(sessionsThisWeek(), weeklyTarget())}<small>/${weeklyTarget()}</small></span><span class="clab">${wk > 0 ? 'this week' : `Week ${Math.max(1, (L.weekIndex ?? 0) + 1)} underway`}</span></div>
       ${isMain ? `<div class="cstat ${dayUp || (after.current ?? 0) === 0 ? 'up' : ''}"><span class="cnum">${Math.max(1, after.current ?? 0)}</span><span class="clab">day streak${dayUp ? ' ↑' : ''}</span></div>` : ''}
     </div>
     ${isTaiso ? '<p class="small muted">Morning Taisō keeps your day streak going. It doesn’t count towards your weekly sessions.</p>' : ''}
-    ${lv ? `<section class="card levelups"><h2 class="section-title">Progressions</h2><ul>${lv}</ul></section>` : isTaiso ? '' : `<p class="small muted">Keep logging honestly — progressions unlock when you top the rep range.</p>`}
+    ${shortMoment ? `<p class="small muted">${esc(MOMENTS[moment]?.label || 'This moment')} keeps your day streak going. Moments of 10 min or less don’t count towards your weekly sessions.</p>` : ''}
+    ${lv ? `<section class="card levelups"><h2 class="section-title">Progressions</h2><ul>${lv}</ul></section>`
+      : isTaiso || shortMoment || RECOVERY.has(moment) ? '' : `<p class="small muted">Keep logging honestly — progressions unlock when you top the rep range.</p>`}
     <button class="btn btn-primary btn-lg btn-block" data-act="done">Done</button></div>`;
   root.querySelector('[data-act="done"]').focus({ preventScroll: true });
 }

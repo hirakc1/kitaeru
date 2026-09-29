@@ -37,24 +37,34 @@ export function poolAvailable(filter) {
   if (!Object.keys(f).length) return false;
   try { return quickPoolIds({ ...f, ...kitRequest() }, getState().profile || null, EXERCISES).length > 0; } catch (e) { console.warn(e); return false; }
 }
+/**
+ * The same label for running text: "Make a mobility workout", "Make a Tai Chi workout", "Make a horizontal push workout".
+ * Category and family names are lowercased; tradition names (and families named after one) keep their capitals.
+ */
+export function poolPhrase(filter) {
+  const f = poolFilter(filter);
+  const t = f.tradition && TRADITIONS[f.tradition];
+  const proper = Object.values(TRADITIONS).filter(x => x.kind !== 'explainer').map(x => x.name);
+  const lower = n => (n && !proper.some(p => n.startsWith(p)) ? n.charAt(0).toLowerCase() + n.slice(1) : n);
+  const words = [t && (t.kind === 'explainer' ? lower(t.name) : t.name), f.category && lower(CAT_LABEL[f.category]), f.family && lower(FAMILIES[f.family]?.name)].filter(Boolean).join(' · ');
+  return `${/^[aeiou]/i.test(words) ? 'an' : 'a'} ${words}`;
+}
 /** A maker source for a Library pool. */
 export function poolSource(filter) {
   const f = poolFilter(filter);
   const label = poolLabel(f);
   const exp = f.tradition && TRADITIONS[f.tradition]?.kind === 'explainer';
   return {
-    title: `Make a ${label} workout`, heading: exp ? `${label} workout` : label,
+    title: `Make ${poolPhrase(f)} workout`, heading: exp ? `${label} workout` : label,
     request: (minutes, date) => ({ minutes, ...f, ...kitRequest(), date }),
   };
 }
 /** The Library / culture-card control. Empty string when the pool is empty. */
 export function makeButtonHTML(filter, { cls = '' } = {}) {
   if (!poolAvailable(filter)) return '';
-  const label = poolLabel(filter);
-  const exp = filter.tradition && TRADITIONS[filter.tradition]?.kind === 'explainer';
   return `<button type="button" class="card quick-card mk-open ${cls}" data-make="${esc(JSON.stringify(poolFilter(filter)))}">
     <span class="quick-mark" aria-hidden="true">作</span>
-    <span class="quick-text"><span class="opt-name">Make a ${esc(exp ? label.toLowerCase() : label)} workout</span>
+    <span class="quick-text"><span class="opt-name">Make ${esc(poolPhrase(filter))} workout</span>
       <span class="muted small">Pick ${QUICK_MINUTES[0]} to ${QUICK_MINUTES[QUICK_MINUTES.length - 1]} min and start</span></span>
     ${icon('chevron', { size: 20 })}</button>`;
 }

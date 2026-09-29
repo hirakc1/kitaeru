@@ -183,8 +183,10 @@ export function fmtTarget(item) {
   }
   const sets = item.sets > 1 ? `${item.sets} × ` : '';
   const side = item.perSide ? ' per side' : '';
-  const cat = byId[item.exerciseId]?.category;
-  if (item.holdSec) return `${sets}${['conditioning', 'warmup'].includes(cat) ? '' : 'hold '}${range(item.holdSec)} s${side}`;
+  const e = byId[item.exerciseId] || ALL_BY_ID[item.exerciseId];
+  // "hold" only for real holds: a timed burst of squats or marching is just "30 s" (moments, v1.2).
+  const isHold = e?.mode ? e.mode === 'hold' : !['conditioning', 'warmup'].includes(e?.category);
+  if (item.holdSec) return `${sets}${isHold && !['conditioning', 'warmup', 'breath'].includes(e?.category) ? 'hold ' : ''}${range(item.holdSec)} s${side}`;
   if (item.reps) return `${sets}${range(item.reps)}${side}`;
   return `${item.sets} set${item.sets > 1 ? 's' : ''}`;
 }

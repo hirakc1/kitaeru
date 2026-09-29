@@ -2,7 +2,7 @@
 import { getState, getActiveWorkout, clearActiveWorkout, getCurrentWeekIndex, todayISO } from '../store.js';
 import { inviteHTML, optionsHTML, onOptionChange } from './plan.js';
 import { esc, icon, seal, mountAnims, DOW_LONG, plural, confirmSheet, exName, fmtDate, nativeNameHTML } from './components.js';
-import { ALL_BY_ID, MORNING_TAISO_SESSION_ID } from './deps.js';
+import { ALL_BY_ID, MORNING_TAISO_SESSION_ID, MOMENTS, isShortMomentLog } from './deps.js';
 import { getWeek, sessionForDow, sessionMinutes, getStreak, weekDays, sessionItems, mobilityFlow, startWorkout,
   weeklyTarget, sessionsThisWeek, freezesBanked, isFirstTimer, isTrainingLog, withOptions, morningTaiso, flowMinutes } from './model.js';
 
@@ -47,14 +47,29 @@ export function streakCard(streak) {
     </div></section>`;
 }
 
+/** What a light day's logs were: "Desk reset", "Morning Taisō", or both. */
+function lightNames(logs) {
+  return [...new Set(logs.filter(l => l.sessionId === MORNING_TAISO_SESSION_ID || isShortMomentLog(l))
+    .map(l => (l.sessionId === MORNING_TAISO_SESSION_ID ? 'Morning Taisō' : MOMENTS[l.request.moment]?.label || l.name)))].join(' and ');
+}
+
 export function weekStrip(days) {
+  // A light day (Morning Taisō or a moment of 10 min or less, v1.2) keeps the day streak but isn't a session: a lighter mark.
+  const anyLight = days.some(d => !d.done && (d.light || d.taiso));
   return `<ol class="week-strip" aria-label="This week">${days.map(d => {
+    const lightDay = !d.done && (d.light || d.taiso);
     const state = d.done ? 'done' : d.session ? (d.isPast ? (d.beforePlan ? 'pre' : 'missed') : 'planned') : 'rest';
-    const label = `${DOW_LONG[d.dow]}: ${state === 'done' ? 'done' : state === 'planned' ? `${d.session.name} planned` : state === 'missed' ? 'missed' : state === 'pre' ? 'before your plan started' : 'rest'}`;
-    return `<li class="ws-day ws-${state} ${d.isToday ? 'ws-today' : ''}" aria-label="${esc(label)}" ${d.isToday ? 'aria-current="date"' : ''}>
-      <span class="ws-dow">${DOW_LONG[d.dow].slice(0, 1)}</span><span class="ws-mark">${state === 'done' ? icon('check', { size: 14 }) : ''}</span><span class="ws-date">${d.date.getDate()}</span></li>`;
+    const base = state === 'done' ? 'done' : state === 'planned' ? `${d.session.name} planned` : state === 'missed' ? 'missed' : state === 'pre' ? 'before your plan started' : 'rest';
+    const label = `${DOW_LONG[d.dow]}: ${lightDay ? `${lightNames(d.logs)} done, keeps the day streak${state === 'planned' ? `; ${d.session.name} still planned` : ''}` : base}`;
+    return `<li class="ws-day ws-${state} ${lightDay ? 'ws-light' : ''} ${d.isToday ? 'ws-today' : ''}" aria-label="${esc(label)}" ${d.isToday ? 'aria-current="date"' : ''}>
+      <span class="ws-dow">${DOW_LONG[d.dow].slice(0, 1)}</span><span class="ws-mark">${state === 'done' || lightDay ? icon('check', { size: 14 }) : ''}</span><span class="ws-date">${d.date.getDate()}</span></li>`;
   }).join('')}</ol>
-  <div class="ws-legend small muted" aria-hidden="true"><span><i class="lg lg-done"></i>done</span><span><i class="lg lg-planned"></i>planned</span><span><i class="lg lg-rest"></i>rest</span></div>`;
+  <div class="ws-legend small muted" aria-hidden="true"><span><i class="lg lg-done"></i>done</span>${anyLight ? '<span><i class="lg lg-light"></i>light</span>' : ''}<span><i class="lg lg-planned"></i>planned</span><span><i class="lg lg-rest"></i>rest</span></div>`;
+}
+/** Today's light logs, said plainly under the week strip. */
+function lightTodayHTML(todayLogs) {
+  const names = lightNames(todayLogs.filter(isShortMomentLog));
+  return names ? `<p class="small muted light-note">${icon('check', { size: 14 })} ${esc(names)} today: keeps your day streak going. Moments of 10 min or less don’t count towards your weekly sessions.</p>` : '';
 }
 
 function thumbs(session, n = 5) {
@@ -64,11 +79,17 @@ function thumbs(session, n = 5) {
     ${items.length > n ? `<li class="thumb thumb-more">+${items.length - n}</li>` : ''}</ul>`;
 }
 
+function lastQuick(last) {
+  const m = last.mode === 'moment' && MOMENTS[last.moment];
+  if (m) return `${m.minutes.includes(last.momentMinutes) ? last.momentMinutes : m.def} min · ${esc(m.label)}`;
+  return `${last.minutes} min · ${last.mode === 'goal' ? esc(last.goal) : last.muscles?.length ? 'targeted muscles' : esc(last.focus || 'full body')}`;
+}
+
 export function quickCard(compact = false) {
   const last = getState().settings.quick;
   return `<a class="card quick-card ${compact ? 'compact' : ''}" href="#/quick">
     <span class="quick-mark" aria-hidden="true">即</span>
-    <span class="quick-text"><span class="opt-name">Quick workout</span><span class="muted small">${last ? `Last time: ${last.minutes} min · ${last.mode === 'goal' ? esc(last.goal) : last.muscles?.length ? 'targeted muscles' : esc(last.focus || 'full body')}` : 'Short on time? Pick minutes and a focus. No setup.'}</span></span>
+    <span class="quick-text"><span class="opt-name">Quick workout</span><span class="muted small">${last ? `Last time: ${lastQuick(last)}` : 'Short on time? Pick minutes and a goal, an area or a moment. No setup.'}</span></span>
     ${icon('chevron', { size: 20 })}</a>`;
 }
 
@@ -156,7 +177,7 @@ export function render(root, ctx) {
     ${taiso.html}
     ${quickCard(true)}
     ${streakCard(streak)}
-    <section class="section"><h2 class="section-title">${planStart > todayISO() ? 'Your first week' : 'This week'}</h2>${weekStrip(weekDays(now))}
+    <section class="section"><h2 class="section-title">${planStart > todayISO() ? 'Your first week' : 'This week'}</h2>${weekStrip(weekDays(now))}${lightTodayHTML(todayLogs)}
       ${early.length ? `<p class="small early-note">${icon('check', { size: 14 })} Early start: ${early.length === 1 ? `${esc(early[0].name || 'a session')} on ${fmtDate(early[0].date, { weekday: 'long' })}` : `${early.length} sessions`} before your plan began.</p>` : ''}</section>
     <details class="card help"><summary>${icon('info', { size: 18 })} When to stop</summary>
       <p class="small">Stop and seek medical advice if you feel chest pain or pressure, unusual breathlessness, dizziness or fainting, palpitations, a sudden severe headache, or sharp joint pain.</p></details>

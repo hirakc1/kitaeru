@@ -320,6 +320,22 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .check input { width: 20px; height: 20px; accent-color: var(--accent); }
 .qgen { margin-top: 24px; }
 .qpreview { margin-top: 18px; }
+/* moments (v1.2): a third "Train for" choice */
+.qseg .chip { padding: 6px 12px; }
+.qmoments .chip { position: relative; }
+.qhint-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); margin-left: 2px; flex: none; }
+.qhint { display: inline-flex; align-items: center; gap: 8px; margin: 10px 0 0; padding: 6px 2px; min-height: 44px; background: none; border: 0; color: var(--muted); font: inherit; font-size: .88rem; cursor: pointer; text-align: left; }
+.qhint strong { color: var(--ink); font-weight: 600; }
+.qhint:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.qmoment { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.qm-helper { margin: 0 0 10px; }
+.qm-times .mk-times { margin-bottom: 8px; }
+.qm-always { margin: 6px 0 0; }
+.qm-why summary { min-height: 44px; display: flex; align-items: center; color: var(--muted); font-weight: 600; cursor: pointer; }
+.qm-why p { margin: 0 0 6px; }
+.qm-pick { margin: 12px 0 0; }
+.qm-light { margin: 12px 0 0; }
+.qpreview-moment .mk-preview { margin-top: 4px; }
 .qactions { position: sticky; bottom: calc(12px + var(--safe-b)); }
 .hub { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .hub-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 14px 16px; }
@@ -440,6 +456,12 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .lg-done { background: var(--btn-bg); }
 .lg-planned { border: 1.5px solid var(--accent); }
 .lg-rest { height: 1.5px; background: var(--line-strong); }
+.ws-light .ws-mark { background: var(--accent-soft); color: var(--accent); border: 0; }
+.ws-light .ws-mark::before { content: none; }
+.lg-light { background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.tick-light { background: var(--accent-soft); color: var(--accent); }
+.light-note { display: flex; align-items: flex-start; gap: 6px; margin: 12px 4px 0; }
+.light-note .ico { color: var(--accent); flex: none; margin-top: 3px; }
 .help { margin-top: 22px; padding: 4px 18px; }
 .help summary { min-height: 48px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; color: var(--muted); }
 .help p { margin: 0 0 14px; }
@@ -488,6 +510,8 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .pl-prog .seg-cur { background: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .pl-prog .seg-skip { background: var(--line-strong); }
 .pl-time { font-variant-numeric: tabular-nums; font-size: .88rem; color: var(--muted); min-width: 44px; text-align: right; }
+/* Wind down: the player runs dark (workout.js darkPlayerOn) with a slightly dimmer stage. */
+.dark-player .pl-stage { filter: brightness(.88); }
 .pl-stage { display: block; margin: 4px calc(-1 * var(--gut) + 8px) 0; border-radius: 24px; background: radial-gradient(60% 55% at 50% 55%, var(--surface), transparent); }
 .pl-stage svg, .pl-stage .kt-sk { display: block; width: 100% !important; max-width: none !important; height: clamp(300px, 44vh, 520px) !important; margin: 0 auto; }
 @media (min-width: 720px) { .pl-stage svg, .pl-stage .kt-sk { height: clamp(380px, 52vh, 600px) !important; } }

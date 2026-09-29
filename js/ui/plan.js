@@ -78,7 +78,7 @@ export function render(root, ctx) {
         ${ses ? `<button class="pd-main" data-preview="${esc(ses.id)}" aria-label="Preview ${esc(ses.name)} on ${DOW_LONG[d.dow]}">
             <span class="pd-name">${esc(ses.name)}</span><span class="muted small">~${sessionMinutes(ses)} min${ses.focus?.length ? ` · ${ses.focus.map(esc).join(', ')}` : ''}</span></button>`
           : `<div class="pd-main"><span class="pd-name muted">Rest</span><span class="muted small">Recovery is training</span></div>`}
-        <span class="pd-status">${d.done ? `<span class="tick" aria-label="Done">${icon('check', { size: 16 })}</span>` : ses ? icon('chevron', { size: 18 }) : ''}</span></li>`;
+        <span class="pd-status">${d.done ? `<span class="tick" aria-label="Done">${icon('check', { size: 16 })}</span>` : d.light || d.taiso ? `<span class="tick tick-light" aria-label="Light day: keeps the day streak">${icon('check', { size: 16 })}</span>` : ses ? icon('chevron', { size: 18 }) : ''}</span></li>`;
     }).join('')}</ol>
     ${fresh ? '' : whyHTML}
     <button class="btn btn-ghost btn-block" data-edit>${icon('edit', { size: 18 })} Regenerate / edit preferences</button>

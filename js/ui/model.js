@@ -191,7 +191,8 @@ export async function startWorkout(session, { weekIndex = getCurrentWeekIndex(),
   const items = sessionItems(session).map(it => ({ ...it, origExerciseId: it.exerciseId, sets: Math.max(1, it.sets || 1) }));
   const week = ['M', 'Q', 'T'].includes(sessionId) ? null : getWeek(weekIndex);
   saveActiveWorkout({
-    v: 1, session: { id: session.id, name: session.name, blocks: session.blocks, ...(session.request && { request: session.request }) }, sessionId, weekIndex,
+    v: 1, session: { id: session.id, name: session.name, blocks: session.blocks, ...(session.request && { request: session.request }),
+      ...(session.moment && { moment: session.moment }), ...(session.darkPlayer && { darkPlayer: true }) }, sessionId, weekIndex,
     weekPhase: week?.phase || 'build', reentry: week?.meta?.reentry ?? null,
     date: toISO(), startedAt: Date.now(), items, idx: 0, phase: 'set',
     logs: items.map(it => ({ exerciseId: it.exerciseId, family: it.family, sets: [], rating: null, skipped: false })),

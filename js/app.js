@@ -22,6 +22,7 @@ let current = { name: null, cleanup: null, mod: null, host: null };
 function applyTheme() {
   const t = getState().settings.theme;
   const root = document.documentElement;
+  if (root.classList.contains('dark-player')) return; // Wind down's dark player owns the theme until it closes (workout.js)
   if (t === 'light' || t === 'dark') root.dataset.theme = t; else delete root.dataset.theme;
   const dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
   $$('meta[name="theme-color"]').forEach(m => { m.content = dark ? '#121110' : '#F5F1E8'; });
