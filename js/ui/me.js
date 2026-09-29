@@ -3,6 +3,7 @@ import { getState, update, exportJSON, validateImport, replaceState, resetAll, t
 import { esc, icon, seal, openSheet, confirmSheet, toast, downloadFile, fmtHeight, fmtWeight, DOW_SHORT, DOW_ORDER } from './components.js';
 import { goalName, levelsFor, morningTaisoAvailable } from './model.js';
 import { beginEdit, DISCLAIMER } from './onboarding.js';
+import { VERSION, versionLabel } from '../version.js';
 import { inviteHTML } from './plan.js';
 
 const EXP = { new: 'New to this', some: 'Some experience', regular: 'Trains regularly', advanced: 'Advanced' };
@@ -49,7 +50,10 @@ export function render(root, ctx) {
         <p>Movement disciplines from around the world, brought together to strengthen body and mind.</p>
         <p><strong>Kitaeru is free forever.</strong> No account, no ads, no tracking. Your data never leaves your phone.</p>
         <details class="disclaimer"><summary>Health disclaimer</summary><p class="small">${esc(DISCLAIMER)}</p></details>
-        <p class="small muted">Programming follows published evidence on progressive calisthenics, deloads and habit formation. Version 1.</p>
+        <p class="small muted">Programming follows published evidence on progressive calisthenics, deloads and habit formation.</p>
+        <div class="version-row"><p class="small">Version <strong>${esc(versionLabel())}</strong> <span class="muted">(${esc(VERSION)})</span></p>
+          <button class="btn btn-quiet" data-update-check>Check for updates</button></div>
+        <p class="small muted" data-update-msg aria-live="polite"></p>
       </div></section>
     </div>`;
   };
@@ -71,6 +75,7 @@ export function render(root, ctx) {
       }
       return;
     }
+    if (e.target.closest('[data-update-check]')) { checkForUpdate(root); return; }
     if (e.target.closest('[data-reset]')) resetSheet(ctx);
   });
   root.addEventListener('change', async e => {
@@ -93,6 +98,17 @@ export function render(root, ctx) {
       }
     }
   });
+}
+
+// Me → About: ask the service worker to look for a new build now. When one installs, app.js reloads into it.
+async function checkForUpdate(root) {
+  const say = t => { const m = root.querySelector('[data-update-msg]'); if (m) m.textContent = t; };
+  const reg = await navigator.serviceWorker?.getRegistration?.().catch(() => null);
+  if (!reg) { say('Updates arrive automatically when you open the app online.'); return; }
+  say('Checking…');
+  try { await reg.update(); } catch { say('Couldn’t check just now. Are you offline?'); return; }
+  if (reg.installing || reg.waiting) say('Downloading the new version. The app will restart in a moment.');
+  else say(`You have the latest version (${versionLabel()}).`);
 }
 
 function resetSheet(ctx) {

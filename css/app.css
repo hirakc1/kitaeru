@@ -832,6 +832,8 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .set-row:last-child { border-bottom: 0; }
 .about-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .about-head p { margin: 0; }
+.version-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.version-row p { margin: 0; }
 
 /* ---------- desktop ---------- */
 @media (min-width: 720px) {

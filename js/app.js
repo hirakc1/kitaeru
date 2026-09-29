@@ -1,6 +1,7 @@
 // Kitaeru app shell: theme, hash router, tab bar, service worker.
 import { getState, subscribe, getActiveWorkout } from './store.js';
-import { icon, seal, wordmark, $, $$, closeAllSheets, reducedMotion } from './ui/base.js';
+import { icon, seal, wordmark, $, $$, closeAllSheets, reducedMotion, toast } from './ui/base.js';
+import { VERSION, versionLabel } from './version.js';
 
 // Screens load on first visit, so the opening screen never waits for the planner and exercise data.
 // Welcome needs only base.js; the rest are fetched in the background once it has painted (see prefetch).
@@ -121,6 +122,13 @@ applyTheme();
 lastTheme = getState().settings.theme;
 window.addEventListener('hashchange', route);
 route().then(prefetch);
+
+// Say so when the app has just updated itself, so it's clear which build is running (Me → About shows it too).
+try {
+  const seen = localStorage.getItem('kitaeru.seenVersion');
+  if (seen && seen !== VERSION) setTimeout(() => toast(`Updated to the latest version (${versionLabel()})`, 5000), 1200);
+  localStorage.setItem('kitaeru.seenVersion', VERSION);
+} catch { /* storage blocked: skip the notice */ }
 
 // Warm the other screens once the first one is up, so later taps are instant (and offline-safe before the
 // service worker finishes precaching). Idle time only; import() of an already-loaded module is free.

@@ -70,6 +70,33 @@ This is the current state for a new Claude session picking up the project. Claud
 - **Founder animation fixes:** marching arm swing, side-bend and trunk-circle arm path, diamond push-up hands plus a generic `detail` inset, and baithak on the balls of the feet.
 - **Animation review page:** `anim-review.html`, live at https://hirakc1.github.io/kitaeru/anim-review.html. The founder marks each clip Good or Needs work with a comment and exports the notes.
 
+## Shipped 2026-09-29 (afternoon)
+- **v2026.09.29-1249, faster first load:** screens load on demand (`app.js` ROUTES are dynamic imports). The light helpers live in `js/ui/base.js`, which must stay free of data and planner imports. Welcome needs 27 KB of JS instead of 225 KB; Today needs 178 KB, since the planner and exercise data are genuinely needed there. The other screens are prefetched when the browser is idle.
+- **v2026.09.29-1447, v1.3a:**
+  - The 13 Morning Taisō and Baduanjin steps are promoted to standalone moves (verified, with a new `dose` field and planner rules).
+  - The Library shows a "Sources" line.
+  - The standalone arm circles are renamed "Taisō arm circles".
+  - The research is in `docs/flow-and-breath.md` and the fact-check in `docs/flow-and-breath-factcheck.md`.
+- **v2026.09.29-1525:**
+  - Timed holds on one-sided moves run once per side, with a 5 s "switch sides" countdown between.
+  - Morning Taisō clips are corrected against the Kampo and NHK figures: stance per step, a deeper knee bend, straight arms crossing overhead, the hops, and the diagonal bend with the arms opening down. A foot steps rather than slides when the stance changes (`blendPose`).
+  - New page `taiso-check.html` for checking the steps one by one against a video.
+  - `sw.js` no longer serves the app shell for other `.html` pages.
+
+## Flow and breath (v1.3b), decided 2026-09-29 ("go with recommendations")
+- **Next build:** the 9 new moves, about 31 clips.
+  - Standing post (toes slightly in) and bow stance.
+  - Sun Salutation (the Sivananda 12-position version, with a disclosed normal breath in the plank).
+  - Tree (goes in a new `balance_hold` family).
+  - Warrior II (re-based on the sources we read; the hold is Kitaeru's own).
+  - Triangle.
+  - Makkō-hō (one flow; step 4 adapted).
+  - Breath-paced walk (generic, no Systema).
+  - Cards for yoga, Makkō-hō and standing post; no Systema card.
+  - The Sun Salutation is excluded for wrist and lower-back users, with the reason shown.
+- **Seated Taisō is on hold:** it needs one official NHK seated video check by the founder (`docs/founder-tasks.md`, local only, excluded from git). The KeikoFlex video the founder used is unofficial and doesn't count as a source.
+- The Makkō-hō courtesy email is dropped. The trademark checks (真向法, ラジオ体操, Systema) are still needed before any marketing use.
+
 ## In progress / next
 1. **Founder animation review:** the founder is reviewing all 132 clips on `anim-review.html` and will send the exported notes. Route each note to the animator (anim branch `worktree-agent-a9739dc712fdd0781`, which is merged into main). The generic `detail` inset exists for hand and foot close-ups.
 2. **Founder is still reviewing v1.2/v1.3** in depth. Expect more feedback.

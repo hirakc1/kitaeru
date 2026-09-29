@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SW = ROOT / "sw.js"
+APP_VERSION = ROOT / "js" / "version.js"
 
 
 def git(*args):
@@ -34,6 +35,12 @@ def main():
     if n != 1:
         sys.exit("Could not find `const VERSION = '...'` in sw.js")
     SW.write_text(new_src, encoding="utf-8")
+    # The app shows the same version on Me -> About (js/version.js).
+    app_src = APP_VERSION.read_text(encoding="utf-8")
+    app_src, n = re.subn(r"export const VERSION = '[^']*';", f"export const VERSION = '{version}';", app_src, count=1)
+    if n != 1:
+        sys.exit("Could not find `export const VERSION = '...'` in js/version.js")
+    APP_VERSION.write_text(app_src, encoding="utf-8")
 
     git("add", "-A")
     git("commit", "-m", f"{message} ({version})")
