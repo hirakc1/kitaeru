@@ -68,7 +68,7 @@ Intensity uses the talk test and RIR from `research.md`. "Easy" = full sentences
 - **Safety.** Stop if a stretch causes pins and needles down the arm. For persistent neck or arm symptoms, use the `research.md` §6.2 red flags.
 - **Traditions.** `taichi_cloud_hands`, `taichi_commencement`, `baduanjin_hold_up_sky` and `baduanjin_look_back` (neck range small; excluded for `neck`). All are standing and quiet. A 5-minute desk reset can be `radio_taiso_1` with the lowImpact variant (no hops).
 
-### 1.3 Energy boost (昼): midday "exercise snack"
+### 1.3 Energy boost (活): midday "exercise snack"
 
 - **Purpose.** Lift energy and alertness in the afternoon dip, or fit a small dose of vigorous effort into a busy day. It also absorbs the "before a meal" idea (§1.5).
 - **Evidence: C for acute energy, B for fitness from snacks.**
@@ -205,7 +205,7 @@ Intensity uses the talk test and RIR from `research.md`. "Easy" = full sentences
 |---|---|---|---|---|---|---|
 | Morning wake-up | 朝 | Loosen up and wake up | C (Taisō B) | 5 · **10** · 15 · 20 | easy → moderate | `radio_taiso_1` |
 | Desk reset | 伸 | Break up sitting, open hips and chest | B | **5** · 10 · 15 | easy–moderate, standing | Taisō singles, cloud hands |
-| Energy boost | 昼 | A quick lift: short brisk bursts | C (fitness B) | **5** · 10 | bursts RPE 7–8 | `radio_taiso_1`, `baithak` |
+| Energy boost | 活 | A quick lift: short brisk bursts | C (fitness B) | **5** · 10 | bursts RPE 7–8 | `radio_taiso_1`, `baithak` |
 | After a meal | 食 | Easy movement soon after eating | B | 5 · **10** · 15 · 20 | easy–moderate, standing | `taichi_short_flow` |
 | Before sport | 備 | Warm up and lower injury risk | A (injury), B (performance) | 5 · 10 · **15** · 20 | rising, never fatiguing | `radio_taiso_1` (5 min) |
 | After sport | 整 | Settle down and stretch | C (soreness null: A) | 5 · **10** · 15 | very easy | `baduanjin_sequence` short |
@@ -306,7 +306,7 @@ When "A moment" is picked, show chips with a kanji mark, in the style of the goa
 |---|---|---|---|---|
 | `morning` | Morning wake-up | 朝 | *asa*, morning | As in 朝の体操 (morning exercises), which is exactly what Radio Taisō is. |
 | `desk` | Desk reset | 伸 | *nobi*, stretch, reach | 伸びをする is the everyday phrase for stretching after sitting. 伸びの運動 is also the first move of Radio Taisō. |
-| `energy` | Energy boost | 昼 | *hiru*, midday | As in 昼休み (lunch break). It marks the time rather than claiming an effect. |
+| `energy` | Energy boost | 活 | *katsu*, life, vitality | As in 活力 (vitality) and 活気 (liveliness): everyday words for feeling lively, not a health claim. The native-usage check preferred it to 昼 (*hiru*, midday), which only marks the time. |
 | `after_meal` | After a meal | 食 | *shoku*, eating, meal | Read with the label, it evokes 食後 (after eating). **Alternative:** the two-character 食後 if the design allows two characters here. |
 | `before_sport` | Before sport | 備 | *sonae*, prepare | From 準備運動, the standard Japanese PE term for a warm-up. |
 | `after_sport` | After sport | 整 | *totonoe*, put in order, settle | From 整理運動, the standard Japanese PE term for a cool-down. 整う ("to be settled") is also a current everyday word for feeling restored. |
@@ -360,12 +360,12 @@ Always-on line for Low-energy day and Wind down: "If you've felt low, anxious or
 
 ## 7. Roadmap and open questions
 
-**v1.3 (with "Flow and breath")**
-- Ship six moments whose content already exists: **Morning wake-up, Desk reset, After a meal, Before sport, After sport, Wind down**. All of them work with zero tradition items and improve when Taisō, Tai Chi or Baduanjin are visible.
-- Add the `posture` field and `paced_breathing` (§6).
+**v1.2 (founder decision, 2026-09-29): all nine moments ship**
+- Morning wake-up, Desk reset, Energy boost, After a meal, Before sport, After sport, Wind down, On the road and Low-energy day.
+- All of them work with zero tradition items and improve when Taisō, Tai Chi or Baduanjin are visible.
+- The `posture` field, `paced_breathing`, the `snack` template, the `gateVigorous` check and forced low impact are in the engine.
 
-**v1.4**
-- **Energy boost, On the road, Low-energy day.** These need the `snack` template, the `gateVigorous` check and forced low impact.
+**Next**
 - The sport-type sub-choice for Before sport (lower-body or upper-body bias).
 
 **Later**

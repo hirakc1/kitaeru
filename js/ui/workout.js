@@ -597,7 +597,8 @@ function drawCelebrate() {
   const isTaiso = L.sessionId === MORNING_TAISO_SESSION_ID;
   const shortMoment = isShortMomentLog(L);
   const moment = L.request?.moment;
-  const light = isTaiso || shortMoment;   // day streak only: no weekly credit (v1.2)
+  const light = isTaiso || shortMoment;
+  const hasPlan = !!getState().profile;   // Quick-only users have no weekly target: day streak only   // day streak only: no weekly credit (v1.2)
   const firstEver = isMain && !light && getState().logs.filter(isTrainingLog).length === 1;
   const durLabel = celebrate.shortSec != null ? 'under a minute' : plural(L.durationMin, 'minute');
   const lv = changes.map(c => {
@@ -615,13 +616,13 @@ function drawCelebrate() {
     <h1 class="title">Session complete</h1>
     <p class="muted">${esc(L.name)} · ${durLabel} · ${plural(sets, 'set')}</p>
     <div class="cele-stats">
-      ${wk > 0 ? `<div class="cstat ${wkUp ? 'up' : ''}"><span class="cnum">${wk}</span><span class="clab">week streak${wkUp ? ' ↑' : ''}</span></div>`
+      ${!hasPlan ? '' : wk > 0 ? `<div class="cstat ${wkUp ? 'up' : ''}"><span class="cnum">${wk}</span><span class="clab">week streak${wkUp ? ' ↑' : ''}</span></div>`
         : `<div class="cstat up"><span class="cnum cnum-jp" lang="ja">${firstEver ? '初' : '印'}</span><span class="clab">${firstEver ? 'First stamp earned' : 'Stamp earned'}</span></div>`}
-      <div class="cstat ${light ? '' : 'up'}"><span class="cnum">${Math.min(sessionsThisWeek(), weeklyTarget())}<small>/${weeklyTarget()}</small></span><span class="clab">${wk > 0 ? 'this week' : `Week ${Math.max(1, (L.weekIndex ?? 0) + 1)} underway`}</span></div>
+      ${hasPlan ? `<div class="cstat ${light ? '' : 'up'}"><span class="cnum">${Math.min(sessionsThisWeek(), weeklyTarget())}<small>/${weeklyTarget()}</small></span><span class="clab">${wk > 0 ? 'this week' : `Week ${Math.max(1, (L.weekIndex ?? 0) + 1)} underway`}</span></div>` : ''}
       ${isMain ? `<div class="cstat ${dayUp || (after.current ?? 0) === 0 ? 'up' : ''}"><span class="cnum">${Math.max(1, after.current ?? 0)}</span><span class="clab">day streak${dayUp ? ' ↑' : ''}</span></div>` : ''}
     </div>
-    ${isTaiso ? '<p class="small muted">Morning Taisō keeps your day streak going. It doesn’t count towards your weekly sessions.</p>' : ''}
-    ${shortMoment ? `<p class="small muted">${esc(MOMENTS[moment]?.label || 'This moment')} keeps your day streak going. Moments of 10 min or less don’t count towards your weekly sessions.</p>` : ''}
+    ${isTaiso ? `<p class="small muted">Morning Taisō keeps your day streak going.${hasPlan ? ' It doesn’t count towards your weekly sessions.' : ''}</p>` : ''}
+    ${shortMoment ? `<p class="small muted">${esc(MOMENTS[moment]?.label || 'This moment')} keeps your day streak going.${hasPlan ? ' Moments of 10 min or less don’t count towards your weekly sessions.' : ''}</p>` : ''}
     ${lv ? `<section class="card levelups"><h2 class="section-title">Progressions</h2><ul>${lv}</ul></section>`
       : isTaiso || shortMoment || RECOVERY.has(moment) ? '' : `<p class="small muted">Keep logging honestly — progressions unlock when you top the rep range.</p>`}
     <button class="btn btn-primary btn-lg btn-block" data-act="done">Done</button></div>`;

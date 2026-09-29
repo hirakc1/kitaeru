@@ -134,7 +134,7 @@ function previewHTML() {
   if (session.moment) {
     return `<section class="card qpreview qpreview-moment" aria-label="Workout preview"><p class="eyebrow">Ready when you are</p>
       ${makerPreviewHTML(session)}
-      <p class="small muted qm-light">${session.light
+      <p class="small muted qm-light">${!getState().profile ? 'Keeps your day streak going.' : session.light
         ? 'Keeps your day streak going. Moments of 10 min or less don’t count towards your weekly sessions.'
         : 'Counts towards your weekly sessions, like any Quick workout.'}</p>
       ${actions}</section>`;
@@ -147,22 +147,26 @@ function previewHTML() {
 }
 
 /**
- * Morning wake-up after today's Morning Taisō (moments.md §4.3; UI-only, the engine doesn't know): the 5-min option
- * follows on from the Taisō instead of repeating it. We take the 10-min session's other blocks and trim them to about 5 min.
+ * Morning wake-up after today's Morning Taisō (moments.md §4.3; UI-only, the engine doesn't know): at every length the
+ * session follows on from the Taisō instead of repeating it. We build one chip longer (to make up the Taisō's ~3 min),
+ * drop the Taisō block, trim to the chosen length, and name the session by what it really is ("6-min Morning wake-up").
  */
 function afterTaiso(req, build) {
-  const full = build({ ...req, minutes: 10 });
+  const opts = MOMENTS.morning.minutes;
+  const longer = opts.find(m => m > req.minutes) ?? req.minutes;
+  const full = build({ ...req, minutes: longer });
   if (!full) return null;
   const blocks = full.blocks.filter(b => !b.items?.some(it => it.exerciseId === 'radio_taiso_1')).map(b => ({ ...b, items: [...b.items] }));
-  const out = { ...full, name: `5-min ${MOMENTS.morning.label}`, blocks,
-    note: 'Follows on from this morning’s Morning Taisō, so it doesn’t repeat it.' };
+  const out = { ...full, blocks, note: 'Follows on from this morning’s Morning Taisō, so it doesn’t repeat it.' };
   const count = () => blocks.reduce((a, b) => a + b.items.length, 0);
-  while (sessionMinutes(out) > 6 && count() > 2) {
+  while (sessionMinutes(out) > req.minutes && count() > 2) {
     const last = [...blocks].reverse().find(b => b.items.length);
     last.items.pop();
   }
   out.blocks = blocks.filter(b => b.items.length);
-  return count() >= 2 ? out : null;
+  if (count() < 2) return null;
+  out.name = `${Math.max(1, sessionMinutes(out))}-min ${MOMENTS.morning.label}`;
+  return out;
 }
 
 export function render(root, ctx) {
@@ -208,7 +212,7 @@ export function render(root, ctx) {
       const req = request();
       const build = r => generateQuickSession(r, s.profile || null, s.profile ? s.levels : null, EXERCISES);
       session = null;
-      if (req.moment === 'morning' && req.minutes === 5 && taisoToday()) { session = afterTaiso(req, build); if (session) req.afterTaiso = true; }
+      if (req.moment === 'morning' && taisoToday()) { session = afterTaiso(req, build); if (session) req.afterTaiso = true; }
       if (!session) session = build(req);
       if (session) session.request = req;
       if (!session || !session.blocks?.some(b => b.items?.length)) { session = null; toast('No exercises fit those picks. Try another area or add some kit.'); }
