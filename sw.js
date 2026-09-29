@@ -12,7 +12,7 @@ const SHELL_FILES = [
   './js/anim/skeleton.js', './js/anim/poses.js', './js/anim/bodymap.js',
   // v2 animation: ids.js loads at start; the rest is imported on first use but precached here for offline
   './js/anim/v2/ids.js', './js/anim/v2/core.js', './js/anim/v2/anatomy.js', './js/anim/v2/plate.js', './js/anim/v2/clips/lib.js',
-  './js/anim/v2/clips/push.js', './js/anim/v2/clips/pull.js', './js/anim/v2/clips/legs.js', './js/anim/v2/clips/trunk.js', './js/anim/v2/clips/abs.js', './js/anim/v2/clips/strength.js', './js/anim/v2/clips/cond.js', './js/anim/v2/clips/mob.js',
+  './js/anim/v2/clips/push.js', './js/anim/v2/clips/pull.js', './js/anim/v2/clips/legs.js', './js/anim/v2/clips/trunk.js', './js/anim/v2/clips/abs.js', './js/anim/v2/clips/strength.js', './js/anim/v2/clips/cond.js', './js/anim/v2/clips/mob.js', './js/anim/v2/clips/moments.js',
   './js/anim/v2/clips/rot.js', './js/anim/v2/clips/trad.js', './js/anim/v2/clips/taiso.js', './js/anim/v2/clips/taichi.js',
   './js/anim/v2/clips/baduanjin.js',
   './js/engine/planner.js',
