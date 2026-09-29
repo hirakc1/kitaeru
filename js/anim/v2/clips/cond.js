@@ -23,12 +23,13 @@ const marching_in_place = (() => {
     wR: { weight: 1, rootY: 88, ...feet(ST), ...armsSwing('R', 10) },
   };
   const knee = sd => ({ mid: [16, (sd === 'R' ? 1 : -1) * FW, 6, 0, -35], lift: 42 });   // thigh level, the foot under the knee
+  const mR = swing(k, 'mR', 'wL', 's2', 'R', ST.R, ST.R, { ...knee('R'), dur: .5 });
+  const mL = swing(k, 'mL', 'wR', 's', 'L', ST.L, ST.L, { ...knee('L'), dur: .5 });
+  // the arms swing in opposition, peaking with the knee: right knee up, left arm forward (and the other way round)
+  [[mR, 'L'], [mL, 'R']].forEach(([ph, fwd]) => ph.via.forEach((v, i) => Object.assign(k[v], armsSwing(fwd, [32, 46, 30][i], 4))));
   return stand({}, {
-    name: 'Marching in place', cam: { az: 36, el: 6 }, counts: 2, still: .25, trail: [], keys: k, base: { rootY: 88 },
-    timeline: [{ from: 's', to: 'wL', dur: .12, r1: .3, r2: .3 },
-      swing(k, 'mR', 'wL', 's2', 'R', ST.R, ST.R, { ...knee('R'), dur: .5 }),
-      { from: 's2', to: 'wR', dur: .12, r1: .3, r2: .3 },
-      swing(k, 'mL', 'wR', 's', 'L', ST.L, ST.L, { ...knee('L'), dur: .5 })],
+    name: 'Marching in place', cam: { az: 36, el: 6 }, counts: 2, still: .25, trail: ['palmR'], keys: k, base: { rootY: 88 },
+    timeline: [{ from: 's', to: 'wL', dur: .12, r1: .3, r2: .3 }, mR, { from: 's2', to: 'wR', dur: .12, r1: .3, r2: .3 }, mL],
   });
 })();
 
