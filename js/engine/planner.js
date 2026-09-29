@@ -2713,6 +2713,8 @@ function quickName(minutes, focus, muscles, goal, goalGiven) {
  * One-off session (id 'Q'). request = { minutes 5-90, goal?, focus?, muscles?, equipment?, space?, lowImpact?, date }.
  * Without profile/levels: a 'some experience' adult, floor + wall only unless request.equipment is given.
  * Deterministic: seeded from request.date and the request fields.
+ * v1.3: request.equipment is today's kit (wins over the profile's for this session), request.levelShift (-2..+2) moves every
+ * ladder, request.shuffle (k > 0) returns the k-th different session (docs/CONTRACTS.md "Today's kit, level and shuffle").
  */
 export function generateQuickSession(request = {}, profile = null, levels = null, library) {
   if (profile) derive(profile); // ages 13+
@@ -2743,7 +2745,7 @@ function shiftLevels(ctx, request, { noHarder = false, profile = null } = {}) {
   const D = ctx.D;
   const gated = D.age >= 65 || D.bmi35 || [0, 1, 2, 6].some(i => profile?.health?.parq?.[i] === true) || !!profile?.health?.pregnant;
   const n = noHarder ? Math.min(0, asked) : asked;
-  const out = { requested: asked, applied: n, changes: [], limited: n !== asked };
+  const out = { requested: asked, applied: n, changes: [], limited: n !== asked, limitedFamilies: [] };
   if (!n) return out;
   for (const fam of LEVEL_FAMILIES) {
     const cur = ctx.levelsEx[fam];
@@ -2752,7 +2754,7 @@ function shiftLevels(ctx, request, { noHarder = false, profile = null } = {}) {
     if (i < 0) continue;
     const want = fam === 'conditioning' && gated && n > 0 ? 0 : n;
     const j = clamp(i + want, 0, lad.length - 1);
-    if (j !== i + n) out.limited = true;
+    if (j !== i + n) { out.limited = true; out.limitedFamilies.push(fam); }
     if (j === i) continue;
     ctx.levelsEx[fam] = lad[j];
     out.changes.push({ family: fam, from: cur.id, to: lad[j].id });

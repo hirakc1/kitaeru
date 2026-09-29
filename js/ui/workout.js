@@ -1,8 +1,11 @@
 // Full-screen workout player with per-set logging, rest timer, swaps, ratings, completion & celebration.
 // v1.2: flow items (mode 'flow') play step by step with Kitaeru's own visual count. No music, ever.
-import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, applySessionLog, MORNING_TAISO_SESSION_ID, MOMENTS, RECOVERY_MOMENTS, isShortMomentLog } from './deps.js';
+// v1.3: moves that are not ladders (warm-up, mobility, cardio) get one "Swap" (same region and purpose) instead of
+// Easier / Harder; the animation extras (Me → Animation extras) apply in the player too.
+import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, applySessionLog, MORNING_TAISO_SESSION_ID, MOMENTS, RECOVERY_MOMENTS, isShortMomentLog,
+  swapAlternatives } from './deps.js';
 import { getState, update, getActiveWorkout, saveActiveWorkout, clearActiveWorkout } from '../store.js';
-import { esc, icon, seal, fmtTarget, exName, muscleName, familyName, neighbour, varietySwaps, stepper, handleStepper, ring, setRing,
+import { esc, icon, seal, fmtTarget, exName, muscleName, familyName, neighbour, varietySwaps, stepper, handleStepper, ring, setRing, mountAnims,
   beep, buzz, unlockAudio, openSheet, reducedMotion, clamp, plural, isFlowItem, isProgression, nativeNameHTML, fmtDur, stepName, stepCount } from './components.js';
 import { getStreak, sessionsThisWeek, weeklyTarget, groupLabel, planOpts, isTrainingLog } from './model.js';
 
@@ -87,6 +90,19 @@ function onVis() { if (document.visibilityState === 'visible' && timer) requestW
 // ---------- stage ----------
 let stageId = null;
 /**
+ * Animation extras in the player (Me → Animation extras, both on by default). The breath ring shows on holds, breathing
+ * and every flow step; the motion trail on every clip that has one, drawn fainter than in the Library (.pl-stage CSS).
+ * Travelling clips (Tai Chi walking forms, bear crawl) keep it: the plate draws their path in the camera's frame.
+ */
+function extras(e, step) {
+  const st = getState().settings;
+  return {
+    // (a timed burst of marching or jacks is not a hold: no ring there)
+    breath: st.animBreath !== false && (!!step || e?.category === 'breath' || (e?.mode === 'hold' && !['conditioning', 'warmup'].includes(e?.category))),
+    trail: st.animTrail !== false,
+  };
+}
+/**
  * Show an exercise on the stage. Flow steps pass their own anim (pauses have no exercise); a flow shows its first step
  * before Start and during the countdown (lead), then each step as it comes, blending from the step before.
  */
@@ -100,11 +116,11 @@ function setStage(exId, step = null, { lead = false } = {}) {
   const fit = step && !step.count ? step.sec : null;                 // (a timed step: whole cycles in its seconds)
   if (player && stageId === key) return;
   const mus = e?.muscles || { primary: [], secondary: [] };
-  const breath = e?.mode === 'hold' && getState().settings.animBreath !== false;   // breath guide on holds; no trail mid-workout
+  const { breath, trail } = extras(e, step);
   try {
     const opts = step ? { flow: true, blend: !lead } : {};   // flow steps: no fades at the ends; blend from the last pose
-    if (player && player.setAnim) { player.setPace?.(pace, fit); player.setAnim(animId, mus.primary, mus.secondary, opts); player.setBreath?.(breath); }
-    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath, pace, fit, flow: !!step }); }
+    if (player && player.setAnim) { player.setPace?.(pace, fit); player.setAnim(animId, mus.primary, mus.secondary, opts); player.setBreath?.(breath); player.setTrail?.(trail); }
+    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath, trail, pace, fit, flow: !!step }); }
   } catch (err) { console.warn('skeleton failed', err); }
   stageEl.setAttribute('aria-label', `${e?.name || (step ? step.name : '')} demonstration`);
   stageId = key;
@@ -199,7 +215,7 @@ function flowLoggerHTML() {
     <div class="btn-row">${running ? `<button class="btn btn-primary btn-lg" data-act="hold-stop">${icon('check', { size: 20 })} <span data-hold-btn>${v.lead ? 'Cancel' : 'Stop & log'}</span></button>`
       : `<button class="btn btn-primary btn-lg" data-act="hold-start">${icon('play', { size: 20 })} Start</button>
          <button class="btn btn-ghost" data-act="hold-log" aria-label="Log the whole flow without the timer">Log without timer</button>`}</div>
-    <p class="small muted center">Kitaeru’s own count. No music.</p></div>`;
+    <p class="small muted center">Follow the count on screen. There’s no music to keep time with.</p></div>`;
 }
 
 /** During a flow the muscle chips follow the current step (a pause shows none). */
@@ -257,8 +273,11 @@ function draw() {
   else setStage(it.exerciseId);
   const setNo = Math.min(l.sets.length + 1, it.sets);
   // Flows keep their own form: no easier/harder swap (their stance, support and tempo progress instead).
-  const easier = isFlow ? null : neighbour(it.exerciseId, -1, getState().profile);
-  const harder = isFlow ? null : neighbour(it.exerciseId, 1, getState().profile);
+  // Moves that are not ladders (warm-up, mobility, cardio) get one Swap: Easier / Harder would jump to an unrelated move.
+  const ladder = !isFlow && isProgression(e.family);
+  const easier = ladder ? neighbour(it.exerciseId, -1, getState().profile) : null;
+  const harder = ladder ? neighbour(it.exerciseId, 1, getState().profile) : null;
+  const swaps = isFlow || ladder ? [] : swapsFor(it.exerciseId);
   const variety = isFlow ? [] : varietySwaps(it.exerciseId, getState().profile);   // e.g. the daṇḍ from the push-up
   const muscles = e.muscles;
   const grp = groupLabel(w.items, w.idx);
@@ -289,8 +308,9 @@ function draw() {
   content.innerHTML = `${headHTML}${isFlow ? panelHTML + infoHTML : infoHTML + panelHTML}
     ${isFlow && w.phase === 'set' ? flowListHTML(flowInfo(), running && Date.now() >= hold.start ? flowAt(flowInfo(), flowEl()).s.i : -1) : ''}
     ${w.phase === 'set' ? `<div class="pl-actions">
-      ${isFlow ? '' : `<button class="btn btn-quiet btn-sm" data-act="easier" ${easier ? '' : 'disabled'} aria-label="Swap to an easier variation${easier ? `: ${esc(easier.name)}` : ''}">${icon('easier', { size: 18 })} Easier</button>
-      <button class="btn btn-quiet btn-sm" data-act="harder" ${harder ? '' : 'disabled'} aria-label="Swap to a harder variation${harder ? `: ${esc(harder.name)}` : ''}">${icon('harder', { size: 18 })} Harder</button>`}
+      ${isFlow ? '' : ladder ? `<button class="btn btn-quiet btn-sm" data-act="easier" ${easier ? '' : 'disabled'} aria-label="Swap to an easier variation${easier ? `: ${esc(easier.name)}` : ''}">${icon('easier', { size: 18 })} Easier</button>
+      <button class="btn btn-quiet btn-sm" data-act="harder" ${harder ? '' : 'disabled'} aria-label="Swap to a harder variation${harder ? `: ${esc(harder.name)}` : ''}">${icon('harder', { size: 18 })} Harder</button>`
+      : `<button class="btn btn-quiet btn-sm" data-act="swap-open" ${swaps.length ? '' : 'disabled'} aria-label="${swaps.length ? `Swap for a similar move: ${esc(swaps.map(x => x.name).join(', '))}` : 'No similar move to swap to'}">${icon('swap', { size: 18 })} Swap</button>`}
       ${variety.map(v => `<button class="btn btn-quiet btn-sm" data-act="variety" data-id="${esc(v.id)}" aria-label="Swap to a variety move: ${esc(v.name)}">${esc(v.aka?.[0] || v.name)}</button>`).join('')}
       <button class="btn btn-quiet btn-sm" data-act="skip">${icon('skip', { size: 18 })} Skip</button></div>` : ''}
     <details class="pl-details"><summary>Muscles worked</summary>
@@ -465,6 +485,44 @@ function advance(rest) {
   if (moved) window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
 }
 
+/**
+ * Similar moves for a non-ladder item (planner swapAlternatives): same body region and purpose, what the user can do with
+ * the session's kit (today's kit when the Quick request carried one), within the moment's rules, not already in the session.
+ */
+function swapsFor(exId) {
+  const req = w.session?.request || {};
+  try {
+    return swapAlternatives(exId, getState().profile || null, EXERCISES, {
+      equipment: Array.isArray(req.equipment) ? req.equipment : undefined,
+      moment: w.session?.moment || req.moment, exclude: w.items.map(i => i.exerciseId),
+    });
+  } catch (err) { console.warn(err); return []; }
+}
+function swapSheet() {
+  const list = swapsFor(item().exerciseId);
+  if (!list.length) return;
+  const cur = ex();
+  openSheet({
+    title: `Swap ${cur.name}`, cls: 'sheet-small swap-sheet',
+    html: `<p class="small muted">Similar moves for the same area. Pick one to do instead.</p>
+      <ul class="swap-list">${list.map(x => `<li><button type="button" class="swap-opt" data-swap="${esc(x.id)}">
+        <span class="swap-thumb" data-anim="${esc(x.id)}" data-size="64" aria-hidden="true"></span>
+        <span class="swap-text"><span class="opt-name">${esc(x.name)}</span><span class="small muted">${esc(x.muscles.primary.map(muscleName).join(', '))}${x.mode === 'hold' ? ' · hold' : ''}</span></span>
+        ${icon('chevron', { size: 18 })}</button></li>`).join('')}</ul>
+      <button type="button" class="btn btn-quiet btn-block" data-close>Keep ${esc(cur.name)}</button>`,
+    onMount(el, close) {
+      const stop = mountAnims(el);
+      el.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-swap]'); if (!b) return;
+        const t = list.find(x => x.id === b.dataset.swap);
+        close();
+        if (t) swap(0, t);
+      });
+      return stop;
+    },
+  });
+}
+
 function swap(dir, target = neighbour(item().exerciseId, dir, getState().profile)) {
   if (flowNow()) return;
   if (!target) return;
@@ -473,6 +531,7 @@ function swap(dir, target = neighbour(item().exerciseId, dir, getState().profile
   if (target.mode === 'hold' && !it.holdSec) { it.holdSec = [20, 30]; it.reps = null; }
   if (target.mode === 'reps' && !it.reps) { it.reps = [6, 10]; it.holdSec = null; }
   it.perSide = !!target.unilateral;
+  it.family = target.family; log().family = target.family;   // a Swap may cross families (warm-up <-> mobility)
   log().exerciseId = target.id;
   hold = null;
   save(); draw();
@@ -502,6 +561,7 @@ async function onClick(e) {
     case 'rest-skip': endRest(); break;
     case 'easier': swap(-1); break;
     case 'harder': swap(1); break;
+    case 'swap-open': swapSheet(); break;
     case 'variety': { const v = varietySwaps(item().exerciseId, getState().profile).find(x => x.id === a.dataset.id); if (v) swap(0, v); break; }
     case 'skip': log().skipped = true; log().sets = []; hold = null; advance(0); break;
     case 'rate': log().rating = a.dataset.val; save();

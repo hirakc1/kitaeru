@@ -1,5 +1,5 @@
 // Progress tab: streak heatmap, totals, ladders, PBs, history, body weight, weekly volume.
-import { FAMILIES, byId, MUSCLES } from './deps.js';
+import { FAMILIES, byId, MUSCLES, unavailableReason } from './deps.js';
 import { getState, update, toISO, fromISO, weekStart, addDays, todayISO } from '../store.js';
 import { esc, icon, openSheet, confirmSheet, exName, muscleName, familyName, ladder, isAvailable, isProgression,
   fmtDate, fmtWeight, kgToLb, lbToKg, plural, toast, weightUnit } from './components.js';
@@ -73,7 +73,7 @@ function ladders(s) {
     return `<li class="ladder"><details><summary><span class="ld-head"><span class="ld-fam">${esc(familyName(f))}</span>
       <span class="ld-cur">${ci >= 0 ? esc(lad[ci].name) : '<span class="muted">not in plan</span>'}</span></span>
       <span class="ld-dots" style="--pf:${ci > 0 ? (ci / (lad.length - 1)).toFixed(3) : 0}" role="img" aria-label="${ci >= 0 ? `Level ${ci + 1} of ${lad.length}` : 'Not started'}">${lad.map((e, i) => `<i class="${i < ci ? 'past' : i === ci ? 'cur' : ''}" title="${esc(e.name)}"></i>`).join('')}</span></summary>
-      <ol class="ld-list">${lad.map((e, i) => `<li class="${i === ci ? 'cur' : i < ci ? 'past' : ''} ${isAvailable(e, s.profile) ? '' : 'na'}"><a href="#/library/${e.id}">${esc(e.name)}</a>${i === ci ? ' <span class="badge badge-accent">now</span>' : ''}${isAvailable(e, s.profile) ? '' : ' <span class="small muted">needs kit / excluded</span>'}</li>`).join('')}</ol></details></li>`;
+      <ol class="ld-list">${lad.map((e, i) => `<li class="${i === ci ? 'cur' : i < ci ? 'past' : ''} ${isAvailable(e, s.profile) ? '' : 'na'}"><a href="#/library/${e.id}">${esc(e.name)}</a>${i === ci ? ' <span class="badge badge-accent">now</span>' : ''}${isAvailable(e, s.profile) ? '' : ` <span class="small muted">${esc(unavailableReason(e, s.profile)?.label || 'not for you now')}</span>`}</li>`).join('')}</ol></details></li>`;
   }).join('')}</ul>`;
 }
 

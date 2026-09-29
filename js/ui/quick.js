@@ -4,8 +4,7 @@ import { getState, update, todayISO } from '../store.js';
 import { esc, icon, mountAnims, muscleName, toast } from './components.js';
 import { GOALS, QUICK_MINUTES as MINUTES, sessionMinutes, startWorkout } from './model.js';
 import { sessionPreviewHTML } from './plan.js';
-import { EQUIP } from './onboarding.js';
-import { timeChipsHTML, previewHTML as makerPreviewHTML } from './maker.js';
+import { timeChipsHTML, previewHTML as makerPreviewHTML, kitHTML, kitRequest, toggleKit, setKitToday, profileKit, levelHTML, levelNoteHTML, shuffleNoteHTML } from './maker.js';
 
 const QGOALS = GOALS.map(g => ({ ...g, name: g.id === 'flexibility' ? 'Flexibility' : g.id === 'skill' ? 'Skills' : g.id === 'health' ? 'General' : g.name }));
 const BASE_FOCUS = [['full', 'Full body'], ['upper', 'Upper'], ['lower', 'Lower'], ['core', 'Core'], ['push', 'Push'], ['pull', 'Pull'], ['legs', 'Legs'], ['mobility', 'Mobility']];
@@ -22,7 +21,8 @@ function focusOptions() {
   return out;
 }
 const REGIONS = [['upper', 'Upper body'], ['core', 'Core'], ['lower', 'Lower body']];
-const DEFAULTS = { minutes: 20, mode: 'goal', goal: 'strength', focus: 'full', muscles: [], equipment: ['wall'], lowImpact: false, moment: null, momentMinutes: null };
+// (today's kit lives in settings.quick.kit / .equipment and is handled by maker.js; the level is chosen per visit)
+const DEFAULTS = { minutes: 20, mode: 'goal', goal: 'strength', focus: 'full', muscles: [], lowImpact: false, moment: null, momentMinutes: null };
 
 // ---------- moments (docs/moments.md §4) ----------
 const MOMENT_IDS = Object.keys(MOMENTS);
@@ -45,22 +45,24 @@ const momentMins = () => {
 };
 const MOMENT_TAISO_HELPER = 'You’ve done Morning Taisō today. This adds a little more.';
 
-let q = null, seed = 0, session = null, destroyPreview = null;
+let q = null, seed = 0, levelShift = 0, session = null, destroyPreview = null;
 
 const pressed = b => `aria-pressed="${b ? 'true' : 'false'}"`;
 const chip = (act, val, label, on, extra = '') => `<button type="button" class="chip" data-act="${act}" data-val="${esc(val)}" ${pressed(on)} ${extra}>${label}</button>`;
 
-function remember() { const picks = { ...q }; update(s => { s.settings.quick = picks; }); }
+// merge: the kit picks (settings.quick.kit / .equipment) are written by maker.js and must survive
+function remember() { const picks = { ...q }; update(s => { s.settings.quick = { ...(s.settings.quick || {}), ...picks }; }); }
 
+/** The engine request: today's kit, the level choice and the shuffle count (v1.3) travel with it and are logged. */
 function request() {
-  const p = getState().profile;
-  // The engine seeds variety from `date` only, so Shuffle appends a counter to it.
-  const r = { minutes: q.minutes, date: seed ? `${todayISO()}#${seed}` : todayISO() };
+  const r = { minutes: q.minutes, date: todayISO() };
   if (q.mode === 'moment' && MOMENTS[q.moment]) { r.minutes = momentMins(); r.moment = q.moment; }
   else if (q.mode === 'goal') r.goal = q.goal;
   else if (q.muscles.length) r.muscles = [...q.muscles];
   else r.focus = q.focus || 'full';
-  if (!p) Object.assign(r, { equipment: [...q.equipment], space: 'medium', lowImpact: !!q.lowImpact });
+  Object.assign(r, kitRequest());
+  if (levelShift) r.levelShift = levelShift;
+  if (seed) r.shuffle = seed;
   return r;
 }
 
@@ -116,11 +118,13 @@ function formHTML() {
       : isMoment ? momentHTML()
       : `<div class="chips qfocus" role="group" aria-label="Body area or focus">${focusOptions().map(([id, l]) => chip('focus', id, l, !q.muscles.length && q.focus === id)).join('')}</div>${mapHTML()}`}
   </section>
-  ${p ? '' : `<section class="section"><h2 class="section-title" id="qk">Anything to hand? <span class="tag">optional</span></h2>
-    <div class="equip-grid" role="group" aria-labelledby="qk">${EQUIP.map(([id, l, svg]) => `<button type="button" class="equip" data-act="equip" data-val="${id}" ${pressed(q.equipment.includes(id))} aria-label="${esc(l)}">
-      <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svg}</svg><span>${l}</span></button>`).join('')}</div>
-    <label class="switch-row card"><span><span class="opt-name">Low impact?</span><span class="opt-desc">No jumping — kinder to joints and neighbours.</span></span>
-      <input type="checkbox" class="switch" data-act="low" ${q.lowImpact ? 'checked' : ''}></label></section>`}
+  <section class="section qkit"><h2 class="section-title" id="qk">Kit today</h2>
+    ${kitHTML()}
+    ${p ? '' : `<label class="switch-row card"><span><span class="opt-name">Low impact?</span><span class="opt-desc">No jumping — kinder to joints and neighbours.</span></span>
+      <input type="checkbox" class="switch" data-act="low" ${q.lowImpact ? 'checked' : ''}></label>`}</section>
+  <section class="section qlevel"><h2 class="section-title" id="ql">Level</h2>
+    ${levelHTML(levelShift)}
+    <p class="small muted lvl-help">${p ? 'Usual is where your plan has you now.' : 'Usual is a gentle start.'} Easier or harder moves every exercise along its ladder, within what’s safe for you.</p></section>
   ${isMoment ? '' : `<button type="button" class="btn btn-primary btn-lg btn-block qgen" data-act="generate">${icon('play', { size: 18 })} ${session ? 'Regenerate' : 'Generate workout'}</button>`}
   <div data-preview></div>`;
 }
@@ -128,7 +132,7 @@ function formHTML() {
 function previewHTML() {
   if (!session) return '';
   const n = session.blocks.reduce((a, b) => a + b.items.length, 0);
-  const actions = `<div class="btn-row qactions"><button type="button" class="btn btn-ghost" data-act="shuffle">Shuffle</button>
+  const actions = `<div class="btn-row qactions"><button type="button" class="btn btn-ghost" data-act="shuffle">${icon('shuffle', { size: 18 })} Shuffle</button>
       <button type="button" class="btn btn-primary" data-act="start">${icon('play', { size: 18 })} Start${session.moment ? ` · ${sessionMinutes(session)} min` : ''}</button></div>`;
   // A moment reuses the "Make a workout" preview (text list + the session note, e.g. the moderate-bursts downgrade).
   if (session.moment) {
@@ -142,6 +146,7 @@ function previewHTML() {
   return `<section class="card qpreview" aria-label="Workout preview">
     <p class="eyebrow">Ready when you are</p><h2 class="card-title">${esc(session.name)}</h2>
     <p class="muted small">~${sessionMinutes(session)} min · ${n} exercise${n === 1 ? '' : 's'}</p>
+    ${levelNoteHTML(session)}${shuffleNoteHTML(session)}
     ${sessionPreviewHTML(session)}
     ${actions}</section>`;
 }
@@ -193,11 +198,12 @@ function afterTaiso(req, build) {
 
 export function render(root, ctx) {
   q = { ...DEFAULTS, ...(getState().settings.quick || {}) };
-  q.muscles = [...(q.muscles || [])]; q.equipment = [...(q.equipment || ['wall'])];
+  q.muscles = [...(q.muscles || [])];
+  delete q.equipment; delete q.kit; delete q.levelShift;   // today's kit is kept by maker.js; the level is per visit
   if (!focusOptions().some(([id]) => id === q.focus)) q.focus = 'full'; // e.g. 'flow' saved while previewing
   if (q.moment && !MOMENTS[q.moment]) q.moment = null;
   if (!['goal', 'area', 'moment'].includes(q.mode)) q.mode = 'goal';
-  session = null; seed = 0;
+  session = null; seed = 0; levelShift = 0;
   const hasProfile = !!getState().profile;
   root.innerHTML = `<div class="screen quick">
     <header class="screen-head qhead"><button class="icon-btn" data-act="back" aria-label="Back">${icon('back')}</button>
@@ -266,7 +272,9 @@ export function render(root, ctx) {
       case 'goal': q.goal = v; break;
       case 'focus': q.focus = v; q.muscles = []; break;
       case 'clear-muscles': q.muscles = []; break;
-      case 'equip': q.equipment = q.equipment.includes(v) ? q.equipment.filter(x => x !== v) : [...q.equipment, v]; break;
+      case 'kit': toggleKit(v); seed = 0; if (momentReady() || session) { generate({ scroll: false }); draw({ keep: sel }); return; } break;
+      case 'kit-reset': setKitToday(profileKit() || []); seed = 0; invalidate(); if (momentReady()) generate({ scroll: false }); draw({ keep: '#qk' }); return;
+      case 'lvl': levelShift = +v; seed = 0; if (momentReady() || session) { generate({ scroll: false }); draw({ keep: sel }); return; } break;
       case 'generate': generate(); return;
       case 'shuffle': seed++; generate(); return;
       case 'start': {

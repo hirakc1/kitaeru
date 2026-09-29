@@ -1,5 +1,5 @@
 // Library tab: searchable, filterable exercise grid with a detail sheet (#/library/:id).
-import { EXERCISES, FAMILIES, MUSCLES, byId, EQUIPMENT, TRADITIONS, flowSteps, createSkeletonPlayer, renderBodyMap } from './deps.js';
+import { EXERCISES, FAMILIES, MUSCLES, byId, EQUIPMENT, TRADITIONS, flowSteps, createSkeletonPlayer, renderBodyMap, swapAlternatives, unavailableReason } from './deps.js';
 import { getState } from '../store.js';
 import { esc, icon, openSheet, mountAnims, muscleName, familyName, ladder, isAvailable, isProgression, reducedMotion, nativeNameHTML, fmtDur, stepName, stepCount } from './components.js';
 import { cardFor, cardChipHTML, visibleCards, openCultureCard, traditionName } from './culture.js';
@@ -44,10 +44,12 @@ function gridHTML() {
       <div class="lib-thumb" data-anim="${e.id}" data-size="104"></div>
       ${e.nativeName ? nativeNameHTML(e.nativeName, { roman: false, cls: 'lib-native' }) : ''}<span class="lib-name">${esc(e.name)}</span>
       <span class="lib-meta">${esc(familyName(e.family))}${e.rung === false ? ' · Variety swap' : PROG(e) ? ` · L${e.level}` : ''}</span>
-      ${ok ? '' : `<span class="lib-na">${e.equipment.some(q => !(profile?.equipment || []).includes(q)) ? 'needs kit' : 'not for you now'}</span>`}</a></li>`;
+      ${ok ? '' : `<span class="lib-na">${esc(whyNot(e, profile)?.label || 'not for you now')}</span>`}</a></li>`;
   }).join('')}</ul><p class="small muted center">${list.length} of ${EXERCISES.length} exercises</p>`;
 }
 const FAM_ORDER = Object.keys(FAMILIES);
+/** Why a move isn't available to this profile (planner unavailableReason): { label, detail } or null. */
+function whyNot(e, profile) { try { return unavailableReason(e, profile); } catch { return null; } }
 const PROG = e => isProgression(e.family);
 
 /** "Make a workout" for the current pool filter (category / tradition / pattern); nothing on All or an empty pool. */
@@ -154,7 +156,7 @@ function detailHTML(e) {
       : card ? `<p class="origin-line"><button type="button" class="link" data-culture="${esc(card)}">Why train ${esc(TRADITIONS[card].name.toLowerCase())}?</button></p>` : ''}
     <div class="badges"><span class="badge">${esc(familyName(e.family))}</span>${PROG(e) && e.rung === false ? '<span class="badge">Variety swap</span>' : PROG(e) ? `<span class="badge">Level ${lad.indexOf(e) + 1} of ${lad.length}</span>` : ''}
       <span class="badge">${target}${e.unilateral ? ' · per side' : ''}</span><span class="badge">Difficulty ${e.difficulty}/10</span>${e.impact === 'high' ? '<span class="badge badge-gold">High impact</span>' : ''}</div>
-    ${ok ? '' : '<p class="note small">Not in your plan right now — it needs equipment you don’t have, or it loads a joint you flagged.</p>'}
+    ${ok ? '' : `<p class="note small na-note">${icon('info', { size: 18 })}<span><strong>Not in your plans right now.</strong> ${esc(whyNot(e, profile)?.detail || '')}</span></p>`}
     ${e.description ? `<p>${esc(e.description)}</p>` : ''}
     <div class="detail-muscles"><div class="bodymap" data-bodymap></div>
       <div><h3 class="h3">Muscles</h3><p class="small"><span class="key key-p"></span>${e.muscles.primary.map(muscleName).join(', ')}</p>
@@ -164,8 +166,21 @@ function detailHTML(e) {
     ${e.attribution ? `<p class="small muted cc-attr"><span class="label">Based on</span> ${esc(e.attribution[0].toUpperCase() + e.attribution.slice(1))}</p>` : ''}
     ${mistakes.length ? `<h3 class="h3">Common mistakes</h3><ul class="mistakes">${mistakes.map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
     <h3 class="h3">You’ll need</h3><p class="small">${e.equipment.length ? e.equipment.map(q => EQUIP_NAME[q] || q).join(', ') : 'Nothing but the floor'} · ${e.space} space${e.stress?.length ? ` · loads: ${e.stress.map(x => x.replace('_', ' ')).join(', ')}` : ''}</p>
+    ${similarHTML(e, profile)}
     ${lad.length > 1 && PROG(e) ? `<h3 class="h3">Ladder</h3><ol class="ladder-v">${lad.map(x => `<li class="${x.id === e.id ? 'cur' : ''}">${x.id === e.id ? `<span>${esc(x.name)}</span>` : `<a href="#/library/${x.id}">${esc(x.name)}</a>`}<span class="small muted">${PROG(x) ? `L${x.level}` : ''}</span></li>`).join('')}</ol>` : ''}
   </div>`;
+}
+
+/**
+ * Moves that are not ladders (warm-up, mobility, cardio) have no easier / harder: the detail links similar moves for the
+ * same area instead (the workout player's Swap list). Ladders keep their Ladder list.
+ */
+function similarHTML(e, profile) {
+  if (PROG(e) || e.mode === 'flow') return '';
+  let list = [];
+  try { list = swapAlternatives(e.id, profile || null, EXERCISES); } catch { list = []; }
+  if (!list.length) return '';
+  return `<h3 class="h3">Similar moves</h3><ul class="similar">${list.map(x => `<li><a href="#/library/${x.id}">${esc(x.name)}</a><span class="small muted">${esc(x.muscles.primary.map(muscleName).join(', '))}</span></li>`).join('')}</ul>`;
 }
 
 function openDetail(id) {
