@@ -1273,6 +1273,176 @@ let momentChecked = 0;
   ok(!both.length, `open book and the side-lying chest opener together in ${both.length} of ${sessions.length} sessions (${both[0]?.name})`);
 }
 
+// ---- v1.3: today's kit, level shift, swaps for non-ladder moves, unavailable reasons, shuffle
+let v13Checked = 0;
+{
+  const content = s => [...new Set(s.blocks.filter(b => b.kind !== 'warmup' && b.kind !== 'cooldown').flatMap(b => b.items.map(i => i.exerciseId)))].sort().join();
+  const items = s => s.blocks.flatMap(b => b.items);
+  const mins = s => P.estimateSeconds(s, EXERCISES) / 60;
+  const kitPro = mk({ equipment: ALL_EQ, experience: 'regular', space: 'large' });
+  const GOALS = ['strength', 'muscle', 'health', 'endurance', 'flexibility', 'skill', 'balance'];
+  const MOMS = Object.keys(P.MOMENTS);
+  const lvOf = p => (p ? P.initialLevels(p, EXERCISES) : null);
+
+  // 1. today's kit: request.equipment replaces the profile's kit for that session only
+  {
+    const wallOnly = mk({ equipment: ['wall'] });
+    const before = JSON.stringify(wallOnly);
+    const withBar = P.generateQuickSession({ minutes: 20, goal: 'strength', date: '2026-09-29', equipment: ['wall', 'pullup_bar'] }, wallOnly, lvOf(wallOnly), EXERCISES);
+    const plain = P.generateQuickSession({ minutes: 20, goal: 'strength', date: '2026-09-29' }, wallOnly, lvOf(wallOnly), EXERCISES);
+    ok(items(withBar).some(i => (byId[i.exerciseId]?.equipment || []).includes('pullup_bar')) && !items(plain).some(i => (byId[i.exerciseId]?.equipment || []).includes('pullup_bar')),
+      `kit today: adding a pull-up bar brings bar work (${content(withBar)} vs ${content(plain)})`);
+    ok(JSON.stringify(wallOnly) === before, 'kit today never changes the profile');
+    for (const req of [...GOALS.map(goal => ({ goal })), ...MOMS.map(moment => ({ moment })), { focus: 'pull' }, { category: 'strength' }]) {
+      for (const minutes of [10, 20]) {
+        const s = P.generateQuickSession({ minutes, date: '2026-09-29', equipment: [], ...req }, kitPro, lvOf(kitPro), EXERCISES);
+        const bad = items(s).filter(i => (byId[i.exerciseId]?.equipment || ALL_BY_ID[i.exerciseId]?.equipment || []).length);
+        ok(!bad.length && items(s).length >= 2, `kit today removed: ${JSON.stringify(req)} ${minutes}m uses kit ${bad.map(i => i.exerciseId)}`);
+        v13Checked++;
+      }
+    }
+    const road = P.generateQuickSession({ minutes: 20, moment: 'on_the_road', date: '2026-09-29', equipment: ['wall'] }, kitPro, lvOf(kitPro), EXERCISES);
+    ok(items(road).every(i => (byId[i.exerciseId]?.equipment || []).every(e => e === 'wall')), `on the road with today's kit: wall only (${content(road)})`);
+    ok(P.quickPoolIds({ family: 'pull_vertical', equipment: [] }, kitPro, EXERCISES).length === 0 && P.quickPoolIds({ family: 'pull_vertical' }, kitPro, EXERCISES).length > 0, 'quickPoolIds follows today\'s kit');
+  }
+
+  // 2. level shift: every ladder moves n rungs along what the profile can do; safety and injuries still apply
+  {
+    const sample = quickSample, lv = lvOf(sample);
+    const lvl = id => (byId[id] || ALL_BY_ID[id]).level;
+    for (const goal of ['strength', 'health', 'muscle', 'endurance']) for (const minutes of [10, 20, 30]) {
+      const base = P.generateQuickSession({ minutes, goal, date: '2026-09-29' }, sample, lv, EXERCISES);
+      ok(!base.levelShift, 'no level shift asked: no levelShift field');
+      ok(JSON.stringify(P.generateQuickSession({ minutes, goal, date: '2026-09-29', levelShift: 0 }, sample, lv, EXERCISES)) === JSON.stringify(base), `levelShift 0 is the usual session (${goal} ${minutes})`);
+      for (const n of [-2, -1, 1, 2]) {
+        const s = P.generateQuickSession({ minutes, goal, date: '2026-09-29', levelShift: n }, sample, lv, EXERCISES);
+        const sh = s.levelShift;
+        ok(sh && sh.requested === n && sh.applied === n && sh.changes.length > 0, `level ${n} ${goal} ${minutes}: shift reported (${JSON.stringify(sh)})`);
+        ok(sh.changes.every(c => Math.sign(lvl(c.to) - lvl(c.from)) === Math.sign(n)), `level ${n}: every change goes the right way (${JSON.stringify(sh.changes)})`);
+        ok(items(s).every(i => P.isAvailable(byId[i.exerciseId] || ALL_BY_ID[i.exerciseId], sample)), `level ${n} ${goal}: only available moves`);
+        const est = mins(s);
+        ok(Math.abs(est - minutes) <= 0.1 * minutes, `level ${n} ${goal} ${minutes}m: ${est.toFixed(1)} min`);
+        v13Checked++;
+      }
+    }
+    // the session really uses the shifted rung: strength 20 at +1 has a harder push than at 0
+    const push = s => items(s).find(i => i.family === 'push_horizontal');
+    const s0 = P.generateQuickSession({ minutes: 20, goal: 'strength', date: '2026-09-29' }, sample, lv, EXERCISES);
+    const sUp = P.generateQuickSession({ minutes: 20, goal: 'strength', date: '2026-09-29', levelShift: 1 }, sample, lv, EXERCISES);
+    const sDn = P.generateQuickSession({ minutes: 20, goal: 'strength', date: '2026-09-29', levelShift: -1 }, sample, lv, EXERCISES);
+    ok(push(s0) && push(sUp) && push(sDn) && lvl(push(sUp).exerciseId) > lvl(push(s0).exerciseId) && lvl(push(sDn).exerciseId) < lvl(push(s0).exerciseId),
+      `level ±1 moves the push-up rung (${push(sDn)?.exerciseId} < ${push(s0)?.exerciseId} < ${push(sUp)?.exerciseId})`);
+    // clamped at the ends of what exists
+    const old = mk({ age: 70, experience: 'new', primaryGoal: 'health' });
+    const low = P.generateQuickSession({ minutes: 20, goal: 'health', date: '2026-09-29', levelShift: -2 }, old, lvOf(old), EXERCISES);
+    ok(low.levelShift.limited === true, `level -2 at the bottom of a ladder is limited (${JSON.stringify(low.levelShift)})`);
+    // injuries still exclude, age still excludes, and no harder cardio behind the vigorous gate (65+, pre-screen)
+    for (const p of [mk({ injuries: ['knee'], equipment: ALL_EQ }), mk({ injuries: ['wrist', 'shoulder'], equipment: ALL_EQ, experience: 'advanced' }), mk({ age: 70, equipment: ALL_EQ, experience: 'advanced' }),
+      mk({ age: 15, equipment: ALL_EQ, experience: 'advanced' }), mk({ equipment: ALL_EQ, health: { parq: [true, false, false, false, false, false, false] }, lowImpact: true })]) {
+      for (const goal of ['strength', 'endurance', 'skill']) {
+        const s = P.generateQuickSession({ minutes: 20, goal, date: '2026-09-29', levelShift: 2 }, p, lvOf(p), EXERCISES);
+        ok(items(s).every(i => P.isAvailable(byId[i.exerciseId] || ALL_BY_ID[i.exerciseId], p)), `level +2 keeps injury / age exclusions (${goal} ${JSON.stringify(p.injuries)} ${p.age}): ${content(s)}`);
+        if (p.age >= 65 || p.health) ok(!s.levelShift.changes.some(c => c.family === 'conditioning'), `level +2: no harder cardio behind the vigorous gate (${p.age})`);
+        v13Checked++;
+      }
+    }
+    // moments: recovery moments never go harder; others follow the shift, and their "never above the level" cap moves with it
+    for (const moment of P.RECOVERY_MOMENTS) {
+      const s = P.generateQuickSession({ minutes: 15, moment, date: '2026-09-29', levelShift: 2 }, sample, lv, EXERCISES);
+      ok(s.levelShift && s.levelShift.applied === 0 && s.levelShift.limited && !s.levelShift.changes.length, `${moment}: harder is not applied (${JSON.stringify(s.levelShift)})`);
+    }
+    const mo = P.generateQuickSession({ minutes: 15, moment: 'morning', date: '2026-09-29', levelShift: -1 }, sample, lv, EXERCISES);
+    ok(mo.levelShift.applied === -1 && Math.abs(mins(mo) - 15) <= 1.5, `morning at level -1 (${mins(mo).toFixed(1)} min)`);
+    const qo = P.generateQuickSession({ minutes: 20, goal: 'strength', date: '2026-09-29', levelShift: 1 }, null, null, EXERCISES);
+    ok(qo.levelShift && qo.levelShift.changes.length > 0, 'level shift works for Quick-only users (default levels)');
+  }
+
+  // 4. swaps for moves that are not ladders: same region and purpose, available, never a flow; ladders get none
+  {
+    const REG = { chest: 'u', front_delts: 'u', side_delts: 'u', rear_delts: 'u', triceps: 'u', biceps: 'u', forearms: 'u', traps: 'u', upper_back: 'u', lats: 'u',
+      abs: 'c', obliques: 'c', lower_back: 'c', glutes: 'l', hip_flexors: 'l', quads: 'l', hamstrings: 'l', adductors: 'l', calves: 'l' };
+    const regs = e => new Set((e.muscles?.primary || []).map(m => REG[m]));
+    const LADDER = new Set(P.PROGRESSION_FAMILIES);
+    for (const p of [null, mk({ injuries: ['knee'] }), mk({ equipment: ALL_EQ, space: 'small' }), mk({ age: 70 })]) {
+      for (const e of EXERCISES) {
+        const alts = P.swapAlternatives(e.id, p, EXERCISES);
+        if (LADDER.has(e.family) || e.mode === 'flow') { ok(!alts.length, `${e.id}: ladders and flows get no swap list`); continue; }
+        ok(alts.length <= 3, `${e.id}: at most 3 swaps`);
+        for (const a of alts) {
+          ok(a.id !== e.id && a.mode !== 'flow' && [...regs(a)].some(r => regs(e).has(r)) && (p ? P.isAvailable(a, p) : P.isAvailable(a, mk({ equipment: ['wall'] }))),
+            `${e.id} -> ${a.id}: same region, available, not a flow`);
+          if (['warmup', 'mobility'].includes(e.category)) ok(['warmup', 'mobility'].includes(a.category), `${e.id} -> ${a.id}: a warm-up or mobility move swaps with its own kind`);
+          if (e.category === 'conditioning') ok(a.category === 'conditioning' && Math.abs(a.level - e.level) <= 1.5, `${e.id} -> ${a.id}: cardio at a similar level`);
+          v13Checked++;
+        }
+      }
+    }
+    const arm = P.swapAlternatives('arm_circles', null, EXERCISES), armBand = P.swapAlternatives('arm_circles', null, EXERCISES, { equipment: ['wall', 'resistance_band'] });
+    ok(arm.length >= 2 && !arm.some(a => a.id === 'leg_swings') && arm.every(a => regs(a).has('u')), `arm circles swap to upper-body moves, never leg swings (${arm.map(a => a.id)})`);
+    ok(armBand.some(a => a.id === 'shoulder_dislocate'), `arm circles with a band: the shoulder dislocate is offered (${armBand.map(a => a.id)})`);
+    const early = ['standing_hamstring_stretch', 'pancake_stretch', 'childs_pose', 'lying_leg_raise', 'hollow_body_hold'];
+    for (const id of ['cat_cow', 'calf_stretch', 'leg_swings', 'hip_flexor_stretch', 'cobra_stretch']) {
+      ok(!P.swapAlternatives(id, null, EXERCISES, { moment: 'morning' }).some(a => early.includes(a.id)), `${id}: a morning swap is never an early forward bend`);
+      ok(P.swapAlternatives(id, null, EXERCISES, { moment: 'desk' }).every(a => ['standing', 'seated'].includes(a.posture)), `${id}: a desk swap stays standing or seated`);
+    }
+    ok(!P.swapAlternatives('cat_cow', null, EXERCISES, { exclude: ['open_book'] }).some(a => a.id === 'open_book' || a.id === 'thoracic_opener'), 'swaps skip what is already in the session (and its same-drill twin)');
+  }
+
+  // 6. unavailableReason: null exactly when available; a short, specific label
+  {
+    const CODES = ['kit', 'injury', 'space', 'impact', 'age', 'bmi', 'other'];
+    for (const p of [...grid, mk({ health: { parq: [true, false, false, false, false, false, false] }, lowImpact: true, space: 'large' })]) {
+      for (const e of EXERCISES) {
+        const r = P.unavailableReason(e, p);
+        ok((r === null) === P.isAvailable(e, p), `${e.id}: reason ${r?.label} vs available ${P.isAvailable(e, p)}`);
+        if (r) ok(CODES.includes(r.code) && r.label.length <= 42 && r.detail.length > 10 && r.code !== 'other', `${e.id}: reason ${JSON.stringify(r)}`);
+        v13Checked++;
+      }
+    }
+    ok(P.unavailableReason(byId.push_up, null) === null, 'no profile: no reason');
+    const knee = mk({ injuries: ['knee'], equipment: ALL_EQ, space: 'large' });
+    ok(P.unavailableReason(byId.pistol_squat, knee)?.label === 'not with your knee', 'knee: pistol squat says "not with your knee"');
+    ok(P.unavailableReason(byId.pull_up, mk({ equipment: [] }))?.label === 'needs a pull-up bar', 'no bar: "needs a pull-up bar"');
+    ok(P.unavailableReason(byId.bear_crawl, mk({ space: 'small' }))?.label === 'needs more space', 'small space: bear crawl "needs more space"');
+    ok(P.unavailableReason(byId.burpee, mk({ lowImpact: true, space: 'large' }))?.label === 'high impact (you chose low impact)', 'chosen low impact');
+    ok(P.unavailableReason(byId.burpee, mk({ lowImpact: true, space: 'large', health: { parq: [false, false, true, false, false, false, false] } }))?.label === 'high impact (after pre-screen answers)', 'pre-screen low impact');
+    ok(P.unavailableReason(byId.wall_handstand, mk({ age: 70, equipment: ALL_EQ, space: 'large' }))?.label === 'not advised at your age', 'age: "not advised at your age"');
+  }
+
+  // 7. shuffle: deterministic; shuffle 0 is the usual session; each press differs while the pool allows; ±10% kept
+  {
+    const PROFS = [[null, 'quick-only'], [kitPro, 'kit'], [quickSample, 'sample']];
+    for (const [p, pn] of PROFS) {
+      const lv = lvOf(p);
+      for (const req of [...GOALS.map(goal => ({ goal })), ...MOMS.map(moment => ({ moment }))]) {
+        const r = { minutes: 10, date: '2026-09-29', ...req };
+        const list = [0, 1, 2, 3, 4].map(k => P.generateQuickSession({ ...r, shuffle: k }, p, lv, EXERCISES));
+        const tag = `${pn} ${JSON.stringify(req)}`;
+        ok(JSON.stringify(list[0]) === JSON.stringify(P.generateQuickSession(r, p, lv, EXERCISES)), `${tag}: shuffle 0 is the usual session`);
+        ok(JSON.stringify(P.generateQuickSession({ ...r, shuffle: 3 }, p, lv, [...EXERCISES])) === JSON.stringify(list[3]), `${tag}: shuffle 3 is reproducible from its request`);
+        const sigs = list.map(content), distinct = new Set(sigs).size;
+        const tiny = list.find(s => s.shuffle?.options != null)?.shuffle.options;
+        if (p === kitPro) ok(distinct >= 3, `${tag}: 5 shuffles give ${distinct} different workouts (need 3)`);
+        else ok(distinct >= 3 || (tiny != null && distinct === Math.min(5, tiny)), `${tag}: ${distinct} different workouts in 5 shuffles (pool options ${tiny})`);
+        for (let k = 1; k < list.length; k++) {
+          if (!list[k].shuffle.cycled) ok(!sigs.slice(0, k).includes(sigs[k]), `${tag}: shuffle ${k} repeats an earlier one (${sigs[k]})`);
+          const want = r.moment ? P.momentMinutes(r) : 10;
+          ok(Math.abs(mins(list[k]) - want) <= 0.1 * want + 0.05, `${tag} shuffle ${k}: ${mins(list[k]).toFixed(1)} min`);
+          ok(items(list[k]).every(i => P.isAvailable(byId[i.exerciseId] || ALL_BY_ID[i.exerciseId], p || mk({ equipment: ['wall'] }))), `${tag} shuffle ${k}: only available moves`);
+          if (p && ['strength', 'health', 'endurance'].includes(r.goal)) {
+            const over = items(list[k]).filter(i => !/Balance:/.test(i.notes || '') && P.PROGRESSION_FAMILIES.includes(i.family) && lv[i.family] && (byId[i.exerciseId]?.level ?? 0) > byId[lv[i.family]].level);
+            ok(!over.length, `${tag} shuffle ${k}: a shuffle never goes above the user's level (${over.map(i => i.exerciseId)})`);
+          }
+          v13Checked++;
+        }
+      }
+    }
+    // the shuffle combines with a level shift and today's kit, and is remembered with the request
+    const s = P.generateQuickSession({ minutes: 20, goal: 'strength', date: '2026-09-29', shuffle: 2, levelShift: -1, equipment: ['wall'] }, quickSample, lvOf(quickSample), EXERCISES);
+    ok(s.shuffle.n === 2 && s.levelShift.applied === -1 && items(s).every(i => (byId[i.exerciseId]?.equipment || []).every(e => e === 'wall')), 'shuffle + level shift + kit today together');
+  }
+}
+
 // ---- sample
 {
   const p = grid[0 + 13];
@@ -1286,7 +1456,7 @@ let momentChecked = 0;
 }
 
 const el = document.getElementById('summary');
-el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions · ${v12Checked} v1.2 sessions · ${goalChecked} goal-led · ${poolChecked} pool sessions · ${momentChecked} moment sessions`;
+el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions · ${v12Checked} v1.2 sessions · ${goalChecked} goal-led · ${poolChecked} pool sessions · ${momentChecked} moment sessions · ${v13Checked} v1.3 checks`;
 document.getElementById('fails').textContent = fails.join('\n') || 'All tests passed.';
 window.__results = { pass, fail, fails, sessionsChecked, worstDev, quickChecked, v12Checked, passBeforeV12, failBeforeV12, goalChecked, poolChecked, momentChecked };
 </script>

@@ -115,6 +115,12 @@ class DrillSet extends Set {
   add(id) { super.add(id); for (const t of TWIN[id] || []) super.add(t); return this; }
 }
 const drillSet = ids => { const s = new DrillSet(); for (const id of ids || []) s.add(id); return s; };
+/** Shuffle variety (v1.3): moves used by earlier shuffles of the same request go last; the order is otherwise kept. */
+const avoidLast = (ctx, arr) => {
+  if (!ctx.avoid || !ctx.avoid.size) return arr;
+  const hit = e => ctx.avoid.has(typeof e === 'string' ? e : e?.id);
+  return [...arr.filter(e => !hit(e)), ...arr.filter(hit)];
+};
 const mid = r => (r[0] + r[1]) / 2;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const patternOf = fam => PUSH.includes(fam) ? 'push' : PULL.includes(fam) ? 'pull' : LEGS.includes(fam) || fam === 'stance' ? 'legs'
@@ -294,7 +300,8 @@ function balanceBlock(ctx, target, used, info) {
   const D = ctx.D;
   const block = { kind: 'balance', title: 'Balance', items: [] };
   const tc = ctx.byId.taichi_short_flow;
-  if (tc && ctx.isAvail(tc) && !used.has(tc.id)) {
+  const skipTc = ctx.quick && ctx.avoid && ctx.avoid.has('taichi_short_flow') && ctx.vary % 2 === 0; // a shuffle (v1.3): the generic one-leg work this time
+  if (tc && ctx.isAvail(tc) && !used.has(tc.id) && !skipTc) {
     const it = flowItem(tc, ctx);
     if (blockSec({ items: [it] }, info) <= target + 30) {
       block.title = 'Balance: Tai Chi';
@@ -320,7 +327,8 @@ function balanceBlock(ctx, target, used, info) {
   // Quick: the one-leg hold leads when visible, and short blocks use single sets so something always fits
   const order = ctx.quick ? BALANCE_QUICK : BALANCE_GENERIC;
   const sets = ctx.quick && target < 180 ? 1 : 2;
-  const cands = order.map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !used.has(e.id));
+  let cands = order.map(id => ctx.byId[id]).filter(e => e && ctx.isAvail(e) && !used.has(e.id));
+  if (ctx.avoid && cands.length > 1) cands = [cands[0], ...avoidLast(ctx, rotate(cands.slice(1), ctx.vary || 0))]; // shuffle: the lead hold stays
   fillFlat(block, cands, target, target + 30, ex => flatItem(ex, { reps: [6, 10], hold: ex.id === 'taichi_golden_rooster' ? [5, 15] : [20, 40], sets, rest: ex.id === 'taichi_golden_rooster' ? 15 : 30,
     notes: [BAL_NOTE, ...injNotes(ex, D)].join(' ') }), 3, used, info);
   return block.items.length ? block : null;
@@ -330,6 +338,106 @@ const flowOrder = D => D.age >= 55 || D.goals.includes('balance') ? ['taichi_sho
 
 /** Is an exercise usable by this profile (equipment, space, impact, injuries, age/BMI exclusions)? */
 export function isAvailable(ex, profile) { return availabilityFn(profile, derive(profile))(ex); }
+
+// ---------------------------------------------------------------------------------------------
+// v1.3: why an exercise is unavailable, and swaps for moves that are not ladders
+// ---------------------------------------------------------------------------------------------
+const KIT_SHORT = { pullup_bar: 'a pull-up bar', dip_bars: 'dip bars', rings: 'rings', parallettes: 'parallettes', resistance_band: 'a band', bench: 'a chair or bench',
+  table: 'a table', wall: 'a wall', club: 'a club', stick: 'a stick', hand_weights: 'hand weights' };
+const STRONG_PARQ = [0, 1, 2, 6]; // pre-screen answers that switch low impact on (onboarding) and gate vigorous bursts (moments)
+const healthFlag = p => STRONG_PARQ.some(i => p?.health?.parq?.[i] === true) || !!p?.health?.pregnant;
+const listWords = a => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+
+/**
+ * Why `ex` is not available to this profile, or null when it is (or there is no profile). The first reason that applies,
+ * in this order: kit, injury, space, impact, age, BMI start caps, then anything else (hidden or not animated yet).
+ * Returns { code: 'kit'|'injury'|'space'|'impact'|'age'|'bmi'|'other', label, detail, kit?, injury? }: `label` is a few
+ * words for a Library card ("not with your knee"), `detail` one sentence for the detail sheet.
+ */
+export function unavailableReason(ex, profile) {
+  if (!ex || !profile) return null;
+  const D = derive(profile);
+  if (availabilityFn(profile, D)(ex)) return null;
+  const eq = new Set(profile.equipment || []);
+  const missing = (ex.equipment || []).filter(e => !eq.has(e));
+  if (missing.length) {
+    const words = missing.map(e => KIT_SHORT[e] || e.replace(/_/g, ' '));
+    return { code: 'kit', kit: missing, label: missing.length === 1 ? `needs ${words[0]}` : 'needs kit', detail: `It needs ${listWords(words)}, which ${missing.length === 1 ? 'isn’t' : 'aren’t'} in your kit.` };
+  }
+  // flows adapt step by step: they are out only when flowAdapt gives up (a hop with no swap, or too many steps dropped)
+  const steps = ex.mode === 'flow' ? (ex.sequence || []).filter(s => s.move) : [];
+  const flowOut = ex.mode === 'flow' && flowAdapt(ex, D) === null;
+  const impactHit = ex.mode === 'flow' ? flowOut && D.lowImpact && steps.some(s => s.impact === 'high' && !ex.variants?.lowImpact?.replace?.[s.move]) : D.lowImpact && ex.impact === 'high';
+  const hurt = D.inj.find(i => (INJ_EXCLUDE[i] || []).includes(ex.id) || (INJ_LEVEL_CAP[i]?.[ex.family] != null && ex.level > INJ_LEVEL_CAP[i][ex.family])
+    || (ex.mode === 'flow' ? flowOut && !impactHit && steps.some(s => (s.stress || []).includes(i)) : (ex.stress || []).includes(i) && !(INJ_ALLOW[i] && INJ_ALLOW[i][ex.id])));
+  if (hurt) {
+    const n = INJURY_NAME[hurt];
+    return { code: 'injury', injury: hurt, label: `not with your ${n}`, detail: `It loads your ${n}, which you told us about, so we leave it out for now.` };
+  }
+  if ((SPACE_RANK[ex.space] ?? 0) > (SPACE_RANK[profile.space] ?? 1)) {
+    return { code: 'space', label: 'needs more space', detail: ex.space === 'large' ? 'It needs room to jump, lunge or crawl several metres.' : 'It needs room to lie down and swing your arms and legs.' };
+  }
+  if (impactHit) {
+    const why = healthFlag(profile) ? ['after pre-screen answers', 'Your health answers mean we keep things low impact for now.']
+      : D.lowReasons.includes('age') ? ['not advised at your age', 'We keep jumping out of sessions from 65, to go easy on joints and balance.']
+      : D.lowReasons.includes('injury') ? [`not with your ${INJURY_NAME[D.lowInj[0]]}`, `Jumping is hard on your ${INJURY_NAME[D.lowInj[0]]}, so we keep things low impact.`]
+      : D.lowReasons.includes('bmi') ? ['low impact for now', 'We start with low-impact moves to go easy on your joints. Jumping can come later.']
+      : ['you chose low impact', 'You asked for low impact, and this one has jumps. Switch it off in your preferences to include it.'];
+    return { code: 'impact', label: `high impact (${why[0]})`, detail: why[1] };
+  }
+  const ageList = [...(D.age < 16 ? AGE_EXCLUDE.u16 : []), ...(D.band === 'a55' && D.exp !== 'advanced' ? AGE_EXCLUDE.a55 : []), ...(D.band === 'a65' ? AGE_EXCLUDE.a65 : []),
+    ...(D.age >= 75 || (D.age >= 65 && D.exp === 'new') ? ['radio_taiso_1'] : [])];
+  if (ageList.includes(ex.id)) return { code: 'age', label: 'not advised at your age', detail: 'We leave this one out at your age: the risk outweighs what it adds. The rest of the ladder trains the same muscles.' };
+  if (D.bmiCaps && ex.id === 'deep_squat_hold') return { code: 'bmi', label: 'build up to it first', detail: 'We start with easier leg and hip work first. This one comes later.' };
+  if (hurt) { const n = INJURY_NAME[hurt]; return { code: 'injury', injury: hurt, label: `not with your ${n}`, detail: `It loads your ${n}, which you told us about, so we leave it out for now.` }; }
+  return { code: 'other', label: 'not for you now', detail: 'It isn’t available in your plans yet.' };
+}
+
+const REGION3 = { push: 'upper', pull: 'upper', legs: 'lower', core: 'core' };
+const regionsOf = ex => new Set((ex.muscles?.primary || []).map(m => REGION3[MUSCLE_REGION[m]]).filter(Boolean));
+const GENTLE_CATS = ['warmup', 'mobility'];
+/**
+ * Swaps for a move that is not a ladder rung (warm-up, mobility, cardio, single flow forms; world-movement.md §3.3):
+ * `n` (default 3) moves for the same body region and purpose, best first. Same purpose = the same kind of move
+ * (warm-up and mobility drills swap with each other, cardio with cardio at a similar level), preferring the same mode
+ * (reps or hold) and posture. Only what the profile can do (kit: opts.equipment for today's kit, space, injuries, age,
+ * impact and the gates) and, with opts.moment, what that moment allows (posture, impact, exclusions). opts.exclude: ids
+ * already in the session. Returns exercises (from the visible library).
+ */
+export function swapAlternatives(exerciseId, profile, library, opts = {}) {
+  const info = libInfo(library);
+  const ex = info.byId[exerciseId] || ALL_BY_ID[exerciseId];
+  if (!ex || ex.mode === 'flow' || PROGRESSION_FAMILIES.includes(ex.family)) return []; // ladders keep Easier / Harder
+  const base = quickBase({ equipment: opts.equipment }, profile);
+  const ok = availabilityFn(base, derive(base));
+  const R = MOMENT_RULES[momentId(opts.moment)] || {};
+  const momentOk = e => (!R.posture || R.posture.includes(e.posture)) && !(R.noImpact && e.impact === 'high') && !(R.exclude || []).includes(e.id);
+  const skip = new Set([exerciseId, ...(opts.exclude || []), ...(TWIN[exerciseId] || [])]);
+  const gentle = GENTLE_CATS.includes(ex.category);
+  const flowForm = /^flow_/.test(ex.family);
+  const sameKind = e => {
+    if (e.mode === 'flow' || e.rung === false) return false;
+    if (/^flow_/.test(e.family) && !flowForm) return false; // tradition forms only swap among themselves
+    if (gentle) return GENTLE_CATS.includes(e.category) && (!PROGRESSION_FAMILIES.includes(e.family) || e.level <= 3); // gentle rotation drills count
+    if (ex.category === 'conditioning') return e.category === 'conditioning' && Math.abs(e.level - ex.level) <= 1.5 && !PROGRESSION_FAMILIES.includes(e.family);
+    return e.category === ex.category && !PROGRESSION_FAMILIES.includes(e.family);
+  };
+  const reg = regionsOf(ex), prim = new Set(ex.muscles?.primary || []), sec = new Set(ex.muscles?.secondary || []);
+  const scored = [];
+  for (const e of Object.values(info.byId)) {
+    if (skip.has(e.id) || (TWIN[e.id] || []).some(t => skip.has(t)) || !sameKind(e) || !ok(e) || !momentOk(e)) continue;
+    const er = regionsOf(e);
+    const shareReg = [...er].some(r => reg.has(r));
+    if (reg.size && !shareReg) continue; // the same body region
+    const ep = e.muscles?.primary || [], es = e.muscles?.secondary || [];
+    const score = 3 * ep.filter(m => prim.has(m)).length + ep.filter(m => sec.has(m)).length + es.filter(m => prim.has(m)).length
+      + (shareReg ? 3 : 0) + (e.mode === ex.mode ? 3 : 0) + (e.category === ex.category ? 1 : 0) + (e.posture === ex.posture ? 1 : 0);
+    if (score >= 6) scored.push({ e, score }); // at least the region and the kind of move (dynamic reps, or a held stretch)
+  }
+  // same score: the nearer level for cardio (intensity); otherwise a steady order
+  scored.sort((a, b) => b.score - a.score || (b.e.mode === ex.mode) - (a.e.mode === ex.mode) || (ex.category === 'conditioning' ? Math.abs(a.e.level - ex.level) - Math.abs(b.e.level - ex.level) : 0) || a.e.id.localeCompare(b.e.id));
+  return scored.slice(0, opts.n || 3).map(x => x.e);
+}
 
 const infoCache = new WeakMap();
 /** Family ladders and lookups for a library, after the accuracy gate: hidden items are not rungs (per preview state). */
@@ -781,7 +889,8 @@ function template(key, variant, weekIndex) {
 // Session builder
 // =============================================================================================
 function resolveSlot(slot, ctx, used) {
-  const list = [...slot.fams];
+  // shuffle retries (v1.3) try the slot's families in another order
+  const list = ctx.vary && slot.fams.length > 1 ? rotate(slot.fams, ctx.vary) : [...slot.fams];
   if (!slot.variant) for (const f of slot.fams) for (const fb of (FALLBACK[f] || [])) if (!list.includes(fb)) list.push(fb);
   for (const [i, f] of list.entries()) {
     const cur = ctx.levelsEx[f];
@@ -792,14 +901,28 @@ function resolveSlot(slot, ctx, used) {
       if (slot.unilateral && c.some(e => e.unilateral)) c = c.filter(e => e.unilateral);
       if (c.length) return nearest(c, cur.level);
     }
-    if (!used.has(cur.id) && !(slot.unilateral && !cur.unilateral && ctx.avail[f].some(e => e.unilateral && !used.has(e.id) && Math.abs(e.level - cur.level) <= 2))) return cur;
+    if (!used.has(cur.id) && !(slot.unilateral && !cur.unilateral && ctx.avail[f].some(e => e.unilateral && !used.has(e.id) && Math.abs(e.level - cur.level) <= 2))) return ctx.avoid ? shuffledPick(slot, f, cur, ctx, used) : cur;
     if (slot.variant || isFallback) {
       let c = ctx.avail[f].filter(e => !used.has(e.id) && e.level <= cur.level + 1);
       if (slot.unilateral && c.some(e => e.unilateral)) c = c.filter(e => e.unilateral);
+      if (ctx.avoid && c.some(e => !ctx.avoid.has(e.id))) c = c.filter(e => !ctx.avoid.has(e.id)); // shuffle: something not seen yet
       if (c.length) return nearest(c, cur.level - (isFallback ? 1 : 0));
     }
   }
   return null;
+}
+
+/**
+ * A shuffled Quick session (v1.3): a variation at the user's level or up to one and a half levels below (never above),
+ * preferring moves the earlier shuffles did not use; each retry (ctx.vary) takes the next one.
+ */
+function shuffledPick(slot, f, cur, ctx, used) {
+  let win = ctx.avail[f].filter(e => !used.has(e.id) && e.level <= cur.level && e.level >= cur.level - 1.5);
+  if (slot.unilateral && win.some(e => e.unilateral)) win = win.filter(e => e.unilateral);
+  win.sort((a, b) => b.level - a.level);
+  const fresh = win.filter(e => !ctx.avoid.has(e.id));
+  const list = fresh.length ? fresh : win;
+  return list.length ? list[(ctx.vary || 0) % list.length] : cur;
 }
 
 function muscleLoad(ex) {
@@ -1188,7 +1311,8 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
     if (s.pv && !hasPV) continue; // no bar: the horizontal-pull slot carries the pulling (§7)
     if (s.minLevel && !((ctx.levelsEx[s.fams[0]]?.level ?? 0) >= s.minLevel)) continue; // e.g. loaded rotation only from level 4
     curSlot = s;
-    const ex = s.fixed ? (used.has(s.fixed.id) ? null : s.fixed) : s.prefer && !used.has(s.prefer.id) && ctx.isAvail(s.prefer) ? s.prefer : resolveSlot(s, ctx, used);
+    const preferOk = s.prefer && !used.has(s.prefer.id) && ctx.isAvail(s.prefer) && !(ctx.avoid && ctx.avoid.has(s.prefer.id) && ctx.vary % 2 === 1);
+    const ex = s.fixed ? (used.has(s.fixed.id) ? null : s.fixed) : preferOk ? s.prefer : resolveSlot(s, ctx, used);
     if (!ex) continue;
     addPart(ex, s.role, (PRI[ex.family] ?? 9) + (s.variant ? 10 : 0) + (s.ess ? 0 : 20) - (s.hp2 ? 5 : 0), s.ess, tierOf(s));
   }
@@ -1889,6 +2013,7 @@ function quickTemplate(focus, muscles, ctx, seed, minutes) {
         : [c.prim, nonCore(c), rel(c), c.sec, -c.d, -(PRI[c.fam] ?? 9)];
       const cmp = (a, b) => { const ka = key(a), kb = key(b); for (let q = 0; q < ka.length; q++) if (ka[q] !== kb[q]) return kb[q] - ka[q]; return 0; };
       pool = pool.sort(cmp);
+      if (ctx.avoid) pool = [...pool.filter(c => !ctx.avoid.has(c.ex.id)), ...pool.filter(c => ctx.avoid.has(c.ex.id))]; // a shuffle (v1.3): unused variations first
       if (!pool.length) return null;
       const chosen = [];
       const perFam = {};
@@ -1926,8 +2051,11 @@ function quickTemplate(focus, muscles, ctx, seed, minutes) {
       const region = cnt('legs') >= Math.max(cnt('push') + cnt('pull'), 1) ? 'lower' : cnt('push') + cnt('pull') > 0 ? 'upper' : 'full';
       return { ...hard(focusTags.length ? focusTags : ['core'], slots), targeted: true, region };
     }
-    default: return hard(['push', 'pull', 'legs', 'core'], [T(['push_horizontal'], 'main', 1), T(HPULL, 'main', 1), T(['squat'], 'main', 1),
-      T(['hinge'], 'main', 2), T([core[0]], 'core', 2), T(['pull_vertical'], 'main', 3), T(['push_vertical', 'dip'], 'main', 3), T(['calves'], 'acc', 3), T([core[1]], 'core', 3)]);
+    default: { // a shuffle (v1.3) may lead with the hinge instead of the squat
+      const [legA, legB] = ctx.avoid && seed % 2 ? ['hinge', 'squat'] : ['squat', 'hinge'];
+      return hard(['push', 'pull', 'legs', 'core'], [T(['push_horizontal'], 'main', 1), T(HPULL, 'main', 1), T([legA], 'main', 1),
+      T([legB], 'main', 2), T([core[0]], 'core', 2), T(['pull_vertical'], 'main', 3), T(['push_vertical', 'dip'], 'main', 3), T(['calves'], 'acc', 3), T([core[1]], 'core', 3)]);
+    }
   }
 }
 
@@ -1969,23 +2097,28 @@ function goalTemplate(goal, ctx, seed, minutes, quick) {
     case 'muscle': {
       const near = ids => { const e = pick(ids); return e && e.level <= (ctx.levelsEx[e.family]?.level ?? e.level) + 1 ? e : null; }; // research §1.1 muscle: 6-20 reps near failure, 3-4 sets; harder variants, slow eccentrics, accessories, supersets
       const tempo = { note: TEMPO_NOTE, reps: [6, 15] }; // 6-15: the efficient middle of the 6-20 range, so a short session fits more sets
+      const legTier = ctx.avoid && seed % 2 ? [2, 1] : [1, 2]; // a shuffle (v1.3) may lead with the hinge
       quick.noAgeBalance = true; // a one-off hypertrophy session: the 40+ balance item belongs to the plan's other sessions
       // breadth first (2 sets each), then up to 3-4 sets: several exercises per muscle suit hypertrophy better than one long lift
       return { kind: 'hard', name: '', focus: ['push', 'pull', 'legs', 'core'], targeted: true, ...(minutes >= 15 ? { fmt: 'superset' } : {}), slots: [
         T(['push_horizontal'], 'main', 1, { prefer: up(['push_horizontal']), ...tempo }),
         T(['pull_vertical', ...HPULL], 'main', 1, { prefer: up(['pull_vertical']) || up(HPULL), ...tempo }),
-        T(['squat'], 'main', 1, { prefer: near(['bulgarian_split_squat']) || up(['squat']), ...tempo }),
-        T(['hinge'], 'main', 2, { prefer: near(['hip_thrust']) || up(['hinge']), reps: [6, 15] }),
+        T(['squat'], 'main', legTier[0], { prefer: near(['bulgarian_split_squat']) || up(['squat']), ...tempo }),
+        T(['hinge'], 'main', legTier[1], { prefer: near(['hip_thrust']) || up(['hinge']), reps: [6, 15] }),
         T(['dip', 'push_vertical'], 'main', 2, { prefer: near(['ring_dip']) || near(['bar_dip']) || near(['bench_dip']) || up(['push_vertical']), ...tempo }),
         T(HPULL, 'main', 2, { prefer: up(HPULL), ...tempo }),
         T(['calves'], 'acc', 3, { prefer: up(['calves']) }), T(['core_anterior'], 'core', 3, { prefer: up(['core_anterior']) })] };
     }
     case 'health': { // research §1.1 / §1.3 health: a bit of everything at an easy-to-moderate dose
       const odd = seed % 2;
-      const drills = rotate(['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'worlds_greatest_stretch', 'cat_cow'].map(id => ctx.byId[id])
-        .filter(e => e && ctx.isAvail(e) && (e.family !== 'rotation' || e.level <= 3)), seed);
+      const drills = avoidLast(ctx, rotate(['open_book', 'thread_the_needle', 'seated_trunk_rotation', 'worlds_greatest_stretch', 'cat_cow'].map(id => ctx.byId[id])
+        .filter(e => e && ctx.isAvail(e) && (e.family !== 'rotation' || e.level <= 3)), seed));
       const cav = ctx.avail.conditioning, clvl = ctx.levelsEx.conditioning?.level ?? 2;
-      const cardio = nearest(cav.filter(e => e.level <= clvl), clvl) || nearest(cav, 1);
+      let cardio = nearest(cav.filter(e => e.level <= clvl), clvl) || nearest(cav, 1);
+      if (ctx.avoid) { // shuffle: another easy cardio piece at or below the user's level
+        const easy = avoidLast(ctx, cav.filter(e => e.level <= Math.max(clvl, cav[0]?.level ?? 1)).sort((a, b) => b.level - a.level));
+        if (easy.length) cardio = easy[(ctx.vary || 0) % Math.min(2, easy.length)];
+      }
       quick.warmAvoid = new Set([drills[0]?.id, cardio?.id].filter(Boolean));
       if (minutes < 30) quick.cond = 0;
       // the hinge leads (strength leads with the squat), so the two goals share at most the push or the pull on any date
@@ -2031,7 +2164,7 @@ function goalTemplate(goal, ctx, seed, minutes, quick) {
       if (minutes >= 15) { quick.flow = Math.round(0.4 * secs); quick.flowOrder = ['baduanjin_sequence', 'taichi_short_flow']; }
       const nDyn = minutes <= 5 ? 1 : 2;
       if (minutes <= 5) quick.mobSets = 1; // 5 min: more areas, one hold each
-      const dyn = rotate(FLEX_DYNAMIC.filter(id => ctx.isAvail(ctx.byId[id])), seed), holds = rotate(FLEX_HOLDS.filter(id => ctx.isAvail(ctx.byId[id])), seed >> 3);
+      const dyn = avoidLast(ctx, rotate(FLEX_DYNAMIC.filter(id => ctx.isAvail(ctx.byId[id])), seed)), holds = avoidLast(ctx, rotate(FLEX_HOLDS.filter(id => ctx.isAvail(ctx.byId[id])), seed >> 3));
       quick.mobOrder = nDyn === 1 ? [dyn[0], ...holds, ...dyn.slice(1)].filter(Boolean) // a dynamic opener, then holds with the other drills between them
         : [dyn[0], holds[0], dyn[1], ...holds.slice(1), ...dyn.slice(2)].filter(Boolean);
       return { kind: 'flow', name: '', focus: ['mobility'], slots: [] };
@@ -2041,7 +2174,7 @@ function goalTemplate(goal, ctx, seed, minutes, quick) {
       const lvl = ctx.levelsEx.conditioning?.level ?? 2;
       const close = [...av].sort((a, b) => Math.abs(a.level - lvl) - Math.abs(b.level - lvl) || a.level - b.level).slice(0, 5);
       const n = minutes <= 5 ? 2 : minutes <= 10 ? 3 : 4;
-      const chosen = rotate(close, seed).slice(0, n).sort((a, b) => a.level - b.level);
+      const chosen = avoidLast(ctx, rotate(close, seed)).slice(0, n).sort((a, b) => a.level - b.level);
       quick.warmAvoid = new Set(chosen.map(e => e.id));
       quick.cond = 0;
       if (minutes <= 5) quick.cool = 45;
@@ -2101,7 +2234,7 @@ function poolItems(filter, ctx, library) {
 
 /** Ids of what a pool session would draw from (UI: hide a "make a workout" button when empty). */
 export function quickPoolIds(filter = {}, profile = null, library) {
-  const p = profile ? { ...profile } : { ...QUICK_DEFAULT, equipment: Array.isArray(filter.equipment) ? filter.equipment : ['wall'], lowImpact: !!filter.lowImpact };
+  const p = quickBase(filter, profile);
   return poolItems(filter, buildCtx(p, library), library).map(e => e.id);
 }
 
@@ -2119,7 +2252,7 @@ function poolBlock(ctx, P, used, info, M) {
   const block = { kind: P.kind, title: P.title, items: [] };
   const target = P.sec;
   for (const ex of P.flows) {
-    if (used.has(ex.id)) continue;
+    if (used.has(ex.id) || (ctx.avoid && ctx.avoid.has(ex.id) && ctx.vary % 2 === 0)) continue; // a shuffle (v1.3): the single forms this time
     const left = target - blockSec(block, info);
     if (left < 60) break;
     let it = flowItem(ex, ctx);
@@ -2162,11 +2295,11 @@ function poolTemplate(filter, ctx, seed, minutes, quick, library) {
   // last resort for any gentle pool: easy whole-body drills, so a small pool (small space, injuries) still fills its time
   const okFill = id => ctx.byId[id] && ctx.isAvail(ctx.byId[id]) && !items.includes(ctx.byId[id]);
   const fillMain = (fill.ids || []).filter(okFill), fillTail = POOL_TAIL.filter(id => okFill(id) && !fillMain.includes(id));
-  const fillIds = [...rotate(fillMain, seed), ...fillTail].map(id => ctx.byId[id]); // the related filler first (varied by day), the easy tail last
+  const fillIds = [...avoidLast(ctx, rotate(fillMain, seed)), ...fillTail].map(id => ctx.byId[id]); // the related filler first (varied by day), the easy tail last
   if (gentle.length || flows.length || (!load.length && !skills.length)) {
     const kind = filter.tradition ? (flows.length ? 'flow' : 'mobility') : items.length ? GENTLE_KIND[filter.category] || 'mobility' : 'mobility';
     const title = filter.tradition ? TRADITIONS[filter.tradition].name : CATEGORY_LABEL[filter.category] || ALL_FAMILIES[filter.family]?.name || 'Practice';
-    quick.pool = { kind, title, flows: [...flows].sort((a, b) => a.level - b.level), singles: rotate([...gentle].sort(byT), 0), filler: fillIds,
+    quick.pool = { kind, title, flows: [...flows].sort((a, b) => a.level - b.level), singles: avoidLast(ctx, rotate([...gentle].sort(byT), ctx.vary || 0)), filler: fillIds,
       sec: Math.round(gentleShare * content) };
   }
   const T = (fams, role, tier, extra = {}) => S(fams, role, tier <= 2, { tier, ...extra });
@@ -2180,7 +2313,11 @@ function poolTemplate(filter, ctx, seed, minutes, quick, library) {
   for (const f of fams) {
     const fl = load.filter(e => e.family === f);
     const lvl = ctx.levelsEx[f]?.level ?? fl[0].level;
-    const ranked = [...fl].sort((a, b) => Math.abs(a.level - lvl) - Math.abs(b.level - lvl) || a.level - b.level);
+    let ranked = [...fl].sort((a, b) => Math.abs(a.level - lvl) - Math.abs(b.level - lvl) || a.level - b.level);
+    if (ctx.avoid) { // shuffle: another move at or just below the user's level leads (never a harder one)
+      const near = avoidLast(ctx, rotate(ranked.filter(e => e.level <= lvl && lvl - e.level <= 1.5), ctx.vary || 0));
+      ranked = [...near, ...ranked.filter(e => !near.includes(e))];
+    }
     // cardio: the near-level moves form one circuit (tier 1); otherwise one lead item per family
     ranked.forEach((ex, i) => slots.push(T([f], role(f), (cond ? i < 4 && Math.abs(ex.level - lvl) <= 1.5 : i === 0) ? (n++ < (cond ? 4 : 3) ? 1 : 2) : Math.abs(ex.level - lvl) <= 1 ? 3 : 4,
       { fixed: ex, ...(minutes <= 10 ? { minSets: 1 } : {}), ...(hold ? { hold } : {}) }))); // short sessions: breadth before sets
@@ -2347,7 +2484,7 @@ const TRAVEL_KIT = ['wall', 'bench', 'table'];
 const TRAVEL_BAN = ['bear_crawl', 'burpee', 'dead_hang'];
 const travelLibs = new WeakMap();
 
-function momentSession(request, profile, levels, library) {
+function momentSession(request, profile, levels, library, V = {}) {
   const id = momentId(request.moment);
   const meta = MOMENTS[id], R = MOMENT_RULES[id] || {};
   const minutes = momentMinutes(request);
@@ -2365,25 +2502,28 @@ function momentSession(request, profile, levels, library) {
     let lib = travelLibs.get(library);
     if (!lib) { lib = (library || []).filter(e => !TRAVEL_BAN.includes(e.id)); travelLibs.set(library, lib); }
     const kit = eq => (eq || []).filter(e => TRAVEL_KIT.includes(e));
-    const prof = profile ? { ...profile, lowImpact: true, space: 'small', equipment: kit(profile.equipment) } : null;
-    const req = { minutes, goal: 'health', focus: 'full', date: `${request.date || ''}|moment:${id}`, equipment: kit(Array.isArray(request.equipment) ? request.equipment : ['wall']),
-      space: 'small', lowImpact: true };
-    const sess = generateQuickSession(req, prof, levels, lib);
+    const today = Array.isArray(request.equipment) ? request.equipment : null; // v1.3: today's kit wins over the profile's
+    const prof = profile ? { ...profile, lowImpact: true, space: 'small', equipment: kit(today || profile.equipment) } : null;
+    const req = { minutes, goal: 'health', focus: 'full', date: `${request.date || ''}|moment:${id}`, equipment: kit(today || (profile ? profile.equipment : ['wall'])),
+      space: 'small', lowImpact: true, ...(request.levelShift ? { levelShift: request.levelShift } : {}) };
+    const sess = quickOnce(req, prof, levels, lib, V);
     return finish(sess, { focus: [...new Set([...sess.focus, 'travel'])] });
   }
 
-  const base = profile ? { ...profile } : { ...QUICK_DEFAULT, equipment: Array.isArray(request.equipment) ? request.equipment : ['wall'],
-    space: request.space || 'medium', lowImpact: !!request.lowImpact };
+  const base = quickBase(request, profile);
   if (R.space && (SPACE_RANK[base.space] ?? 1) > SPACE_RANK[R.space]) base.space = R.space;
   if (R.forceLowImpact) base.lowImpact = true;
   const qp = { ...base, goals: ['health'], primaryGoal: 'health', minutesPerSession: minutes, _quick: true };
   const ctx = buildCtx(qp, library);
   resolveLevels(ctx, qp, profile ? levels : null, library);
+  // recovery moments stay below the user's level on purpose: "harder" is not applied there
+  const shift = shiftLevels(ctx, request, { noHarder: RECOVERY_MOMENTS.includes(id), profile });
   ctx.phase = { phase: 'build', blockWeek: 3, reentry: null, calibration: false, cycleLen: 5, blockStart: 0 };
   ctx.quick = true;
   ctx.longHolds = R.longHolds || 0;
+  Object.assign(ctx, { vary: V.vary || 0, avoid: V.avoid || null });
   const D = ctx.D, info = ctx.info;
-  const seed = hashStr(JSON.stringify([request.date || '', minutes, 'moment', id, request.equipment || null, request.space || null, !!request.lowImpact])) % 9973;
+  const seed = hashStr(JSON.stringify([request.date || '', minutes, 'moment', id, request.equipment || null, request.space || null, !!request.lowImpact, ...(V.salt ? [V.salt] : [])])) % 9973;
 
   // --- the moment's filters, on top of availability (which already applies kit, space, injuries, age, BMI, low impact and the gates)
   const LOAD_FAM = [...PROGRESSION_FAMILIES, 'conditioning', 'stance'];
@@ -2398,7 +2538,7 @@ function momentSession(request, profile, levels, library) {
     && !(R.noLoad && ['strength', 'conditioning', 'core', 'skill'].includes(ex.category) && !/^flow_/.test(ex.family) && ex.id !== 'marching_in_place') && levelOk(ex);
   const used = new DrillSet();
   const pick = ids => ids.map(i => ctx.byId[i]).filter(e => ok(e) && !used.has(e.id));
-  const firstOf = alts => pick(alts).sort((a, b) => b.level - a.level)[0] || null; // the hardest allowed of the alternatives (never above the level)
+  const firstOf = alts => avoidLast(ctx, pick(alts).sort((a, b) => b.level - a.level))[0] || null; // the hardest allowed of the alternatives (never above the level)
   // static stretches only: timed dynamic moves (marching, bursts) keep their length
   const capHold = it => { if (R.holdCap && it.holdSec && !it.flow && ctx.byId[it.exerciseId]?.category === 'mobility') it.holdSec = [Math.min(it.holdSec[0], R.holdCap - 10), Math.min(it.holdSec[1], R.holdCap)]; return it; };
   const gentle = (ex, sets = 1, o = {}) => {
@@ -2438,7 +2578,8 @@ function momentSession(request, profile, levels, library) {
   const blocks = [];
   const push = b => { if (b && b.items.length) blocks.push(b); return b; };
   const secOf = () => blocks.reduce((t, b) => t + blockSec(b, info), 0);
-  const rot = arr => rotate(arr, seed);
+  const rot = arr => avoidLast(ctx, rotate(arr, seed));
+  const vr = arr => (ctx.avoid ? rot(arr) : arr); // lists kept in order, varied only when shuffling (v1.3)
   const mainBlock = (kind, title) => { const b = { kind, title, items: [] }; blocks.push(b); return b; };
   let main = null;
   const extra = {};
@@ -2486,12 +2627,12 @@ function momentSession(request, profile, levels, library) {
       break;
     }
     case 'after_meal': { // no warm-up: continuous, standing, easy; Tai Chi or Morning Taisō (no hops) first; openers to finish
-      push(flowFirst(['taichi_short_flow', 'radio_taiso_1'], Math.round(0.7 * T)));
+      push(flowFirst(avoidLast(ctx, ['taichi_short_flow', 'radio_taiso_1']), Math.round(0.7 * T)));
       main = mainBlock('mobility', 'Keep moving');
       const pool = pick(MP.meal);
-      fillTo(main, [...pool.slice(0, 1), ...rot(pool.slice(1))], T - secOf() - 60, ex => ex.id === 'marching_in_place' ? gentle(ex, 1, { hold: [60, 90] })
+      fillTo(main, ctx.avoid ? rot(pool) : [...pool.slice(0, 1), ...rot(pool.slice(1))], T - secOf() - 60, ex => ex.id === 'marching_in_place' ? gentle(ex, 1, { hold: [60, 90] })
         : gentle(ex, 1, { reps: [10, 15], note: ['bodyweight_squat', 'box_squat'].includes(ex.id) ? 'Half range, easy pace.' : 'Easy, steady pace.' }));
-      fillTo(mainBlock('cooldown', 'Open up'), pick(['rt_stretch_up', 'arm_circles', 'rt_side_bend', 'hip_circles']), 60, ex => gentle(ex, 1, { reps: [6, 8] }), 1);
+      fillTo(mainBlock('cooldown', 'Open up'), vr(pick(['rt_stretch_up', 'arm_circles', 'rt_side_bend', 'hip_circles'])), 60, ex => gentle(ex, 1, { reps: [6, 8] }), 1);
       break;
     }
     case 'before_sport': { // RAMP: raise, activate, mobilise, potentiate (moments.md §1.6, §3.3 step 7); never to fatigue
@@ -2499,14 +2640,14 @@ function momentSession(request, profile, levels, library) {
       const pot = !D.lowImpact && D.age < 65 && minutes >= 10;
       const share = { raise: 0.2 + (D.age >= 65 ? 0.15 : 0), activate: 0.3 + (!pot && D.age < 65 ? 0.15 : 0), potentiate: pot ? 0.15 : 0 };
       if (!flow5) {
-        fillTo(mainBlock('warmup', 'Raise'), pick(MP.raise), Math.round(share.raise * T), ex => gentle(ex, 1, { hold: [30, 45], reps: [20, 30], note: 'Build from easy to moderate.' }), 1);
-        fillTo(mainBlock('main', 'Activate'), pick(MP.activate), Math.round(share.activate * T), ex => strengthIt(ex, 3, [6, 10], 'Controlled; stop well short of tiring.'), 1);
+        fillTo(mainBlock('warmup', 'Raise'), vr(pick(MP.raise)), Math.round(share.raise * T), ex => gentle(ex, 1, { hold: [30, 45], reps: [20, 30], note: 'Build from easy to moderate.' }), 1);
+        fillTo(mainBlock('main', 'Activate'), vr(pick(MP.activate)), Math.round(share.activate * T), ex => strengthIt(ex, 3, [6, 10], 'Controlled; stop well short of tiring.'), 1);
       }
       main = mainBlock('mobility', 'Mobilise');
       // dynamic moves only; any static hold elsewhere stays <= 30 s
-      fillTo(main, pick(MP.mobilise).filter(e => e.mode !== 'hold'), T - secOf() - Math.round(share.potentiate * T), ex => gentle(ex, 1, { reps: [6, 10] }), 2);
+      fillTo(main, vr(pick(MP.mobilise).filter(e => e.mode !== 'hold')), T - secOf() - Math.round(share.potentiate * T), ex => gentle(ex, 1, { reps: [6, 10] }), 2);
       if (pot) {
-        fillTo(mainBlock('conditioning', 'Potentiate'), pick([...MP.potentiate, 'jumping_jack', 'bodyweight_squat']), Math.round(share.potentiate * T), ex => ({ ...flatItem(ex), reps: null, holdSec: [10, 10], sets: 2,
+        fillTo(mainBlock('conditioning', 'Potentiate'), vr(pick([...MP.potentiate, 'jumping_jack', 'bodyweight_squat'])), Math.round(share.potentiate * T), ex => ({ ...flatItem(ex), reps: null, holdSec: [10, 10], sets: 2,
           restSec: 30, rir: null, notes: 'Fast and crisp for 10 s, then walk it off. Never to fatigue.' }), 2);
       }
       break;
@@ -2554,6 +2695,7 @@ function momentSession(request, profile, levels, library) {
   sess.blocks.forEach(b => b.items.forEach(it => { if (it.exerciseId !== 'paced_breathing') capHold(it); }));
   const tags = new Set(sess.blocks.flatMap(b => [b.kind, ...b.items.map(i => patternOf(i.family))]));
   sess.focus = ['push', 'pull', 'legs', 'core', 'conditioning', 'balance', 'flow', 'mobility', 'breath'].filter(f => tags.has(f));
+  if (shift) extra.levelShift = shift;
   return finish(sess, extra);
 }
 
@@ -2573,7 +2715,92 @@ function quickName(minutes, focus, muscles, goal, goalGiven) {
  * Deterministic: seeded from request.date and the request fields.
  */
 export function generateQuickSession(request = {}, profile = null, levels = null, library) {
-  if (momentId(request.moment)) { if (profile) derive(profile); return momentSession(request, profile, levels, library); } // a moment wins over everything else (moments.md §3.1)
+  if (profile) derive(profile); // ages 13+
+  const k = shuffleOf(request);
+  if (!k) return quickOnce(request, profile, levels, library);
+  return shuffled(request, k, profile, levels, library);
+}
+
+/** The profile a Quick request is built for: the user's (with today's kit when the request carries one), or the Quick default. */
+function quickBase(request, profile) {
+  const kit = Array.isArray(request.equipment) ? request.equipment.filter(e => typeof e === 'string') : null;
+  return profile ? { ...profile, ...(kit ? { equipment: [...kit] } : {}) }
+    : { ...QUICK_DEFAULT, equipment: kit || ['wall'], space: request.space || 'medium', lowImpact: !!request.lowImpact };
+}
+
+// ---------------------------------------------------------------------------------------------
+// v1.3: level shift and shuffle
+// ---------------------------------------------------------------------------------------------
+/**
+ * Move every ladder (LEVEL_FAMILIES) request.levelShift rungs (-2..+2) along what this profile can do: ctx.avail already
+ * applies kit, space, injuries (and their level caps), age, BMI and low impact, so a shift never reaches an excluded move.
+ * Extra safety: no harder cardio after pre-screen flags, pregnancy, 65+ or BMI 35+ (the moments' vigorous gate), and
+ * `noHarder` (recovery moments) keeps only the easier direction. Returns null when no shift was asked for.
+ */
+function shiftLevels(ctx, request, { noHarder = false, profile = null } = {}) {
+  const asked = clamp(Math.round(Number(request.levelShift) || 0), -2, 2);
+  if (!asked) return null;
+  const D = ctx.D;
+  const gated = D.age >= 65 || D.bmi35 || [0, 1, 2, 6].some(i => profile?.health?.parq?.[i] === true) || !!profile?.health?.pregnant;
+  const n = noHarder ? Math.min(0, asked) : asked;
+  const out = { requested: asked, applied: n, changes: [], limited: n !== asked };
+  if (!n) return out;
+  for (const fam of LEVEL_FAMILIES) {
+    const cur = ctx.levelsEx[fam];
+    const lad = ctx.avail[fam];
+    const i = cur ? lad.indexOf(cur) : -1;
+    if (i < 0) continue;
+    const want = fam === 'conditioning' && gated && n > 0 ? 0 : n;
+    const j = clamp(i + want, 0, lad.length - 1);
+    if (j !== i + n) out.limited = true;
+    if (j === i) continue;
+    ctx.levelsEx[fam] = lad[j];
+    out.changes.push({ family: fam, from: cur.id, to: lad[j].id });
+  }
+  return out;
+}
+
+const shuffleOf = r => clamp(Math.floor(Number(r?.shuffle) || 0), 0, 999);
+/** What a shuffle must change: the moves outside the warm-up and cool-down. */
+const contentIds = sess => [...new Set(sess.blocks.filter(b => b.kind !== 'warmup' && b.kind !== 'cooldown').flatMap(b => b.items.map(i => i.exerciseId)))].sort();
+const shuffleCache = new Map();
+const SHUFFLE_TRIES = 8;
+/**
+ * request.shuffle = k (v1.3): the k-th shuffle of a request. Deterministic: shuffle 0 is the normal session; each next one
+ * prefers moves the earlier ones did not use and retries (other variations and family orders) until its content differs
+ * from every earlier shuffle. When nothing new is left the shuffles cycle through the ones found (`shuffle.cycled`).
+ */
+function shuffled(request, k, profile, levels, library) {
+  const base = { ...request };
+  delete base.shuffle;
+  const key = JSON.stringify([base, profile, levels, traditionPreview(), animationGateVersion(), (library || []).length]);
+  let st = shuffleCache.get(key);
+  if (!st || st.library !== library) {
+    const first = quickOnce(base, profile, levels, library);
+    st = { library, list: [{ sess: first, sig: contentIds(first).join() }], exhaustedAt: 0 };
+    if (shuffleCache.size > 12) shuffleCache.delete(shuffleCache.keys().next().value);
+    shuffleCache.set(key, st);
+  }
+  while (st.list.length <= k && !st.exhaustedAt) {
+    const s = st.list.length;
+    const seen = new Set(st.list.map(x => x.sig));
+    const avoid = new Set(st.list.flatMap(x => x.sig.split(',')));
+    let found = null;
+    for (let j = 0; j < SHUFFLE_TRIES && !found; j++) {
+      const sess = quickOnce(base, profile, levels, library, { salt: s * 31 + j, vary: j, avoid });
+      const sig = contentIds(sess).join();
+      if (!seen.has(sig)) found = { sess, sig };
+    }
+    if (found) st.list.push(found); else st.exhaustedAt = s;
+  }
+  const n = st.list.length;
+  const out = JSON.parse(JSON.stringify(st.list[k % n].sess));
+  out.shuffle = { n: k, options: st.exhaustedAt ? n : null, cycled: k >= n };
+  return out;
+}
+
+function quickOnce(request, profile, levels, library, V = {}) {
+  if (momentId(request.moment)) return momentSession(request, profile, levels, library, V); // a moment wins over everything else (moments.md §3.1)
   const minutes = clamp(Math.round(Number(request.minutes) || 20), 5, 90);
   const goalGiven = ALL_GOALS.includes(request.goal);
   const goal = goalGiven ? request.goal : 'health';
@@ -2582,11 +2809,12 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   const filter = muscles.length ? {} : Object.fromEntries(['tradition', 'category', 'family'].filter(k => typeof request[k] === 'string' && request[k]).map(k => [k, request[k]]));
   const pooled = Object.keys(filter).length > 0;
   let focus = muscles.length ? 'muscles' : pooled ? 'pool' : (FOCUS_LABEL[request.focus] ? request.focus : 'full');
-  const base = profile ? { ...profile } : { ...QUICK_DEFAULT, equipment: Array.isArray(request.equipment) ? request.equipment : ['wall'],
-    space: request.space || 'medium', lowImpact: !!request.lowImpact };
+  const base = quickBase(request, profile);
   const qp = { ...base, goals: [goal], primaryGoal: goal, minutesPerSession: minutes, _quick: true };
   const ctx = buildCtx(qp, library);
   resolveLevels(ctx, qp, profile ? levels : null, library);
+  const shift = shiftLevels(ctx, request, { profile });
+  Object.assign(ctx, { vary: V.vary || 0, avoid: V.avoid || null });
   ctx.phase = { phase: 'build', blockWeek: 3, reentry: null, calibration: false, cycleLen: 5, blockStart: 0 };
   const eqp = qp.equipment || [];
   ctx.barOnly = eqp.includes('pullup_bar') && !eqp.includes('rings') && !eqp.includes('table') && ctx.avail.pull_vertical.length > 0;
@@ -2594,7 +2822,7 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   ctx.hitCount = { core: 1, push: 1, pull: 1, legs: 1 };
   ctx.lightKeys = [];
   const seed = hashStr(JSON.stringify([request.date || '', minutes, goal, focus, muscles, request.equipment || null, request.space || null, !!request.lowImpact,
-    ...(pooled ? [filter] : [])])) % 9973;
+    ...(pooled ? [filter] : []), ...(V.salt ? [V.salt] : [])])) % 9973;
 
   const gq = {}; // what a content-led goal sets (applied last, over the generic Quick timing)
   // "Train for a goal" (no area, no muscles): content-led goals choose the main block themselves
@@ -2673,6 +2901,7 @@ export function generateQuickSession(request = {}, profile = null, levels = null
   }
   if (focus === 'flow') sess.focus = sess.blocks.some(b => b.kind === 'flow') ? ['flow', 'mobility'] : ['mobility'];
   if (muscles.length) sess.muscles = muscles;
+  if (shift) sess.levelShift = shift;
   sess.estMinutes = estimateMinutes(sess, library);
   return sess;
 }
