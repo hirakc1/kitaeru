@@ -76,21 +76,26 @@ const rt_chest_opener = rt('Chest opener', {
 
 // 5. Side bend (体を横に曲げる運動): one arm sweeps up overhead, the other hand on the hip; bend sideways with a small,
 // easy bounce, come back up; two per side, then switch. bend + is to the right: this side bends left, right arm up.
-const OVER = { handXR: -14, handYR: 46, handZR: -3, palmR: 0, fingersR: 5 };
+// The right arm rises out to the side (a straight arm in the shoulder's side plane, palm down turning to face the head
+// as it passes horizontal: the natural external rotation of abduction) and ends just past vertical, over the head; the
+// shoulder blade rotates up with it (the core's scapulohumeral rhythm). Down the same way.
+const SARM = el => arm(el, 86, 52.4, { palm: 90, fingers: el > 150 ? 5 : 12 }, 'R');
+const OVER = SARM(188);
 const HIP_L = { handXL: -6, handYL: -30, handZL: 20, palmL: 90, fingersL: 0, elbowL: 60 };
 const rt_side_bend = rt('Side bend', {
   counts: 4, swap: true, trail: ['palmR'],
   keys: {
     a: {},
+    s1: { ...SARM(50), ...HIP_L }, s2: { ...SARM(100), ...HIP_L }, s3: { ...SARM(145), ...HIP_L },
     up: { ...OVER, ...HIP_L },
     b1: { ...OVER, ...HIP_L, bend: -24, headYaw: 0, weight: .42 },
     b2: { ...OVER, ...HIP_L, bend: -30, weight: .4 },
   },
-  timeline: [{ from: 'a', to: 'up', dur: 1, r1: .3, r2: .3, breath: 'in' },
+  timeline: [{ from: 'a', via: ['s1', 's2', 's3'], to: 'up', dur: 1.1, r1: .3, r2: .3, breath: 'in' },
     { from: 'up', to: 'b1', dur: .9, r1: .3, r2: .25, breath: 'out' }, { from: 'b1', to: 'b2', dur: .5, r1: .3, r2: .3 },
     { from: 'b2', to: 'up', dur: .9, r1: .3, r2: .3, breath: 'in' },
     { from: 'up', to: 'b1', dur: .9, r1: .3, r2: .25, breath: 'out' }, { from: 'b1', to: 'b2', dur: .5, r1: .3, r2: .3 },
-    { from: 'b2', to: 'up', dur: .9, r1: .3, r2: .3 }, { from: 'up', to: 'a', dur: .9, r1: .3, r2: .35 }],
+    { from: 'b2', to: 'up', dur: .9, r1: .3, r2: .3 }, { from: 'up', via: ['s3', 's2', 's1'], to: 'a', dur: 1, r1: .3, r2: .35 }],
 });
 
 // 6. Forward and back bend (体を前後に曲げる運動): three light bounces forward with the hands towards the floor, then hands
@@ -162,9 +167,9 @@ const TC = {
 };
 const rt_trunk_circle = rt('Trunk circle', {
   counts: 4, swap: true, trail: ['palmR'],
-  keys: { a: {}, ...TC },
-  timeline: [{ from: 'a', to: 'l', dur: .9, r1: .35, r2: 0 }, { cyclic: ['l', 'f', 'r', 'b'], dur: 3.6 }, { cyclic: ['l', 'f', 'r', 'b'], dur: 3.6 },
-    { from: 'l', to: 'a', dur: .9, r1: 0, r2: .35 }],
+  keys: { a: {}, ...TC, o1: ARM(45, 88, { palm: 90 }, 49), o2: ARM(100, 88, { palm: 90 }, 49) },   // (the arms rise out to the sides: no path through the body)
+  timeline: [{ from: 'a', via: ['o1', 'o2'], to: 'l', dur: 1.1, r1: .35, r2: 0 }, { cyclic: ['l', 'f', 'r', 'b'], dur: 3.6 }, { cyclic: ['l', 'f', 'r', 'b'], dur: 3.6 },
+    { from: 'l', via: ['o2', 'o1'], to: 'a', dur: 1.1, r1: 0, r2: .35 }],
 });
 
 // 11. Two-foot hops: small, springy hops on both feet, then hops with the feet apart and together; land softly.
