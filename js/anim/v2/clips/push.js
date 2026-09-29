@@ -124,7 +124,7 @@ const diamond_push_up = floorPlank(c => ({
   name: 'Diamond push-up', cam: { az: 30, el: 17 },
   muscles: { primary: ['triceps', 'chest'], secondary: ['front_delts', 'abs'] },
   arms: { both: { mode: 'ik', grip: 'palm', pole: [-.9, -1, .12], dir: s => [.76, 0, -.65 * s], target: (sd, s) => [c._hx, 0, c._hz * s] } },
-  detail: { at: ['palmR', 'palmL'], r: 17, cam: { az: 90, el: 72 }, label: 'hands' },
+  detail: { at: ['palmR', 'palmL'], r: 17, cam: { az: 90, el: 72 }, label: 'hands', corner: 'tl' },   // (top left: above the legs)
   keys: { top: { bodyAngle: 19, scapProt: 12 }, bottom: { bodyAngle: 8, scapProt: -7, cervical: -4, head: -12 } },
   timeline: rep('top', 'bottom', { ecc: 2.1 }),
   prep({ settle }) {

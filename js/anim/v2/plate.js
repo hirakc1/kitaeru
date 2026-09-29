@@ -84,8 +84,8 @@ const STYLE = `
 .kt-pl .pl-br{fill:none;stroke:var(--accent-2,#D9A441);stroke-width:.5}
 .kt-pl .pl-brf{fill:var(--accent-2,#D9A441);fill-opacity:.18}
 .kt-pl .pl-dtb{fill:var(--surface,#FFFDF7);stroke:none}
-.kt-pl .pl-dto{fill:none;stroke:var(--ink-muted,#6B665C);stroke-width:.45;stroke-opacity:.7}
-.kt-pl .pl-dtl{fill:var(--ink-muted,#6B665C);font:600 3.2px system-ui,sans-serif;letter-spacing:.02em}
+.kt-pl .pl-dto{fill:none;stroke:var(--ink-muted,#6B665C);stroke-width:1;stroke-opacity:.85}
+.kt-pl .pl-dtl{fill:var(--ink,#1C1B19);font:700 5.4px system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;paint-order:stroke;stroke:var(--surface,#FFFDF7);stroke-width:1.6px;stroke-linejoin:round}
 .kt-pl .pl-s0{stop-color:var(--pl-hi)} .kt-pl .pl-s1{stop-color:var(--bone,#EFE8D8)} .kt-pl .pl-s2{stop-color:var(--pl-sh)}
 .kt-pl .pl-p0{stop-color:color-mix(in srgb,var(--pl-mp) 62%,#fff)} .kt-pl .pl-p1{stop-color:var(--pl-mp)} .kt-pl .pl-p2{stop-color:color-mix(in srgb,var(--pl-mp) 62%,#000)}
 .kt-pl .pl-q0{stop-color:color-mix(in srgb,var(--pl-ms) 60%,#fff)} .kt-pl .pl-q1{stop-color:var(--pl-ms)} .kt-pl .pl-q2{stop-color:color-mix(in srgb,var(--pl-ms) 62%,#000)}
@@ -585,7 +585,9 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     const d = st.clip.detail;
     if (!d || st.lod) { if (DT.on) { DT.g.setAttribute('display', 'none'); DT.on = false; } return; }
     if (!DT.on) { DT.g.removeAttribute('display'); DT.on = true; }
-    const vb = st.vb, R = .19 * Math.min(vb[2], vb[3]), m = 2.5, crn = d.corner || 'tl';
+    // about 30% of the stage width across, never under ~110 px on screen, never taller than 90% of the stage
+    const vb = st.vb, px = svg.clientWidth ? svg.clientWidth / vb[2] : 0, m = 2.5, crn = d.corner || 'tl';
+    const R = Math.min(.45 * vb[3], Math.max(.15 * vb[2], px ? 55 / px : 0));
     const cx = crn[1] === 'l' ? vb[0] + R + m : vb[0] + vb[2] - R - m, cy = crn[0] === 't' ? vb[1] + R + m : vb[1] + vb[3] - R - m;
     const cam = DT.cam || (DT.cam = camera(d.cam?.az ?? 90, d.cam?.el ?? 70));
     const pts = d.at.map(n => S.pt[n]).filter(Boolean), c = pts.reduce((a, p) => K.add(a, K.mul(p, 1 / pts.length)), [0, 0, 0]);
@@ -605,7 +607,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     }
     g.end();
     DT.fg.begin(); DT.fg.add('circle', { cx: f2(cx), cy: f2(cy), r: f2(R) }, 'pl-dto');
-    if (d.label) DT.fg.add('text', { x: f2(cx), y: f2(cy + R - 2.6), 'text-anchor': 'middle' }, 'pl-dtl').textContent = d.label;
+    if (d.label) DT.fg.add('text', { x: f2(cx), y: f2(cy + R - 4), 'text-anchor': 'middle' }, 'pl-dtl').textContent = d.label;
     DT.fg.end();
   }
 
@@ -744,6 +746,8 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     let [x0, y0, x1, y1] = bs.reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]);
     const pad = st.lod ? 2 : 8; x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
     let w = x1 - x0, h = y1 - y0;
+    // a detail inset gets room of its own above (or below) the figure, so it never covers it
+    if (clip.detail && !st.lod) { const e = h * (clip.detail.room ?? .75); if ((clip.detail.corner || 'tl')[0] === 't') y0 -= e; h += e; }
     const ar = clip.aspect || K.clamp(w / h, .85, st.lod ? 1.3 : 1.5);
     if (w / h < ar) { const nw = h * ar; x0 -= (nw - w) / 2; w = nw; } else { const nh = w / ar; y0 -= (nh - h) * .7; h = nh; }
     const vb = [f2(x0), f2(y0), f2(w), f2(h)];
