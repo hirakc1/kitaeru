@@ -5,7 +5,7 @@ export { EXERCISES, FAMILIES, byId, varietyFor } from '../data/exercises.js';
 // v1.2 world movement (for the flow player, culture cards and filters): ALL_* include hidden items; use only to resolve flow steps.
 export { ALL_EXERCISES, ALL_BY_ID, ALL_FAMILIES, EQUIPMENT, isVisible, flowSteps, flowSeconds } from '../data/exercises.js';
 export { TRADITIONS, traditionVisible, traditionPreview, contentVisible, RADIO_TAISO_ATTRIBUTION } from '../data/traditions.js';
-export { generateMorningTaiso, availableFlows, MORNING_TAISO_SESSION_ID } from '../engine/planner.js';
+export { generateMorningTaiso, availableFlows, MORNING_TAISO_SESSION_ID, MOMENTS, momentMinutes, isShortMomentLog } from '../engine/planner.js';
 export { hasAnimation } from '../data/animated.js';
 export { createSkeletonPlayer } from '../anim/skeleton.js';
 export { renderBodyMap, bodyMapSVG } from '../anim/bodymap.js';

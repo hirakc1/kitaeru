@@ -539,7 +539,7 @@ function weekIdxFromDate(dateStr, startDate) {
 function gapBefore(logs, n) {
   let last = null;
   for (const l of logs || []) {
-    if (!l || !l.date || l.sessionId === 'M' || l.sessionId === MORNING_TAISO_SESSION_ID) continue;
+    if (!l || !l.date || l.sessionId === 'M' || l.sessionId === MORNING_TAISO_SESSION_ID || isShortMomentLog(l)) continue;
     const d = dayNum(l.date);
     if (d < n && (last === null || d > last)) last = d;
   }
@@ -1508,6 +1508,8 @@ function judge(item, rx, fallback) {
 export function applySessionLog(levels, profile, sessionLog, library, history = [], opts = {}) {
   profile = profile || QUICK_DEFAULT;
   levels = levels || initialLevels(profile, library);
+  // recovery moments are deliberately below the user's level: they never move a ladder (moments.md §3.5)
+  if (sessionLog && sessionLog.sessionId === 'Q' && RECOVERY_MOMENTS.includes(momentId(sessionLog.request?.moment))) return { levels: { ...levels }, changes: [] };
   const ctx = buildCtx(profile, library);
   const out = { ...levels };
   const changes = [];
@@ -1651,7 +1653,8 @@ export function computeStreak(logs, profile, today = new Date(), opts = {}) {
   const inRange = n => n <= todayN && n >= createdN;
   const logDays = new Set(counted.map(l => dayNum(l.date)).filter(inRange));
   // Morning Taiso keeps the day streak alive but does not count toward the weekly session target (founder decision, v1.2)
-  const trainDays = new Set(counted.filter(l => l.sessionId !== MORNING_TAISO_SESSION_ID).map(l => dayNum(l.date)).filter(inRange));
+  // Moments of 10 min or less follow the same rule (founder decision, moments v1.2)
+  const trainDays = new Set(counted.filter(l => l.sessionId !== MORNING_TAISO_SESSION_ID && !isShortMomentLog(l)).map(l => dayNum(l.date)).filter(inRange));
   const startD = opts.startDate || profile.startDate;
   const startN = startD ? toDayN(startD) : -Infinity;
   const early = [...trainDays].filter(n => n < startN).length;
@@ -2176,7 +2179,8 @@ function poolTemplate(filter, ctx, seed, minutes, quick, library) {
  * Pool sessions land within about ±8% of the requested length: trim the cool-down (then extra warm-up drills) when over;
  * when short, add sets of the pool's own moves, then a pool form or related filler, then main sets, then stretches.
  */
-function fitLength(sess, T, ctx, P) {
+function fitLength(sess, T, ctx, P, caps = {}) {
+  const cap = { main: 6, pool: 4, cool: 3, ...caps };
   const info = ctx.info, lo = 0.93 * T, hi = 1.1 * T - 1; // aim inside ±7%, never past +10%
   const secs = () => sessionSec(sess, info);
   const kinds = k => sess.blocks.filter(b => b.kind === k);
@@ -2215,7 +2219,7 @@ function fitLength(sess, T, ctx, P) {
   };
   const add = (block, cands, light = false) => () => {
     for (const ex of cands) {
-      if (!ex || used.has(ex.id) || !ctx.isAvail(ex)) continue;
+      if (!ex || used.has(ex.id) || !ctx.isAvail(ex) || (P?.ok && !P.ok(ex))) continue;
       const it = light ? flatItem(ex, { reps: [4, 6], hold: [15, 20], sets: 1 })
         : ex.category === 'mobility' && ex.family === 'mobility' ? mobilityItem(ctx)(ex, 1) : poolSingle(ex, ctx, 1);
       block.items.push(it);
@@ -2225,16 +2229,16 @@ function fitLength(sess, T, ctx, P) {
     return false;
   };
   const steps = [];
-  if (poolBlk) steps.push(bump(() => poolBlk.items.filter(i => !i.flow), 4), add(poolBlk, [...P.singles, ...P.filler]), bump(() => poolBlk.items.filter(i => i.flow), 4));
-  if (main) steps.push(bump(() => main.items.filter(i => !i.superset || main.items.find(x => x.superset === i.superset) === i), 6));
-  steps.push(bump(() => cool.items, 3), add(cool, candidates(MOBILITY_ORDER.full, ctx, ['mobility'])));
+  if (poolBlk) steps.push(bump(() => poolBlk.items.filter(i => !i.flow), cap.pool), add(poolBlk, [...P.singles, ...P.filler]), bump(() => poolBlk.items.filter(i => i.flow), cap.pool));
+  if (main && main !== poolBlk) steps.push(bump(() => main.items.filter(i => !i.superset || main.items.find(x => x.superset === i.superset) === i), cap.main));
+  steps.push(bump(() => cool.items, cap.cool), add(cool, P?.coolCands || candidates(MOBILITY_ORDER.full, ctx, ['mobility'])));
   if (warm) steps.push(bump(() => warm.items, 2));
   if (poolBlk) steps.push(add(poolBlk, [...P.singles, ...P.filler], true)); // a short extra hold or a few slow reps
-  steps.push(add(cool, candidates(MOBILITY_ORDER.full, ctx, ['mobility']), true));
+  steps.push(add(cool, P?.coolCands || candidates(MOBILITY_ORDER.full, ctx, ['mobility']), true));
   for (let g = 0; g < 60 && secs() < lo; g++) if (!steps.some(f => f())) break;
   // prefer the pool's own work to stretching: trade a cool-down stretch for another set of a pool move when it still fits
-  const own = [...(poolBlk ? [bump(() => poolBlk.items, 4)] : []), ...(main ? [steps.find((f, i) => i === (poolBlk ? 3 : 0))] : [])].filter(Boolean);
-  for (let g = 0; g < 8 && cool.items.length > (T > 300 ? 1 : 0); g++) {
+  const own = [...(poolBlk ? [bump(() => poolBlk.items, cap.pool)] : []), ...(main && main !== poolBlk ? [steps.find((f, i) => i === (poolBlk ? 3 : 0))] : [])].filter(Boolean);
+  for (let g = 0; g < 8 && !cap.keepCool && cool.items.length > (T > 300 ? 1 : 0); g++) {
     const snap = JSON.stringify(sess.blocks);
     const gone = cool.items.pop();
     let grew = false;
@@ -2242,6 +2246,295 @@ function fitLength(sess, T, ctx, P) {
     if (!grew || secs() < lo) { const back = JSON.parse(snap); sess.blocks.forEach((b, i) => { b.items = back[i].items; }); void gone; break; }
   }
   sess.blocks = sess.blocks.filter(b => b.items.length);
+}
+
+// =============================================================================================
+// Moments (docs/moments.md): a short session shaped by the time of day, or by what someone is about to do or has done
+// =============================================================================================
+const DOCTOR_LINE = 'If you’ve felt low, anxious or unable to sleep most days for a couple of weeks, it’s worth talking to your doctor.';
+/** UI metadata for the nine moments: chip label, mark, allowed minute chips, default, helper and "why" copy (moments.md §4-5). */
+export const MOMENTS = {
+  morning: { label: 'Morning wake-up', mark: '朝', minutes: [5, 10, 15, 20], def: 10, grade: 'C',
+    helper: 'Gentle, standing moves to loosen up and start the day.', why: 'Your back is stiffer first thing, so we keep deep forward bends for later.' },
+  desk: { label: 'Desk reset', mark: '伸', minutes: [5, 10, 15], def: 5, grade: 'B',
+    helper: 'A few minutes on your feet to undo some of the sitting.', why: 'Short, frequent movement breaks can lower blood-sugar rises during long sitting. Little and often works best.' },
+  energy: { label: 'Energy boost', mark: '活', minutes: [5, 10], def: 5, grade: 'C',
+    helper: 'Short, brisk bursts for a quick lift. Good before lunch, too.', why: 'Many people feel more alert after a brisk few minutes. Short bursts through the day add up for fitness.' },
+  after_meal: { label: 'After a meal', mark: '食', minutes: [5, 10, 15, 20], def: 10, grade: 'B',
+    helper: 'Easy, steady moves soon after eating. A walk works just as well.', why: 'Moving soon after a meal can help soften the rise in blood sugar. Sooner is better than later.' },
+  before_sport: { label: 'Before sport', mark: '備', minutes: [5, 10, 15, 20], def: 15, grade: 'A',
+    helper: 'Raise, activate, mobilise, then a few quick efforts.', why: 'Structured warm-ups with strength and balance work lower injury risk in team sports. Keep stretches short: under 30 seconds.' },
+  after_sport: { label: 'After sport', mark: '整', minutes: [5, 10, 15], def: 10, grade: 'C',
+    helper: 'Slow down, breathe and stretch while you’re warm.', why: 'A cool-down won’t stop soreness, but it’s a good time to work on flexibility and let your breathing settle.' },
+  wind_down: { label: 'Wind down', mark: '静', minutes: [5, 10, 15, 20], def: 10, grade: 'B', always: DOCTOR_LINE, darkPlayer: true,
+    helper: 'Slow flow, easy stretches and a longer out-breath.', why: 'Gentle movement in the evening is fine for sleep. It’s hard efforts right before bed that can keep some people up.' },
+  on_the_road: { label: 'On the road', mark: '旅', minutes: [10, 15, 20, 30, 45], def: 20, grade: 'C',
+    helper: 'No kit, small space, no jumping. The neighbours will never know.', why: 'After flying east, moving in your destination’s morning or early afternoon may help you adjust.' },
+  low_energy: { label: 'Low-energy day', mark: '息', minutes: [5, 10, 15, 20], def: 5, grade: 'B', always: DOCTOR_LINE,
+    helper: 'Breathe first, then move gently. Stopping early still counts.', why: 'A short, easy session can take the edge off. Five minutes keeps the habit going.' },
+};
+const MOMENT_ALIAS = { travel: 'on_the_road' };
+/** Moments whose sessions are deliberately below the user's level: their logs never move a ladder (moments.md §3.5). */
+export const RECOVERY_MOMENTS = ['before_sport', 'after_sport', 'wind_down', 'low_energy', 'after_meal'];
+const momentId = m => (typeof m === 'string' && MOMENTS[MOMENT_ALIAS[m] || m] ? (MOMENT_ALIAS[m] || m) : null);
+/** The minutes a moment request actually runs for: snapped to the nearest allowed chip (ties go to the shorter). */
+export function momentMinutes(request) {
+  const id = momentId(request?.moment);
+  if (!id) return null;
+  const want = Number(request.minutes) || MOMENTS[id].def;
+  return MOMENTS[id].minutes.reduce((a, b) => (Math.abs(b - want) < Math.abs(a - want) ? b : a));
+}
+/** A moment of 10 min or less: keeps the day streak alive but is not a training session (founder decision, as Morning Taisō). */
+export const isShortMomentLog = l => !!l && l.sessionId === 'Q' && !!momentId(l.request?.moment) && momentMinutes(l.request) <= 10;
+
+const EARLY_FLEXION = ['standing_hamstring_stretch', 'pancake_stretch', 'childs_pose', 'lying_leg_raise', 'hollow_body_hold', 'baduanjin_touch_toes'];
+// Ordered pools (moments.md §3.4, plus the phase-A standing and seated items). Tradition ids drop out when not visible.
+const MP = {
+  morningMob: ['marching_in_place', 'arm_circles', 'rt_stretch_up', 'rt_side_bend', 'hip_circles', 'rt_trunk_twist', 'leg_swings', 'taichi_commencement', 'open_book',
+    'cat_cow', 'thoracic_opener', 'worlds_greatest_stretch', 'baduanjin_hold_up_sky', 'taichi_cloud_hands'],
+  morningStr: [['bodyweight_squat', 'box_squat'], ['incline_push_up', 'wall_push_up'], ['glute_bridge'], ['bird_dog'], ['calf_raise']],
+  deskMove: ['marching_in_place', 'box_squat', 'calf_raise', 'wall_push_up', 'single_leg_rdl', 'seated_calf_raise'],
+  deskOpen: ['rt_stretch_up', 'doorway_chest_stretch', 'wall_angel', 'standing_hip_flexor_stretch', 'seated_trunk_rotation', 'rt_side_bend', 'hip_circles', 'arm_circles',
+    'rt_trunk_twist', 'leg_swings', 'taichi_cloud_hands', 'baduanjin_hold_up_sky', 'baduanjin_look_back'],
+  burstImpact: ['high_knees', 'jumping_jack', 'squat_jump'],
+  burstLow: ['marching_in_place', 'bodyweight_squat', 'baithak', 'mountain_climber'],
+  easy: ['arm_circles', 'hip_circles', 'rt_stretch_up', 'rt_trunk_twist', 'rt_side_bend', 'leg_swings'],
+  meal: ['marching_in_place', 'calf_raise', 'bodyweight_squat', 'box_squat', 'hip_circles', 'arm_circles', 'rt_stretch_up', 'rt_side_bend', 'leg_swings', 'taichi_cloud_hands',
+    'taichi_part_horse_mane', 'taichi_brush_knee', 'baduanjin_hold_up_sky', 'baduanjin_draw_bow', 'single_leg_calf_raise', 'seated_calf_raise', 'standing_hip_flexor_stretch'],
+  raise: ['marching_in_place', 'jumping_jack', 'high_knees'],
+  activate: ['glute_bridge', 'bird_dog', 'split_squat', 'calf_raise', 'single_leg_rdl', 'side_plank', 'plank_shoulder_tap', 'reverse_lunge', 'baduanjin_draw_bow', 'taichi_golden_rooster'],
+  mobilise: ['leg_swings', 'hip_circles', 'arm_circles', 'worlds_greatest_stretch', 'inchworm', 'open_book', 'rt_trunk_twist', 'rotational_lunge'],
+  potentiate: ['squat_jump', 'high_knees'],
+  cool: ['hip_flexor_stretch', 'standing_hip_flexor_stretch', 'standing_hamstring_stretch', 'calf_stretch', 'doorway_chest_stretch', 'pigeon_stretch', 'childs_pose',
+    'thread_the_needle', 'open_book', 'cat_cow', 'deep_squat_hold', 'worlds_greatest_stretch'],
+  wind: ['cat_cow', 'open_book', 'thread_the_needle', 'childs_pose', 'thoracic_opener', 'hip_flexor_stretch', 'pigeon_stretch', 'standing_hamstring_stretch', 'calf_stretch',
+    'taichi_cloud_hands', 'baduanjin_hold_up_sky', 'baduanjin_look_back', 'taichi_commencement'],
+  calm: ['marching_in_place', 'rt_stretch_up', 'rt_side_bend', 'hip_circles', 'arm_circles', 'cat_cow', 'open_book', 'childs_pose', 'taichi_cloud_hands', 'baduanjin_hold_up_sky'],
+  calmStr: [['incline_push_up', 'wall_push_up'], ['box_squat'], ['glute_bridge'], ['bird_dog']],
+};
+// Per-moment rules on top of every normal safety filter (moments.md §3.3 step 3). levelOffset: strength one level below the current one.
+const MOMENT_RULES = {
+  morning: { exclude: EARLY_FLEXION, holdCap: 30 },
+  desk: { posture: ['standing', 'seated'], noImpact: true, space: 'small', holdCap: 30 },
+  energy: {},
+  after_meal: { posture: ['standing', 'seated'], noImpact: true, forceLowImpact: true, exclude: ['baduanjin_touch_toes', 'baduanjin_heel_bounce'] },
+  before_sport: { holdCap: 30 },
+  after_sport: { noLoad: true, noImpact: true, longHolds: 1 },
+  wind_down: { noLoad: true, noImpact: true, longHolds: 1, exclude: ['radio_taiso_1', 'plank', 'hollow_body_hold'] },
+  low_energy: { noImpact: true, levelOffset: -1, exclude: ['radio_taiso_1'] },
+};
+const TRAVEL_KIT = ['wall', 'bench', 'table'];
+const TRAVEL_BAN = ['bear_crawl', 'burpee', 'dead_hang'];
+const travelLibs = new WeakMap();
+
+function momentSession(request, profile, levels, library) {
+  const id = momentId(request.moment);
+  const meta = MOMENTS[id], R = MOMENT_RULES[id] || {};
+  const minutes = momentMinutes(request);
+  const T = minutes * 60;
+  const finish = (sess, extra = {}) => {
+    sess.id = 'Q';
+    sess.name = `${minutes}-min ${meta.label}`;
+    sess.moment = id;
+    sess.light = minutes <= 10; // keeps the day streak alive; not a training session for the weekly target
+    Object.assign(sess, extra);
+    sess.estMinutes = estimateMinutes(sess, library);
+    return sess;
+  };
+  if (id === 'on_the_road') { // the normal Quick full-body session with the travel overrides (moments.md §1.9)
+    let lib = travelLibs.get(library);
+    if (!lib) { lib = (library || []).filter(e => !TRAVEL_BAN.includes(e.id)); travelLibs.set(library, lib); }
+    const kit = eq => (eq || []).filter(e => TRAVEL_KIT.includes(e));
+    const prof = profile ? { ...profile, lowImpact: true, space: 'small', equipment: kit(profile.equipment) } : null;
+    const req = { minutes, goal: 'health', focus: 'full', date: `${request.date || ''}|moment:${id}`, equipment: kit(Array.isArray(request.equipment) ? request.equipment : ['wall']),
+      space: 'small', lowImpact: true };
+    const sess = generateQuickSession(req, prof, levels, lib);
+    return finish(sess, { focus: [...new Set([...sess.focus, 'travel'])] });
+  }
+
+  const base = profile ? { ...profile } : { ...QUICK_DEFAULT, equipment: Array.isArray(request.equipment) ? request.equipment : ['wall'],
+    space: request.space || 'medium', lowImpact: !!request.lowImpact };
+  if (R.space && (SPACE_RANK[base.space] ?? 1) > SPACE_RANK[R.space]) base.space = R.space;
+  if (R.forceLowImpact) base.lowImpact = true;
+  const qp = { ...base, goals: ['health'], primaryGoal: 'health', minutesPerSession: minutes, _quick: true };
+  const ctx = buildCtx(qp, library);
+  resolveLevels(ctx, qp, profile ? levels : null, library);
+  ctx.phase = { phase: 'build', blockWeek: 3, reentry: null, calibration: false, cycleLen: 5, blockStart: 0 };
+  ctx.quick = true;
+  ctx.longHolds = R.longHolds || 0;
+  const D = ctx.D, info = ctx.info;
+  const seed = hashStr(JSON.stringify([request.date || '', minutes, 'moment', id, request.equipment || null, request.space || null, !!request.lowImpact])) % 9973;
+
+  // --- the moment's filters, on top of availability (which already applies kit, space, injuries, age, BMI, low impact and the gates)
+  const LOAD_FAM = [...PROGRESSION_FAMILIES, 'conditioning', 'stance'];
+  const levelOk = ex => {
+    if (!LOAD_FAM.includes(ex.family) || ex.rung === false || ex.category === 'mobility') return true;
+    const av = ctx.avail[ex.family], cur = ctx.levelsEx[ex.family];
+    const floor = av.length ? av[0].level : ex.level;
+    const capL = cur ? Math.max(floor, cur.level + (R.levelOffset || 0)) : floor; // never above the current level (moments.md §3.3 step 6)
+    return ex.level <= capL;
+  };
+  const ok = ex => !!ex && ctx.isAvail(ex) && (!R.posture || R.posture.includes(ex.posture)) && !(R.noImpact && ex.impact === 'high') && !(R.exclude || []).includes(ex.id)
+    && !(R.noLoad && ['strength', 'conditioning', 'core', 'skill'].includes(ex.category) && !/^flow_/.test(ex.family) && ex.id !== 'marching_in_place') && levelOk(ex);
+  const used = new Set();
+  const pick = ids => ids.map(i => ctx.byId[i]).filter(e => ok(e) && !used.has(e.id));
+  const firstOf = alts => pick(alts).sort((a, b) => b.level - a.level)[0] || null; // the hardest allowed of the alternatives (never above the level)
+  // static stretches only: timed dynamic moves (marching, bursts) keep their length
+  const capHold = it => { if (R.holdCap && it.holdSec && !it.flow && ctx.byId[it.exerciseId]?.category === 'mobility') it.holdSec = [Math.min(it.holdSec[0], R.holdCap - 10), Math.min(it.holdSec[1], R.holdCap)]; return it; };
+  const gentle = (ex, sets = 1, o = {}) => {
+    const it = ex.family === 'mobility' && ex.mode === 'hold' ? mobilityItem(ctx)(ex, sets) : poolSingle(ex, ctx, sets);
+    if (o.reps && it.reps) it.reps = o.reps;
+    if (o.hold && it.holdSec) it.holdSec = o.hold;
+    if (o.rest != null) it.restSec = o.rest;
+    if (o.rir != null) it.rir = o.rir;
+    if (o.note) it.notes = [it.notes, o.note].filter(Boolean).join(' ');
+    return capHold(it);
+  };
+  const strengthIt = (ex, rir, reps = [8, 12], note = '') => gentle(ex, 1, { reps, hold: [15, 25], rest: 30, rir, note });
+  const addTo = (block, ex, it) => { block.items.push(it); used.add(ex.id); };
+  const fillTo = (block, cands, target, mk, maxSets = 2) => fillFlat(block, cands.filter(e => !used.has(e.id)), target, target + 20, mk, maxSets, used, info);
+  const flowFirst = (list, maxSec, title, maxRounds = 9) => { // moments.md §3.3 step 4: the first visible flow that fits in <= maxSec (+ its transition)
+    for (const spec of list) {
+      const [fid, variant] = spec.split(':');
+      const ex = ctx.byId[fid];
+      if (!ok(ex) || used.has(fid)) continue;
+      const it = flowItem(ex, ctx, variant ? { variant } : {});
+      const block = { kind: 'flow', title: title || ex.name, items: [it] };
+      if (blockSec(block, info) - CONFIG.transitionStraight > maxSec) continue;
+      used.add(fid);
+      addRounds(block, it, maxSec, info);
+      while (it.sets > maxRounds) it.sets--;
+      if (it.sets === 1) it.restSec = 0;
+      return block;
+    }
+    return null;
+  };
+  const breathItem = sec => flatItem(ctx.byId.paced_breathing, { hold: [sec, sec], sets: 1, notes: 'In for about 4 s, out for about 6 s. No breath holds.' });
+  const breath = (sec, title = 'Breathe') => { // paced breathing only: never a breath hold (moments.md §3.3 step 8)
+    const ex = ctx.byId.paced_breathing;
+    if (!ex || !ctx.isAvail(ex)) return null;
+    return { kind: 'mobility', title, items: [breathItem(sec)] };
+  };
+  const blocks = [];
+  const push = b => { if (b && b.items.length) blocks.push(b); return b; };
+  const secOf = () => blocks.reduce((t, b) => t + blockSec(b, info), 0);
+  const rot = arr => rotate(arr, seed);
+  const mainBlock = (kind, title) => { const b = { kind, title, items: [] }; blocks.push(b); return b; };
+  let main = null;
+  const extra = {};
+
+  switch (id) {
+    case 'morning': { // Morning Taisō first; standing mobility every plane; light strength from 10 min; a balance hold from 15
+      const flow = push(flowFirst(['radio_taiso_1'], Math.round(0.7 * T), null, 1));
+      const strT = minutes >= 10 ? Math.round(0.3 * T) : 0, balT = minutes >= 15 ? 75 : 0;
+      main = mainBlock('mobility', 'Loosen up');
+      const mob = pick(MP.morningMob);
+      const lead = flow ? [] : mob.slice(0, 1); // no Taisō: start with marching
+      const restMob = rot(mob.slice(lead.length));
+      fillTo(main, [...lead, ...restMob.filter(e => e.posture === 'standing'), ...restMob.filter(e => e.posture !== 'standing')], T - secOf() - strT - balT, ex => gentle(ex, 1, { note: ex.id === 'cat_cow' ? 'Mid-range only.' : '' })); // standing moves first
+      if (strT) fillTo(mainBlock('main', 'Wake up the muscles'), MP.morningStr.map(firstOf).filter(Boolean), strT, ex => strengthIt(ex, 3), 2);
+      if (balT) {
+        const b = pick(['taichi_golden_rooster', 'single_leg_rdl', 'single_leg_calf_raise'])[0];
+        if (b) addTo(mainBlock('balance', 'Balance'), b, gentle(b, 2, { hold: [10, 20], reps: [6, 8], rest: 15, note: BAL_NOTE }));
+      }
+      break;
+    }
+    case 'desk': { // standing (a chair allowed): the Dempsey break pattern, then chest, upper-back and trunk openers
+      const move = mainBlock('main', 'Move');
+      fillTo(move, pick(MP.deskMove), Math.round(0.45 * T), ex => ex.id === 'marching_in_place' ? gentle(ex, 1, { hold: [45, 60] })
+        : strengthIt(ex, 3, [10, 15], ex.id === 'box_squat' ? 'Half range: sit to your chair and stand.' : ''));
+      main = mainBlock('mobility', 'Open up');
+      const open = pick(MP.deskOpen);
+      fillTo(main, [...open.slice(0, 2), ...rot(open.slice(2))], T - secOf(), ex => gentle(ex, 1));
+      break;
+    }
+    case 'energy': { // snack: an easy raise, N brisk bursts with easy marching between, standing openers (moments.md §3.3 step 7)
+      const vigorous = !(D.age >= 65 || D.bmi35 || [0, 1, 2, 6].some(i => profile?.health?.parq?.[i] === true) || profile?.health?.pregnant);
+      const N = minutes <= 5 ? 2 : 4, sec = vigorous ? (minutes <= 5 ? 30 : 40) : 60;
+      const cands = vigorous ? [...(D.lowImpact ? [] : pick(MP.burstImpact)), ...pick(MP.burstLow)] : pick(['marching_in_place', 'bodyweight_squat', 'box_squat']);
+      const moves = rot(cands.slice(0, 4)).slice(0, 2);
+      const warmEx = pick(['marching_in_place', 'arm_circles', 'hip_circles']).filter(e => !moves.includes(e))[0];
+      if (warmEx) addTo(mainBlock('warmup', 'Easy start'), warmEx, gentle(warmEx, 1, { hold: [50, 60], reps: [15, 20] }));
+      main = mainBlock('conditioning', 'Bursts');
+      const rounds = Math.max(1, Math.round(N / Math.max(1, moves.length)));
+      for (const ex of moves) {
+        addTo(main, ex, { ...flatItem(ex), reps: null, holdSec: [sec, sec], sets: rounds, restSec: 45, perSide: false, rir: null, superset: moves.length > 1 ? 1 : null,
+          notes: vigorous ? 'Brisk: a few words at a time. Then about 45 s of easy marching.' : 'Moderate pace: you can still talk. Then about 45 s of easy marching.' });
+      }
+      fillTo(mainBlock('cooldown', 'Open up'), pick(MP.easy), Math.max(45, T - secOf()), ex => gentle(ex, 1, { reps: [6, 8] }), 1);
+      if (!vigorous) extra.note = 'We’ve kept the bursts moderate, based on your health answers or age.';
+      break;
+    }
+    case 'after_meal': { // no warm-up: continuous, standing, easy; Tai Chi or Morning Taisō (no hops) first; openers to finish
+      push(flowFirst(['taichi_short_flow', 'radio_taiso_1'], Math.round(0.7 * T)));
+      main = mainBlock('mobility', 'Keep moving');
+      const pool = pick(MP.meal);
+      fillTo(main, [...pool.slice(0, 1), ...rot(pool.slice(1))], T - secOf() - 60, ex => ex.id === 'marching_in_place' ? gentle(ex, 1, { hold: [60, 90] })
+        : gentle(ex, 1, { reps: [10, 15], note: ['bodyweight_squat', 'box_squat'].includes(ex.id) ? 'Half range, easy pace.' : 'Easy, steady pace.' }));
+      fillTo(mainBlock('cooldown', 'Open up'), pick(['rt_stretch_up', 'arm_circles', 'rt_side_bend', 'hip_circles']), 60, ex => gentle(ex, 1, { reps: [6, 8] }), 1);
+      break;
+    }
+    case 'before_sport': { // RAMP: raise, activate, mobilise, potentiate (moments.md §1.6, §3.3 step 7); never to fatigue
+      const flow5 = minutes === 5 ? push(flowFirst(['radio_taiso_1'], Math.round(0.75 * T), 'Raise: Morning Taisō')) : null;
+      const pot = !D.lowImpact && D.age < 65 && minutes >= 10;
+      const share = { raise: 0.2 + (D.age >= 65 ? 0.15 : 0), activate: 0.3 + (!pot && D.age < 65 ? 0.15 : 0), potentiate: pot ? 0.15 : 0 };
+      if (!flow5) {
+        fillTo(mainBlock('warmup', 'Raise'), pick(MP.raise), Math.round(share.raise * T), ex => gentle(ex, 1, { hold: [30, 45], reps: [20, 30], note: 'Build from easy to moderate.' }), 1);
+        fillTo(mainBlock('main', 'Activate'), pick(MP.activate), Math.round(share.activate * T), ex => strengthIt(ex, 3, [6, 10], 'Controlled; stop well short of tiring.'), 1);
+      }
+      main = mainBlock('mobility', 'Mobilise');
+      // dynamic moves only; any static hold elsewhere stays <= 30 s
+      fillTo(main, pick(MP.mobilise).filter(e => e.mode !== 'hold'), T - secOf() - Math.round(share.potentiate * T), ex => gentle(ex, 1, { reps: [6, 10] }), 2);
+      if (pot) {
+        fillTo(mainBlock('conditioning', 'Potentiate'), pick([...MP.potentiate, 'jumping_jack', 'bodyweight_squat']), Math.round(share.potentiate * T), ex => ({ ...flatItem(ex), reps: null, holdSec: [10, 10], sets: 2,
+          restSec: 30, rir: null, notes: 'Fast and crisp for 10 s, then walk it off. Never to fatigue.' }), 2);
+      }
+      break;
+    }
+    case 'after_sport': { // ease off, settle with Baduanjin (short) when it fits, stretch with longer holds, breathe
+      const m = pick(['marching_in_place'])[0];
+      if (m) addTo(mainBlock('mobility', 'Ease off'), m, gentle(m, 1, { hold: [60, 90], note: 'Slow and easy: let your breathing settle.' }));
+      const br = breath(60);
+      if (minutes >= 10) push(flowFirst(['baduanjin_sequence:short'], Math.round(0.6 * T)));
+      main = mainBlock('mobility', 'Stretch');
+      fillTo(main, [...rot(pick(MP.cool)), ...pick(['taichi_commencement'])], T - secOf() - (br ? blockSec(br, info) : 0), ex => gentle(ex, 1));
+      push(br);
+      break;
+    }
+    case 'wind_down': { // slow flow, then easy floor mobility with longer holds, then a longer out-breath (moments.md §1.8)
+      const br = breath(minutes <= 5 ? 60 : 90);
+      push(flowFirst(['baduanjin_sequence:short', 'taichi_short_flow'], Math.round(0.6 * T)));
+      main = mainBlock('mobility', 'Stretch');
+      const pool = pick(MP.wind);
+      const close = pool.filter(e => e.id === 'taichi_commencement');
+      fillTo(main, [...rot(pool.filter(e => !close.includes(e))), ...close], T - secOf() - (br ? blockSec(br, info) : 0), ex => gentle(ex, 1));
+      push(br);
+      extra.darkPlayer = true;
+      break;
+    }
+    case 'low_energy': { // breath first, gentle movement (a slow flow if it fits), light strength from 15 min one level down, breath to close
+      const b1 = push(breath(60, 'Breathe first'));
+      const strT = minutes >= 15 ? Math.round(0.25 * T) : 0;
+      const b2 = minutes >= 10 && b1 ? { kind: 'mobility', title: 'Breathe', items: [breathItem(60)] } : null;
+      if (minutes >= 10) push(flowFirst(['taichi_short_flow', 'baduanjin_sequence:short'], Math.round(0.45 * T)));
+      main = mainBlock('mobility', 'Move gently');
+      const pool = pick(MP.calm);
+      fillTo(main, [...pool.slice(0, 1), ...rot(pool.slice(1))], T - secOf() - strT - (b2 ? 60 : 0), ex => gentle(ex, 1, ex.id === 'marching_in_place' ? { hold: [45, 60] } : {}));
+      if (strT) fillTo(mainBlock('main', 'A little strength (optional)'), MP.calmStr.map(firstOf).filter(Boolean), strT, ex => strengthIt(ex, 4, [8, 12], 'Easy: stop with plenty left.'), 1);
+      push(b2);
+      break;
+    }
+  }
+  const sess = { id: 'Q', name: '', focus: [], estMinutes: 0, blocks: blocks.filter(b => b.items.length) };
+  // time fit: more of the moment's own gentle moves first, never a move the moment's rules exclude
+  const rest = pick([...new Set(Object.values(MP).flat(2))]).filter(e => ['mobility', 'warmup'].includes(e.category) || e.family === 'mobility');
+  const caps = { main: id === 'morning' || id === 'desk' ? 2 : 1, pool: id === 'before_sport' ? 2 : 3, cool: 2, keepCool: true };
+  const okMore = e => ok(e) && !used.has(e.id) && !(id === 'before_sport' && e.mode === 'hold');
+  fitLength(sess, T, ctx, main ? { kind: main.kind, title: main.title, singles: rot(rest), filler: [], ok: okMore, coolCands: rest } : { ok: okMore, coolCands: rest }, caps);
+  sess.blocks.forEach(b => b.items.forEach(it => { if (it.exerciseId !== 'paced_breathing') capHold(it); }));
+  const tags = new Set(sess.blocks.flatMap(b => [b.kind, ...b.items.map(i => patternOf(i.family))]));
+  sess.focus = ['push', 'pull', 'legs', 'core', 'conditioning', 'balance', 'flow', 'mobility', 'breath'].filter(f => tags.has(f));
+  return finish(sess, extra);
 }
 
 function quickName(minutes, focus, muscles, goal, goalGiven) {
@@ -2260,6 +2553,7 @@ function quickName(minutes, focus, muscles, goal, goalGiven) {
  * Deterministic: seeded from request.date and the request fields.
  */
 export function generateQuickSession(request = {}, profile = null, levels = null, library) {
+  if (momentId(request.moment)) { if (profile) derive(profile); return momentSession(request, profile, levels, library); } // a moment wins over everything else (moments.md §3.1)
   const minutes = clamp(Math.round(Number(request.minutes) || 20), 5, 90);
   const goalGiven = ALL_GOALS.includes(request.goal);
   const goal = goalGiven ? request.goal : 'health';
