@@ -849,7 +849,17 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   }
   const tw = ALL_BY_ID.radio_taiso_1.sequence.find(x => x.move === 'rt_trunk_twist');
   ok(tw.side === 'alternate' && tw.reps === 8, 'Morning Taisō trunk twist alternates every count (its clip goes one way, then the other)');
-  ok(ALL_BY_ID.radio_taiso_1.sequence.find(x => x.move === 'rt_arm_circles').cue === 'Big circles, out, then in', 'arm circles cue: out, then in (as the clip)');
+  { // v1.3a (fact-check 2026-09-29): the first circle goes out and up the sides; one rep is a circle each way, as the clip's cycle
+    const st = ALL_BY_ID.radio_taiso_1.sequence.find(x => x.move === 'rt_arm_circles'), c = CLIPS.rt_arm_circles;
+    ok(/^Out and up the sides/.test(st.cue) && st.reps === 4 && c.counts === 1, `arm circles: out and up the sides first, 4 × one circle each way (${st.cue}, counts ${c.counts})`);
+    ok(/out and up the sides, cross overhead, and come down in front/i.test(ALL_BY_ID.rt_arm_circles.cues.join(' ')) && /circle each way/.test(ALL_BY_ID.rt_arm_circles.description), 'rt_arm_circles copy: corrected direction and rep unit');
+    const first = c.timeline[0].cyclic;
+    ok(first[1] === 'l' && first.includes('ux') && first.indexOf('ux') < first.indexOf('m') && first.indexOf('m') < first.indexOf('x'), `arm circles clip: first circle up the sides, crossed overhead, down in front (${first})`);
+    const aud = CLIPS.rt_arms_up_down.timeline, last = aud.filter(ph => ph.from || ph.hold).map(ph => ph.hold || ph.to);
+    ok(last[last.length - 2] === 'dn' && last[last.length - 1] === 'a' && !aud.some(ph => ph.from === 'dn' && ph.to === 'sh'), `arms up and down clip: the last extension is down (${last})`);
+    const db = CLIPS.rt_deep_breath.timeline;
+    ok(db[0].via.join() === 'f1,f,f2' && db[1].via.join() === 's1,s,s2', 'deep breath clip: arms rise from the front, lower out to the sides');
+  }
   // the plan explanation names a one-leg hold only when the golden rooster is planned
   for (const pp of [mk({ primaryGoal: 'balance', goals: ['balance'], daysPerWeek: 3, minutesPerSession: 30 }), mk({ age: 60, primaryGoal: 'health', daysPerWeek: 3 })]) {
     const wk = P.generateWeek(pp, P.initialLevels(pp, EXERCISES), EXERCISES, 2);
@@ -1082,7 +1092,7 @@ let momentChecked = 0;
   ok(/Good before lunch, too/.test(M.energy.helper) && M.after_meal.label === 'After a meal' && !IDS.includes('before_meal'), 'Energy boost helper mentions lunch; After a meal replaces Before a meal');
   ok(IDS.every(id => !/\b(burn|detox|boost metabolism|fat|cure)\b/i.test(M[id].helper + ' ' + M[id].why)), 'moment copy avoids banned words');
   ok(M.wind_down.always && M.low_energy.always && M.wind_down.darkPlayer, 'Wind down and Low-energy day carry the doctor line; Wind down asks for the dark player');
-  const EARLY = ['standing_hamstring_stretch', 'pancake_stretch', 'childs_pose', 'lying_leg_raise', 'hollow_body_hold', 'baduanjin_touch_toes'];
+  const EARLY = ['standing_hamstring_stretch', 'pancake_stretch', 'childs_pose', 'lying_leg_raise', 'hollow_body_hold', 'baduanjin_touch_toes', 'rt_forward_back_bend', 'rt_diagonal_bend'];
   const parq = on => ({ parq: [on, false, false, false, false, false, false], unwell: false, pregnant: false, changed: false });
   const PROFS = [[null, 'noprofile'], [quickSample, 'sample'], [mk({ injuries: ['knee', 'wrist'], age: 60, lowImpact: true, space: 'small' }), 'knee+wrist 60 small low'],
     [mk({ injuries: ['lower_back', 'neck'], equipment: ['resistance_band', 'wall'] }), 'back+neck band'], [mk({ injuries: ['wrist', 'shoulder'], equipment: ALL_EQ, space: 'large', experience: 'advanced' }), 'wrist+shoulder kit'],
@@ -1104,7 +1114,8 @@ let momentChecked = 0;
     ok(q.id === 'Q' && q.moment === id && q.name === `${minutes}-min ${M[id].label}` && q.light === (minutes <= 10) && q.estMinutes === P.estimateMinutes(q, EXERCISES), `${T}: id/name/moment/light ${q.name}`);
     ok(its.length >= 2, `${T}: fewer than two moves`);
     ok(its.every(i => ex(i) && isVisible(ex(i)) && P.isAvailable(ex(i), eff)), `${T}: unavailable or hidden ${its.filter(i => !ex(i) || !P.isAvailable(ex(i), eff)).map(i => i.exerciseId)}`);
-    const ids = its.map(i => i.exerciseId).filter(x => x !== 'paced_breathing');
+    const BR = ['paced_breathing', 'rt_deep_breath'];
+    const ids = its.map(i => i.exerciseId).filter(x => !BR.includes(x));
     ok(new Set(ids).size === ids.length, `${T}: duplicates ${ids}`);
     ok(its.every(i => i.sets >= 1 && (i.reps || i.holdSec) && !(i.reps && i.holdSec)), `${T}: bad prescription`);
     ok(JSON.stringify(q) === JSON.stringify(P.generateQuickSession(clone(req), prof && clone(prof), prof ? P.initialLevels(prof, EXERCISES) : null, EXERCISES)), `${T}: deterministic`);
@@ -1114,7 +1125,10 @@ let momentChecked = 0;
     const lv = prof ? P.initialLevels(prof, EXERCISES) : null;
     const capOk = off => !lv || its.every(i => { const e = ex(i), cur = byId[lv[e.family]]; if (!cur || e.rung === false || e.category === 'mobility' || ['mobility', 'warmup', 'breath'].includes(e.family) || /^flow_/.test(e.family)) return true;
       const floor = Math.min(...EXERCISES.filter(x => x.family === e.family && x.rung !== false && P.isAvailable(x, eff)).map(x => x.level)); return e.level <= Math.max(floor, cur.level + off); });
-    const breathOk = EXERCISES.some(e => e.id === 'paced_breathing') && P.isAvailable(byId.paced_breathing, eff);
+    const breathOk = BR.some(b => byId[b] && P.isAvailable(byId[b], eff));
+    // v1.3a founder decision: breath blocks use Morning Taisō's deep breath when it is visible, otherwise paced breathing
+    const breathId = byId.rt_deep_breath && P.isAvailable(byId.rt_deep_breath, eff) ? 'rt_deep_breath' : 'paced_breathing';
+    const breathSec = i => i.holdSec ? i.holdSec[0] : i.reps[0] * byId[i.exerciseId].tempo.secPerRep;
     switch (id) {
       case 'morning':
         ok(!its.some(i => EARLY.includes(i.exerciseId)), `${T}: deep forward bend in the morning`);
@@ -1149,11 +1163,11 @@ let momentChecked = 0;
         break;
       case 'after_sport':
         ok(!loadIt.length && !high.length, `${T}: strength or conditioning after sport (${loadIt.map(i => i.exerciseId)})`);
-        if (breathOk) ok(its[its.length - 1].exerciseId === 'paced_breathing', `${T}: no breathing to close`);
+        if (breathOk) ok(its[its.length - 1].exerciseId === breathId, `${T}: no breathing to close (${breathId})`);
         break;
       case 'wind_down':
         ok(!loadIt.length && !high.length && !its.some(i => ['radio_taiso_1', 'plank', 'hollow_body_hold'].includes(i.exerciseId)), `${T}: effort in the wind down (${loadIt.map(i => i.exerciseId)})`);
-        if (breathOk) ok(its[its.length - 1].exerciseId === 'paced_breathing' && its[its.length - 1].holdSec[0] >= 60, `${T}: no breathing to close`);
+        if (breathOk) ok(its[its.length - 1].exerciseId === breathId && breathSec(its[its.length - 1]) >= 60, `${T}: no breathing to close (${breathId})`);
         break;
       case 'on_the_road':
         ok(!high.length && its.every(i => ex(i).space === 'small' && ex(i).equipment.every(e => ['wall', 'bench', 'table'].includes(e)) && !['bear_crawl', 'burpee', 'dead_hang'].includes(i.exerciseId)),
@@ -1161,7 +1175,7 @@ let momentChecked = 0;
         break;
       case 'low_energy':
         ok(!high.length && !its.some(i => i.exerciseId === 'radio_taiso_1'), `${T}: brisk work on a low-energy day`);
-        if (breathOk) ok(its[0].exerciseId === 'paced_breathing', `${T}: breath not first`);
+        if (breathOk) ok(its[0].exerciseId === breathId, `${T}: breath not first (${breathId})`);
         ok(its.filter(i => i.rir != null).every(i => i.rir >= 4) && capOk(-1), `${T}: strength not one level down or not easy`);
         break;
     }
@@ -1369,7 +1383,7 @@ let v13Checked = 0;
         if (LADDER.has(e.family) || e.mode === 'flow') { ok(!alts.length, `${e.id}: ladders and flows get no swap list`); continue; }
         ok(alts.length <= 3, `${e.id}: at most 3 swaps`);
         for (const a of alts) {
-          ok(a.id !== e.id && a.mode !== 'flow' && [...regs(a)].some(r => regs(e).has(r)) && (p ? P.isAvailable(a, p) : P.isAvailable(a, mk({ equipment: ['wall'] }))),
+          ok(a.id !== e.id && a.mode !== 'flow' && ([...regs(a)].some(r => regs(e).has(r)) || (e.category === 'breath' && a.category === 'breath')) && (p ? P.isAvailable(a, p) : P.isAvailable(a, mk({ equipment: ['wall'] }))),
             `${e.id} -> ${a.id}: same region, available, not a flow`);
           if (['warmup', 'mobility'].includes(e.category)) ok(['warmup', 'mobility'].includes(a.category), `${e.id} -> ${a.id}: a warm-up or mobility move swaps with its own kind`);
           if (e.category === 'conditioning') ok(a.category === 'conditioning' && Math.abs(a.level - e.level) <= 1.5, `${e.id} -> ${a.id}: cardio at a similar level`);
@@ -1441,6 +1455,111 @@ let v13Checked = 0;
     const s = P.generateQuickSession({ minutes: 20, goal: 'strength', date: '2026-09-29', shuffle: 2, levelShift: -1, equipment: ['wall'] }, quickSample, lvOf(quickSample), EXERCISES);
     ok(s.shuffle.n === 2 && s.levelShift.applied === -1 && items(s).every(i => (byId[i.exerciseId]?.equipment || []).every(e => e === 'wall')), 'shuffle + level shift + kit today together');
   }
+}
+
+// ---- v1.3a: the 13 promoted flow steps (docs/flow-and-breath.md §2-3, §8; fact-check 2026-09-29)
+{
+  const RT8 = ['rt_arm_swing_knee_bend', 'rt_arm_circles', 'rt_chest_opener', 'rt_forward_back_bend', 'rt_arms_up_down', 'rt_diagonal_bend', 'rt_trunk_circle', 'rt_deep_breath'];
+  const BD5 = ['baduanjin_separate_heaven_earth', 'baduanjin_sway_head_tail', 'baduanjin_touch_toes', 'baduanjin_clench_fists', 'baduanjin_heel_bounce'];
+  const PROMOTED = [...RT8, ...BD5];
+  // data: visible standalone moves with a fact-check note, grade C, a standalone dose, animation and a native name
+  for (const id of PROMOTED) {
+    const e = ALL_BY_ID[id];
+    ok(e && !e.flowOnly && visibleById[id] === e && isVisible(e), `v1.3a ${id}: promoted and visible in the Library`);
+    ok(e && e.verified?.date === '2026-09-29' && /^Promoted/.test(e.verified.notes) && e.evidence === 'C', `v1.3a ${id}: fact-check note (2026-09-29) and grade C`);
+    ok(e && e.dose && e.dose.reps.length === 2 && e.dose.reps[0] <= e.dose.reps[1] && e.tempo?.secPerRep > 0, `v1.3a ${id}: standalone dose and tempo`);
+    ok(e && hasAnimation(e.anim || e.id) && e.nativeName?.text && e.sources.some(s => s.kind === 'official'), `v1.3a ${id}: animated, native name, official source`);
+  }
+  ok(ALL_BY_ID.baduanjin_heel_bounce.dose.reps.join() === '7,7' && ALL_BY_ID.baduanjin_touch_toes.dose.reps.join() === '6,6'
+    && ['baduanjin_separate_heaven_earth', 'baduanjin_sway_head_tail', 'baduanjin_clench_fists'].every(id => ALL_BY_ID[id].unilateral && ALL_BY_ID[id].dose.reps.join() === '3,3'),
+    'v1.3a Baduanjin singles: one standard set (6; 3 per side; 7 for the heel bounce)');
+  // still flow-only: never visible, planned or swapped
+  for (const id of ['rt_two_foot_hops', 'rt_heel_raise']) {
+    ok(ALL_BY_ID[id].flowOnly && !visibleById[id] && !P.isAvailable(ALL_BY_ID[id], mk({ equipment: ALL_EQ, space: 'large' })), `v1.3a ${id}: stays flow-only`);
+    ok(P.swapAlternatives('jumping_jack', mk({ equipment: ALL_EQ, space: 'large' }), EXERCISES, { n: 20 }).every(e => e.id !== id), `v1.3a ${id}: never offered as a swap`);
+  }
+  // plannable: in their tradition pools, and actually planned somewhere (plans, goals, moments)
+  ok(RT8.every(id => P.quickPoolIds({ tradition: 'radio_taiso' }, null, EXERCISES).includes(id)), 'v1.3a: the Morning Taisō pool has the 8 promoted singles');
+  ok(BD5.every(id => P.quickPoolIds({ tradition: 'baduanjin' }, null, EXERCISES).includes(id)), 'v1.3a: the Baduanjin pool has the 5 promoted singles');
+  ok(P.quickPoolIds({ category: 'breath' }, null, EXERCISES).includes('rt_deep_breath'), 'v1.3a: the deep breath is in the Breath pool');
+  const planned = new Map(); // id -> where
+  const note = (sess, where) => { for (const b of sess.blocks) for (const i of b.items) if (!planned.has(i.exerciseId)) planned.set(i.exerciseId, `${where} / ${b.title}`); };
+  const sessionsA = [];
+  for (const p of grid) { const w = P.generateWeek(p, P.initialLevels(p, EXERCISES), EXERCISES, 1); w.sessions.forEach(x => { note(x, 'plan'); sessionsA.push([x, p, null]); }); }
+  const dates = ['2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03'];
+  for (const date of dates) {
+    for (const g of ['health', 'flexibility', 'strength']) for (const m of [10, 20, 30]) { const q = P.generateQuickSession({ minutes: m, goal: g, date }, null, null, EXERCISES); note(q, `quick ${g}`); sessionsA.push([q, null, null]); }
+    for (const mo of Object.keys(P.MOMENTS)) for (const m of P.MOMENTS[mo].minutes) {
+      for (const [p, lv] of [[null, null], [quickSample, P.initialLevels(quickSample, EXERCISES)]]) { const q = P.generateQuickSession({ minutes: m, moment: mo, date }, p, lv, EXERCISES); note(q, `moment ${mo}`); sessionsA.push([q, p, mo]); }
+    }
+  }
+  const AUTO = PROMOTED.filter(id => id !== 'baduanjin_sway_head_tail');
+  ok(AUTO.every(id => planned.has(id)), `v1.3a: every promoted move except the head-and-tail sway is auto-planned somewhere (missing ${AUTO.filter(id => !planned.has(id))})`);
+  ok(!planned.has('baduanjin_sway_head_tail'), `v1.3a: the head-and-tail sway is never auto-planned (${planned.get('baduanjin_sway_head_tail')})`);
+  ok(['rt_two_foot_hops', 'rt_heel_raise'].every(id => !planned.has(id)), 'v1.3a: flow-only steps are never planned on their own');
+  let checked = 0;
+  for (const [q, p, mo] of sessionsA) {
+    const its = q.blocks.flatMap(b => b.items), ids = its.map(i => i.exerciseId);
+    ok(!(ids.includes('arm_circles') && ids.includes('rt_arm_circles')), `v1.3a: arm circles and Morning Taisō arm circles in one session (${q.name})`);
+    // the trunk circle: warm-ups (plans, Quick) and Before sport only
+    for (const b of q.blocks) if (b.items.some(i => i.exerciseId === 'rt_trunk_circle')) ok(mo ? mo === 'before_sport' : b.kind === 'warmup', `v1.3a: trunk circle auto-planned in ${mo || 'a plan'} / ${b.title}`);
+    if (mo === 'after_meal') ok(!ids.some(i => ['rt_forward_back_bend', 'rt_diagonal_bend', 'baduanjin_touch_toes'].includes(i)), `v1.3a: a deep fold after a meal (${ids})`);
+    if (['wind_down', 'low_energy'].includes(mo)) ok(!ids.some(i => ['rt_arm_swing_knee_bend', 'rt_arm_circles', 'rt_arms_up_down', 'rt_forward_back_bend', 'rt_diagonal_bend'].includes(i)), `v1.3a: brisk Taisō move in ${mo} (${ids})`);
+    const warm = q.blocks.find(b => b.kind === 'warmup');
+    if (warm && warm.items.length > 1) ok(!['rt_forward_back_bend', 'rt_diagonal_bend'].includes(warm.items[0].exerciseId), `v1.3a: a Taisō bend opens the warm-up (${q.name})`);
+    // the dose: a promoted single keeps its tradition's count wherever it is planned (the breath block sets its own number of breaths)
+    for (const i of its) { const e = byId[i.exerciseId]; if (e?.dose && !(q.blocks.find(b => b.items.includes(i)).title || '').startsWith('Breathe')) ok(i.reps && i.reps.join() === e.dose.reps.join(), `v1.3a: ${i.exerciseId} dose ${i.reps} in ${q.name}`); }
+    checked++;
+  }
+  v13Checked += checked;
+  // breath blocks: the deep breath when visible, paced breathing when the tradition is hidden; the deep breath closes plan cool-downs
+  const wd = P.generateQuickSession({ minutes: 10, moment: 'wind_down', date: '2026-09-29' }, null, null, EXERCISES), wdi = allItems(wd);
+  ok(wdi[wdi.length - 1].exerciseId === 'rt_deep_breath' && wdi[wdi.length - 1].reps[0] * byId.rt_deep_breath.tempo.secPerRep >= 60 && /No breath holds/.test(wdi[wdi.length - 1].notes),
+    `v1.3a breath rule: the wind-down closes with Morning Taisō's deep breath (${wdi.map(i => i.exerciseId)})`);
+  const le = P.generateQuickSession({ minutes: 10, moment: 'low_energy', date: '2026-09-29' }, mk({ injuries: ['shoulder'] }), null, EXERCISES), lei = allItems(le);
+  ok(lei[0].exerciseId === 'rt_deep_breath' && lei[lei.length - 1].exerciseId === 'rt_deep_breath' && /below shoulder height/.test(lei[0].notes), `v1.3a breath rule: low-energy day breathes first and last; shoulder note (${lei.map(i => i.exerciseId)})`);
+  {
+    const saved = TRADITIONS.radio_taiso.verified;
+    TRADITIONS.radio_taiso.verified = null;
+    const h = allItems(P.generateQuickSession({ minutes: 10, moment: 'wind_down', date: '2026-09-29' }, null, null, ALL_EXERCISES));
+    ok(h[h.length - 1].exerciseId === 'paced_breathing' && !h.some(i => i.exerciseId === 'rt_deep_breath'), `v1.3a breath rule: Morning Taisō hidden -> paced breathing (${h.map(i => i.exerciseId)})`);
+    TRADITIONS.radio_taiso.verified = saved;
+  }
+  const cools = sessionsA.filter(([q, p, mo]) => !mo && p).flatMap(([q]) => q.blocks.filter(b => b.kind === 'cooldown' && !b.items.some(i => i.flow)));
+  ok(cools.some(b => b.items[b.items.length - 1].exerciseId === 'rt_deep_breath') && cools.every(b => !b.items.some(i => i.exerciseId === 'rt_deep_breath') || b.items[b.items.length - 1].exerciseId === 'rt_deep_breath'),
+    'v1.3a: the deep breath closes plan cool-downs (and is always last when present)');
+  // injuries and "not for you now" reasons
+  const INJ = { lower_back: ['rt_chest_opener', 'rt_forward_back_bend', 'rt_diagonal_bend', 'rt_trunk_circle', 'baduanjin_touch_toes', 'baduanjin_sway_head_tail'],
+    shoulder: ['rt_arm_circles', 'rt_arms_up_down', 'baduanjin_separate_heaven_earth'], knee: ['rt_arm_swing_knee_bend', 'baduanjin_sway_head_tail'], neck: ['baduanjin_sway_head_tail'], ankle: ['baduanjin_heel_bounce'] };
+  for (const [inj, list] of Object.entries(INJ)) {
+    const p = mk({ injuries: [inj] });
+    for (const id of list) {
+      const r = P.unavailableReason(byId[id], p);
+      ok(!P.isAvailable(byId[id], p) && r?.code === 'injury' && r.injury === inj, `v1.3a ${id}: excluded with ${inj} (${JSON.stringify(r)})`);
+    }
+    for (const [q] of sessionsA) void q;
+    for (const mo of ['morning', 'desk', 'before_sport', 'after_sport', 'wind_down']) {
+      const ids = allItems(P.generateQuickSession({ minutes: P.MOMENTS[mo].def, moment: mo, date: '2026-09-29' }, p, P.initialLevels(p, EXERCISES), EXERCISES)).map(i => i.exerciseId);
+      ok(!ids.some(i => list.includes(i)), `v1.3a ${inj}: excluded move in ${mo} (${ids.filter(i => list.includes(i))})`);
+    }
+  }
+  const kp = mk({ injuries: ['knee'] });
+  ok(P.isAvailable(byId.baduanjin_clench_fists, kp) && P.isAvailable(byId.rt_deep_breath, mk({ injuries: ['shoulder', 'lower_back', 'neck', 'knee'] })), 'v1.3a: the punch stays (high stance) with a knee flag; the deep breath suits every flag');
+  ok(PROMOTED.every(id => P.unavailableReason(byId[id], mk({ age: 80 })) === null), 'v1.3a: no age exclusion on the promoted singles (the standing flow stays out at 75+)');
+  const lowP = mk({ lowImpact: true });
+  const hb = allItems(P.generateQuickSession({ minutes: 10, tradition: 'baduanjin', date: '2026-09-29', shuffle: 1 }, lowP, P.initialLevels(lowP, EXERCISES), EXERCISES));
+  const hbi = hb.find(i => i.exerciseId === 'baduanjin_heel_bounce' || i.exerciseId === 'baduanjin_sequence');
+  ok(hbi && /heels slowly/.test(hbi.notes), `v1.3a: low impact lowers the heels slowly (${hb.map(i => i.exerciseId + ': ' + i.notes)})`);
+  // Swap: warm-up, mobility and breath moves swap within the same region and purpose; tradition forms among themselves
+  const sp = mk({ equipment: ['wall'] });
+  const sw = id => P.swapAlternatives(id, sp, EXERCISES, { n: 5 }).map(e => e.id);
+  ok(sw('rt_arm_circles').length && !sw('rt_arm_circles').includes('arm_circles') && !sw('arm_circles').includes('rt_arm_circles'), `v1.3a swap: arm circles never swap to their twin (${sw('rt_arm_circles')})`);
+  ok(EXERCISES.every(e => { const l = P.swapAlternatives(e.id, sp, EXERCISES, { n: 20 }).map(x => x.id); return !(l.includes('arm_circles') && l.includes('rt_arm_circles')); }), 'v1.3a swap: a swap list never offers both arm circles');
+  ok(sw('rt_deep_breath').includes('paced_breathing') && sw('paced_breathing').includes('rt_deep_breath'), `v1.3a swap: deep breath <-> paced breathing (${sw('rt_deep_breath')})`);
+  ok(RT8.filter(id => id !== 'rt_deep_breath').every(id => sw(id).length && sw(id).every(x => ['warmup', 'mobility'].includes(byId[x].category) && byId[x].mode !== 'flow')), `v1.3a swap: every Taisō single has warm-up / mobility swaps`);
+  ok(BD5.every(id => sw(id).length && sw(id).every(x => byId[x].mode !== 'flow' && !P.PROGRESSION_FAMILIES.includes(byId[x].family))), `v1.3a swap: Baduanjin singles have gentle or tradition-form swaps (${BD5.map(id => id + ':' + sw(id))})`);
+  ok(!P.swapAlternatives('rt_arm_circles', sp, EXERCISES, { n: 20, moment: 'morning' }).some(e => ['rt_forward_back_bend', 'rt_diagonal_bend'].includes(e.id)), 'v1.3a swap: no early forward bend offered in the morning');
+  ok(sw('hip_circles').includes('rt_trunk_circle') || P.swapAlternatives('rt_diagonal_bend', sp, EXERCISES, { n: 20 }).some(e => e.id === 'rt_trunk_circle'), 'v1.3a swap: the trunk circle is offered as a swap');
 }
 
 // ---- sample

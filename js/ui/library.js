@@ -164,6 +164,7 @@ function detailHTML(e) {
     ${e.cues?.length ? `<h3 class="h3">Cues</h3><ol class="cues">${e.cues.map(c => `<li>${esc(c)}</li>`).join('')}</ol>` : ''}
     ${e.mode === 'flow' ? flowStepsHTML(e) : ''}
     ${e.attribution ? `<p class="small muted cc-attr"><span class="label">Based on</span> ${esc(e.attribution[0].toUpperCase() + e.attribution.slice(1))}</p>` : ''}
+    ${trad && e.sources?.length ? `<p class="small muted cc-sources"><span class="label">Sources</span> ${e.sources.filter(s => s.url).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.label)}</a>`).join('<span aria-hidden="true"> · </span>')}</p>` : ''}
     ${mistakes.length ? `<h3 class="h3">Common mistakes</h3><ul class="mistakes">${mistakes.map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
     <h3 class="h3">You’ll need</h3><p class="small">${e.equipment.length ? e.equipment.map(q => EQUIP_NAME[q] || q).join(', ') : 'Nothing but the floor'} · ${e.space} space${e.stress?.length ? ` · loads: ${e.stress.map(x => x.replace('_', ' ')).join(', ')}` : ''}</p>
     ${similarHTML(e, profile)}

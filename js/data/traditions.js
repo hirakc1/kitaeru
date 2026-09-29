@@ -94,7 +94,8 @@ export const TRADITIONS = {
       { grade: 'B', claim: 'May improve flexibility, balance, sleep quality and blood pressure', cite: 'Zou et al. 2017, eCAM (meta-analysis)',
         url: 'https://pubmed.ncbi.nlm.nih.gov/28367223/' },
     ],
-    safety: ['Keep head turns small and pain-free', 'Bend your knees in forward folds'],
+    // v1.3a: the optional heel line from flow-and-breath.md §7.5 (a Kitaeru adaptation, disclosed on the heel bounce; fact-check §3: PASS)
+    safety: ['Keep head turns small and pain-free', 'Bend your knees in forward folds', 'Lower your heels slowly at the end if you avoid impact or have fragile bones'],
     attribution: 'Health Qigong Baduanjin, standardised by the Chinese Health Qigong Association (2003)',
     sensitivity: 'attributed',
     sources: [

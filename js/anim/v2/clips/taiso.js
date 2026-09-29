@@ -50,15 +50,17 @@ const rt_arm_swing_knee_bend = rt('Arm swing and knee bend', {
     { from: 'open', via: ['down'], to: 'a', at: [0, .75, 1], dur: .45, r1: .3, r2: .3 }],
 });
 
-// 3. Arm circles: big, loose circles from the shoulders, outwards then inwards; shoulders relaxed. 2 reps ≈ 5 s.
-// straight arms sweep a big circle: crossing low in front, up the front, overhead, out to the side and down
+// 3. Arm circles (腕を回す運動): big, loose circles from the shoulders, alternating one each way; shoulders relaxed.
+// Fact-check 2026-09-29 (Kampo seated sheet, NHK fig. 1, Federation FAQ): the first circle (外まわし) goes out and up the
+// sides, the arms cross overhead and come down in front; the second goes up in front and down the sides.
+// One cycle = one circle each way = one counted rep (NHK 4呼間×4回: four of these). ≈ 5 s at the natural tempo.
 const CIRC = { x: H(31, -28, -2, { palm: 90 }), m: H(32, 36, 6, { palm: 0 }), u: H(-11, 48, 17, { palm: 0 }), s: H(-2, 14, 61, { palm: 90 }),
-  l: H(15, -26, 49, { palm: 90 }) };
-const rt_arm_circles = rt('Arm circles', {
-  counts: 2, trail: ['palmR'],
+  l: H(15, -26, 49, { palm: 90 }), su: ARM(140, 70, { palm: 90 }, 50), ux: H(-4, 47, -3, { palm: 0 }) };   // su: high at the side; ux: crossed overhead
+const rt_arm_circles = rt('Taisō arm circles', {
+  counts: 1, trail: ['palmR'],
   keys: { a: {}, ...CIRC },
-  timeline: [{ cyclic: ['a', 'x', 'm', 'u', 's', 'l'], dur: 2.5 },   // outwards: across the front, up, out to the side, down
-    { cyclic: ['a', 'l', 's', 'u', 'm', 'x'], dur: 2.5 }],             // inwards
+  timeline: [{ cyclic: ['a', 'l', 's', 'su', 'ux', 'm', 'x'], dur: 2.6 },   // out and up the sides, cross overhead, down in front
+    { cyclic: ['a', 'x', 'm', 'u', 's', 'l'], dur: 2.4 }],                  // then back: across and up the front, overhead, down the sides
 });
 
 // 4. Chest opener (胸を反らす運動): arms swing across the front, then out and up; the chest lifts and opens and the eyes
@@ -132,14 +134,15 @@ const rt_trunk_twist = rt('Trunk twist', {
 });
 
 // 8. Arms up and down (腕を上下に伸ばす運動): hands to the shoulders, stretch straight up (heels rise), back to the
-// shoulders, then stretch down to the sides; crisp, on the count. 1 rep = 4 counts ≈ 4 s.
+// shoulders, then stretch straight down; crisp, on the count. 1 rep = 4 counts ≈ 4 s. The last extension is down (NHK
+// 腕を下にのばし; fact-check 2026-09-29): the rep ends there, with no extra return to the shoulders.
 const SH = H(10, 4, 16, { palm: 0, fingers: 60, elbow: 130 });
 const rt_arms_up_down = rt('Arms up and down', {
   counts: 1, trail: ['palmR'],
   keys: { a: {}, sh: SH, shB: { ...SH, onBalls: 1 }, up: { ...UP, rootY: 92, ...heels(22) }, dn: H(19, -47, 18, { palm: 0, fingers: 5 }) },
-  timeline: [{ from: 'a', to: 'sh', dur: .5, r1: .25, r2: .3 }, { from: 'sh', via: ['shB'], to: 'up', at: [0, .3, 1], dur: .6, r1: .2, r2: .35 }, { hold: 'up', dur: .3, b: 1 },
-    { from: 'up', via: ['shB'], to: 'sh', at: [0, .7, 1], dur: .6, r1: .25, r2: .3 }, { hold: 'sh', dur: .3 }, { from: 'sh', to: 'dn', dur: .5, r1: .2, r2: .35 },
-    { hold: 'dn', dur: .3 }, { from: 'dn', to: 'sh', dur: .5, r1: .25, r2: .3 }, { from: 'sh', to: 'a', dur: .4, r1: .3, r2: .35 }],
+  timeline: [{ from: 'a', to: 'sh', dur: .55, r1: .25, r2: .3 }, { from: 'sh', via: ['shB'], to: 'up', at: [0, .3, 1], dur: .6, r1: .2, r2: .35 }, { hold: 'up', dur: .3, b: 1 },
+    { from: 'up', via: ['shB'], to: 'sh', at: [0, .7, 1], dur: .6, r1: .25, r2: .3 }, { hold: 'sh', dur: .3 }, { from: 'sh', to: 'dn', dur: .55, r1: .2, r2: .35 },
+    { hold: 'dn', dur: .6 }, { from: 'dn', to: 'a', dur: .5, r1: .3, r2: .35 }],
 });
 
 // 9. Diagonal bend and chest opener (体を斜め下に曲げ胸を反らす運動): bend down diagonally towards one foot with small
@@ -196,11 +199,12 @@ const rt_heel_raise = rt('Heel raises', {
 });
 
 // 13. Deep breath (深呼吸): the arms rise forwards and up as you breathe in and lower out to the sides as you breathe
-// out; slow and full, no breath holding. 1 rep ≈ 5 s.
+// out; slow and full, no breath holding. On its own (v1.3a single, breath blocks) 1 rep ≈ 10 s: about 4.5 s in and 5.5 s out
+// (flow-and-breath.md §2.1.8, [practice]); in the flow the count sets the pace (about 5 s).
 const rt_deep_breath = rt('Deep breath', {
   counts: 1, trail: ['palmR'],
   keys: { a: {}, ...ARC, up: { ...UP, head: -6, cervical: -3, thoracic: -3 } },
-  timeline: [{ ...ARC_UP, dur: 2.4, r1: .35, r2: .35, breath: 'in' }, { ...ARC_DOWN, dur: 2.6, r1: .35, r2: .4, breath: 'out' }],
+  timeline: [{ ...ARC_UP, dur: 4.5, r1: .35, r2: .35, breath: 'in' }, { ...ARC_DOWN, dur: 5.5, r1: .35, r2: .4, breath: 'out' }],
 });
 
 Object.assign(CLIPS, {

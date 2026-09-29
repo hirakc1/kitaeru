@@ -200,7 +200,8 @@ request = {
 - Honour the profile's injuries, equipment and levels when present.
 - A 'Q' session log counts toward the day streak and the weekly target, like any session. applySessionLog progresses the families it trained.
 - The session's `name` is descriptive, e.g. "20-min Lower body · Strength" or "15-min Glutes & hamstrings".
-- **Same drill, once:** near-identical drills never share a session, in plans or Quick (`open_book` and `thoracic_opener`, shown as "Side-lying chest opener").
+- **Same drill, once:** near-identical drills never share a session, in plans or Quick (`open_book` and `thoracic_opener`, shown as "Side-lying chest opener"; v1.3a: `arm_circles` and `rt_arm_circles`). A swap list offers only one of a pair.
+- **v1.3a plan blocks:** `rt_arm_swing_knee_bend` joins the full and lower-body warm-up order (a pulse raiser); the other Taisō singles can fill warm-ups as `warmup`-family moves, but a Taisō bend never opens one. A hard session's stretching cool-down (not the Baduanjin one) closes with `rt_deep_breath` when it is visible and at least 4 min are left for the cool-down.
 - **Precedence:** `muscles` > pool (`tradition` / `category` / `family`) > `focus` > `goal`. A later `moment` option will slot in the same way: a request field that picks a pool and its filler.
 
 **Train for a goal (v1.2).** With no area (`focus` absent or `'full'`) and no muscles, the goal chooses the content, not only the dose. Content = every block except the warm-up and cool-down.
@@ -238,7 +239,8 @@ request = {
   - `wind_down`: a slow flow, floor stretches with longer holds, 60–90 s paced breathing to close; no strength, conditioning, impact, Morning Taisō, plank or hollow hold;
   - `on_the_road`: the normal Quick full-body health session with forced low impact, small space, kit limited to wall / bench / table, and no bear crawl, burpee or dead hang;
   - `low_energy`: paced breathing first (and last from 10 min), gentle moves and a slow flow, optional light strength from 15 min (RIR 4, one level down); no impact, no Morning Taisō.
-  - Breath blocks use `paced_breathing` only (never a breath hold); if it isn't visible, the block is left out and the time goes to the moment's own moves.
+  - Breath blocks use `rt_deep_breath` (Morning Taisō's deep breath, about 10 s a breath, as many breaths as fill the block) when it is visible and available (founder decision, v1.3a), otherwise `paced_breathing`; never a breath hold. If neither is visible, the block is left out and the time goes to the moment's own moves.
+  - v1.3a promoted singles (docs/flow-and-breath.md §8): `baduanjin_sway_head_tail` is never auto-planned and `rt_trunk_circle` only in Before sport's Mobilise (both stay in Library pools and swaps); `rt_forward_back_bend` and `rt_diagonal_bend` join the early-flexion list for `morning` and are kept out of `after_meal` with `baduanjin_touch_toes`; the brisk Taisō singles stay out of `wind_down` and `low_energy`; `baduanjin_heel_bounce` gets a slow-lowering note in `wind_down` and for low impact.
   - Sessions land within ±10 % of the requested minutes and always have at least two moves.
 - **Streaks and progression.** A moment session of **10 min or less** keeps the day streak alive but does not count toward the weekly target, like Morning Taisō: `isShortMomentLog(log)` (a `'Q'` log whose `request.moment` is set and whose snapped minutes are ≤ 10). `computeStreak`, the re-entry gap and the UI's `isTrainingLog` / `sessionsThisWeek` / `weekDays` all use it. Longer moments count like any Quick workout. `applySessionLog` never changes levels for `RECOVERY_MOMENTS` (`before_sport`, `after_sport`, `wind_down`, `low_energy`, `after_meal`); `morning`, `energy`, `desk` and `on_the_road` logs progress normally.
 
@@ -300,7 +302,11 @@ Research: `docs/world-movement.md` (§3 rotation, §4 programming, §5 cultural 
   rung: false,                       // a variety swap (the daṇḍ): never a ladder rung and never auto-planned in plans, goal workouts or
                                      // moments; listed and swappable (varietyFor / the workout player's variety button). It may appear
                                      // in a Library "Make a workout" only when the user explicitly picks its own tradition pool.
-  flowOnly: true,                    // a step used inside a flow; never shown, planned or swapped on its own (promoted in v1.3)
+  flowOnly: true,                    // a step used inside a flow; never shown, planned or swapped on its own. v1.3a promoted 13
+                                     // (8 Morning Taisō, 5 Baduanjin); only rt_two_foot_hops and rt_heel_raise (and the Tai Chi
+                                     // closing / white crane) stay flow-only
+  dose: { reps: [16, 16] },          // (v1.3a) the standalone count of a promoted flow step (docs/flow-and-breath.md §2-3); wins
+                                     // over a block's default reps wherever the move is planned, and its time uses `tempo.secPerRep`
   adaptation: true,                  // Kitaeru's own substitute, not part of the tradition (e.g. rt_heel_raise); say so in the UI
 }
 ```

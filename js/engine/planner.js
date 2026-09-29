@@ -87,7 +87,8 @@ const INJ_ALLOW = {
   shoulder: { incline_push_up: 'Stop at parallel: pain-free depth only.', knee_push_up: 'Stop at parallel: pain-free depth only.', push_up: 'Stop at parallel: pain-free depth only.' },
   knee: { split_squat: 'Partial range, pain-free (≤3/10).', horse_stance: 'High stance only: knees slightly bent, pain-free.',
     taichi_part_horse_mane: 'High stance: knees slightly bent, pain-free.', taichi_brush_knee: 'High stance: knees slightly bent, pain-free.',
-    taichi_golden_rooster: 'Standing knee soft; lift only as high as is comfortable.', baduanjin_draw_bow: 'High stance: knees slightly bent, pain-free.' },
+    taichi_golden_rooster: 'Standing knee soft; lift only as high as is comfortable.', baduanjin_draw_bow: 'High stance: knees slightly bent, pain-free.',
+    baduanjin_clench_fists: 'High stance: knees slightly bent, pain-free.' },
   ankle: { calf_raise: 'Both legs, hands on a wall for support.' },
 };
 // world-movement §3.3 / §4.6.5: with a back problem, only the gentlest rotation levels
@@ -107,7 +108,7 @@ const PRI = { push_horizontal: 1, pull_horizontal: 2, pull_noequip: 2, squat: 3,
   core_anterior: 7, core_lateral: 8, core_posterior: 8, anti_rotation: 8, rotation: 8.5, calves: 9, stance: 9 };
 
 // Near-identical drills never share a session (QA: "Open book" and the side-lying chest opener are the same movement).
-const SAME_DRILL = [['open_book', 'thoracic_opener']];
+const SAME_DRILL = [['open_book', 'thoracic_opener'], ['arm_circles', 'rt_arm_circles']]; // flow-and-breath.md §8.4.7
 const TWIN = {};
 for (const g of SAME_DRILL) for (const id of g) TWIN[id] = g.filter(x => x !== id);
 /** A set of used exercise ids that also marks each id's same-drill twins as used. */
@@ -223,6 +224,7 @@ function flowAdapt(ex, D) {
   }
   if (D.inj.includes('neck')) note(FLOW_RANGE.neck); // §4.6.3: cap the neck range throughout
   if (Object.keys(out.replace).length) note('No hops: heel raises instead.');
+  if (D.lowImpact && moves.some(st => st.move === 'baduanjin_heel_bounce') && !out.skip.includes('baduanjin_heel_bounce')) note('Last piece: lower your heels slowly, with no jolt.'); // flow-and-breath.md §8.4.5
   if (out.skip.length > new Set(moves.map(st => st.move)).size / 3) return null; // too little of the form is left
   return out;
 }
@@ -431,12 +433,14 @@ export function swapAlternatives(exerciseId, profile, library, opts = {}) {
     if (reg.size && !shareReg) continue; // the same body region
     const ep = e.muscles?.primary || [], es = e.muscles?.secondary || [];
     const score = 3 * ep.filter(m => prim.has(m)).length + ep.filter(m => sec.has(m)).length + es.filter(m => prim.has(m)).length
-      + (shareReg ? 3 : 0) + (e.mode === ex.mode ? 3 : 0) + (e.category === ex.category ? 1 : 0) + (e.posture === ex.posture ? 1 : 0);
+      + (shareReg ? 3 : 0) + (e.mode === ex.mode ? 3 : 0) + (e.category === ex.category ? 1 : 0) + (e.posture === ex.posture ? 1 : 0)
+      + (ex.category === 'breath' ? 5 : 0); // breathing drills swap with each other (no muscles to match: v1.3a deep breath <-> paced breathing)
     if (score >= 6) scored.push({ e, score }); // at least the region and the kind of move (dynamic reps, or a held stretch)
   }
   // same score: the nearer level for cardio (intensity); otherwise a steady order
   scored.sort((a, b) => b.score - a.score || (b.e.mode === ex.mode) - (a.e.mode === ex.mode) || (ex.category === 'conditioning' ? Math.abs(a.e.level - ex.level) - Math.abs(b.e.level - ex.level) : 0) || a.e.id.localeCompare(b.e.id));
-  return scored.slice(0, opts.n || 3).map(x => x.e);
+  const out = drillSet(); // one of a same-drill pair (arm circles and the Morning Taisō arm circles), never both
+  return scored.filter(({ e }) => !out.has(e.id) && out.add(e.id)).slice(0, opts.n || 3).map(x => x.e);
 }
 
 const infoCache = new WeakMap();
@@ -621,7 +625,7 @@ function repSec(it, info) {
   if (/^negative_|nordic_curl_negative/.test(it.exerciseId)) return CONFIG.secPerRepNegative;
   if (it.family === 'conditioning') return CONFIG.secPerRepConditioning;
   const ex = info.byId[it.exerciseId];
-  if (ex && /^flow_/.test(ex.family) && ex.tempo?.secPerRep) return ex.tempo.secPerRep; // Tai Chi / Qigong single forms are slow
+  if (ex && (/^flow_/.test(ex.family) || ex.dose) && ex.tempo?.secPerRep) return ex.tempo.secPerRep; // Tai Chi / Qigong single forms are slow; promoted flow steps keep their count
   if ((it.reps && it.reps[1] <= 8) || (ex && PROGRESSION_FAMILIES.includes(ex.family) && ex.level >= info.famMax[ex.family] - 1)) return CONFIG.secPerRepStrength;
   return CONFIG.secPerRep;
 }
@@ -767,9 +771,10 @@ function makePart(ex, role, ctx, sess, pri, ess, order, tier = ess ? 1 : 3) {
   return { item, ex, role, pri, ess, order, tier, min, base, max, pattern: patternOf(ex.family) };
 }
 
+// `ex.dose.reps` (v1.3a promoted flow steps): the standalone count from the tradition (docs/flow-and-breath.md) wins over the block's default
 const flatItem = (ex, { reps = [8, 12], hold = [20, 30], sets = 1, rest = 0, rir = null, notes = '' } = {}) => ({
   exerciseId: ex.id, family: ex.family, sets,
-  reps: ex.mode === 'hold' ? null : reps, holdSec: ex.mode === 'hold' ? hold : null,
+  reps: ex.mode === 'hold' ? null : ex.dose?.reps ? [...ex.dose.reps] : reps, holdSec: ex.mode === 'hold' ? hold : null,
   perSide: !!ex.unilateral, restSec: rest, rir, notes,
 });
 
@@ -1098,8 +1103,9 @@ const WARMUP_REGION = {
 };
 const WARMUP_ORDER = {
   upper: ['marching_in_place', 'arm_circles', 'scapular_push_up', 'wrist_prep', 'thoracic_opener', 'cat_cow', 'inchworm', 'hip_circles'],
-  lower: ['marching_in_place', 'leg_swings', 'hip_circles', 'worlds_greatest_stretch', 'cat_cow', 'arm_circles', 'inchworm'],
-  full: ['marching_in_place', 'arm_circles', 'leg_swings', 'hip_circles', 'scapular_push_up', 'worlds_greatest_stretch', 'inchworm', 'cat_cow', 'wrist_prep', 'thoracic_opener'],
+  lower: ['marching_in_place', 'leg_swings', 'rt_arm_swing_knee_bend', 'hip_circles', 'worlds_greatest_stretch', 'cat_cow', 'arm_circles', 'inchworm'],
+  full: ['marching_in_place', 'arm_circles', 'leg_swings', 'rt_arm_swing_knee_bend', 'hip_circles', 'scapular_push_up', 'worlds_greatest_stretch', 'inchworm', 'cat_cow', 'wrist_prep',
+    'thoracic_opener'],
 };
 const MOBILITY_ORDER = {
   upper: ['doorway_chest_stretch', 'thoracic_opener', 'childs_pose', 'shoulder_dislocate', 'cobra_stretch', 'cat_cow', 'standing_hamstring_stretch', 'hip_flexor_stretch'],
@@ -1138,6 +1144,12 @@ function fillFlat(block, cands, target, limit, mk, maxSets, used, info) {
   }
   return t;
 }
+
+// v1.3a promoted Morning Taisō steps (docs/flow-and-breath.md §2.1, §8)
+const NOT_FIRST = ['rt_forward_back_bend', 'rt_diagonal_bend'];   // warm-ups: after the easier drills
+const DEEP_BREATH_NOTE = 'Slow and full: about 4–5 s in as the arms rise, 5–6 s out as they lower. No breath holds.';
+/** The deep breath closes its block: move it back to the end after later fills. */
+const closeLast = block => { const i = block.items.findIndex(it => it.exerciseId === 'rt_deep_breath'); if (i >= 0 && i < block.items.length - 1) block.items.push(...block.items.splice(i, 1)); };
 
 function mobilityItem(ctx) {
   const hold = ctx.longHolds === 2 ? [45, 60] : ctx.D.band === 'a65' || ctx.longHolds ? [30, 45] : [20, 30]; // §1.1 flexibility (65+: 30-60 s, trimmed to 45 for time)
@@ -1239,6 +1251,8 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
       used.add(ex.id);
     }
   }
+  // flow-and-breath.md §2.1.4 / §2.1.6: the Morning Taisō bends come after easier drills, never first
+  if (warm.items.length > 1 && NOT_FIRST.includes(warm.items[0].exerciseId)) warm.items.push(warm.items.shift());
   blocks.push(warm);
 
   // --- skill (first, while fresh)
@@ -1392,7 +1406,12 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
   if (rt && !used.has(rt.id) && ctx.isAvail(rt) && !(Q && Q.flow)) {
     options.unshift({ id: 'morning_taiso', replaces: 'warmup', title: rt.name, block: { kind: 'warmup', title: rt.name, items: [flowItem(rt, ctx)] } });
   }
-  fillFlat(cool, mobCands, T - others(), T - others() + 15, ex => mk(ex, flexSets), flexSets === 2 ? 3 : 2, used, info);
+  // flow-and-breath.md §8.1: Morning Taisō's deep breath closes a stretching cool-down when it is visible and there is room
+  const db = ctx.byId.rt_deep_breath;
+  const closeIt = tpl.kind === 'hard' && !cool.items.length && db && ctx.isAvail(db) && !used.has(db.id) && T - others() >= 240 ? flatItem(db, { notes: DEEP_BREATH_NOTE }) : null;
+  const closeSec = closeIt ? blockSec({ items: [closeIt] }, info) : 0;
+  fillFlat(cool, mobCands, T - others() - closeSec, T - others() - closeSec + 15, ex => mk(ex, flexSets), flexSets === 2 ? 3 : 2, used, info);
+  if (closeIt) { cool.items.push(closeIt); used.add(db.id); }
   blocks.push(cool);
 
   // --- top-up when short (big sessions with a small library)
@@ -1412,6 +1431,7 @@ function buildSession(slot, ctx, weekIndex, sessIdx) {
       fillFlat(cool, mobCands, T - base, T - base + 15, ex => mk(ex, 1), Q ? (M >= 60 ? 10 : 8) : 4, used, info);
     }
   }
+  closeLast(cool);
   if (poolBlk) { // a small pool with nothing left to add: more rounds of its own moves rather than a short session
     total = blocks.reduce((t, b) => t + blockSec(b, info), 0);
     if (total < 0.96 * T) { const base = total - blockSec(poolBlk, info); fillFlat(poolBlk, [], T - base, T - base + 15, null, 6, used, info); }
@@ -1468,6 +1488,7 @@ function padSession(s, ctx) {
   if (t < 0.96 * T) {
     const base = t - blockSec(cool, info);
     fillFlat(cool, candidates(MOBILITY_ORDER.full, ctx, ['mobility']), T - base, T - base + 15, ex => mobilityItem(ctx)(ex, 1), 4, used, info);
+    closeLast(cool);
   }
   if (!cool.items.length) s.blocks.splice(s.blocks.indexOf(cool), 1);
 }
@@ -2072,7 +2093,8 @@ const SKILL_HOLD = { wall_handstand: [15, 45], freestanding_handstand: [5, 20], 
 // when no handbalance is possible (wrist, shoulder, neck ...): other skill holds, then a one-leg balance skill
 const SKILL_ALT = ['l_sit', 'hollow_body_hold', 'taichi_golden_rooster'];
 // flexibility (research §1.1 flexibility, world-movement §4.2): dynamic mobility and gentle rotation (levels 1-3) first, then held stretches
-const FLEX_DYNAMIC = ['cat_cow', 'open_book', 'worlds_greatest_stretch', 'thread_the_needle', 'thoracic_opener', 'seated_trunk_rotation'];
+const FLEX_DYNAMIC = ['cat_cow', 'open_book', 'worlds_greatest_stretch', 'thread_the_needle', 'thoracic_opener', 'seated_trunk_rotation',
+  'rt_diagonal_bend', 'rt_forward_back_bend', 'baduanjin_separate_heaven_earth', 'baduanjin_touch_toes']; // v1.3a: flow-and-breath.md §8.2
 const FLEX_HOLDS = ['hip_flexor_stretch', 'standing_hamstring_stretch', 'doorway_chest_stretch', 'pigeon_stretch', 'childs_pose', 'deep_squat_hold', 'cobra_stretch',
   'calf_stretch', 'pancake_stretch', 'shoulder_dislocate'];
 const rotate = (arr, k) => arr.length ? [...arr.slice(k % arr.length), ...arr.slice(0, k % arr.length)] : arr;
@@ -2164,7 +2186,7 @@ function goalTemplate(goal, ctx, seed, minutes, quick) {
       if (minutes >= 15) { quick.flow = Math.round(0.4 * secs); quick.flowOrder = ['baduanjin_sequence', 'taichi_short_flow']; }
       const nDyn = minutes <= 5 ? 1 : 2;
       if (minutes <= 5) quick.mobSets = 1; // 5 min: more areas, one hold each
-      const dyn = avoidLast(ctx, rotate(FLEX_DYNAMIC.filter(id => ctx.isAvail(ctx.byId[id])), seed)), holds = avoidLast(ctx, rotate(FLEX_HOLDS.filter(id => ctx.isAvail(ctx.byId[id])), seed >> 3));
+      const dyn = avoidLast(ctx, rotate(FLEX_DYNAMIC.filter(id => ctx.isAvail(ctx.byId[id]) && !(quick.flow && /^baduanjin_/.test(id))), seed)), holds = avoidLast(ctx, rotate(FLEX_HOLDS.filter(id => ctx.isAvail(ctx.byId[id])), seed >> 3));
       quick.mobOrder = nDyn === 1 ? [dyn[0], ...holds, ...dyn.slice(1)].filter(Boolean) // a dynamic opener, then holds with the other drills between them
         : [dyn[0], holds[0], dyn[1], ...holds.slice(1), ...dyn.slice(2)].filter(Boolean);
       return { kind: 'flow', name: '', focus: ['mobility'], slots: [] };
@@ -2243,7 +2265,7 @@ function poolSingle(ex, ctx, sets) {
   const hold = ex.id === 'taichi_golden_rooster' ? [5, 15] : ex.category === 'mobility' ? mobilityItem(ctx)(ex).holdSec : [20, 30];
   const tempo = ex.tempo?.secPerRep || 0;
   const reps = /^flow_/.test(ex.family) ? (tempo >= 10 ? [3, 4] : [4, 6]) : ex.category === 'warmup' ? [8, 12] : [6, 10];
-  const notes = [ex.category === 'balance' ? BAL_NOTE : '', ...injNotes(ex, ctx.D)].filter(Boolean).join(' ');
+  const notes = [ex.category === 'balance' ? BAL_NOTE : '', ...injNotes(ex, ctx.D), ex.id === 'baduanjin_heel_bounce' && ctx.D.lowImpact ? SLOW_HEELS : ''].filter(Boolean).join(' ');
   return flatItem(ex, { reps, hold, sets, rest: ex.mode === 'hold' ? 10 : 15, notes });
 }
 
@@ -2444,28 +2466,40 @@ export function momentMinutes(request) {
 /** A moment of 10 min or less: keeps the day streak alive but is not a training session (founder decision, as Morning Taisō). */
 export const isShortMomentLog = l => !!l && l.sessionId === 'Q' && !!momentId(l.request?.moment) && momentMinutes(l.request) <= 10;
 
-const EARLY_FLEXION = ['standing_hamstring_stretch', 'pancake_stretch', 'childs_pose', 'lying_leg_raise', 'hollow_body_hold', 'baduanjin_touch_toes'];
+const EARLY_FLEXION = ['standing_hamstring_stretch', 'pancake_stretch', 'childs_pose', 'lying_leg_raise', 'hollow_body_hold', 'baduanjin_touch_toes',
+  'rt_forward_back_bend', 'rt_diagonal_bend'];
+// v1.3a (docs/flow-and-breath.md §8.3-8.4): never auto-planned in a moment (Library, tradition pools and swaps only); the trunk
+// circle is allowed in Before sport's Mobilise, where the user has no back flag (its lower_back stress already rules that out)
+const NO_AUTO = ['baduanjin_sway_head_tail', 'rt_trunk_circle'];
+const RT_BRISK = ['rt_arm_swing_knee_bend', 'rt_arm_circles', 'rt_arms_up_down', 'rt_forward_back_bend', 'rt_diagonal_bend'];   // not in a wind-down or a low-energy day
+const FOLDS = ['baduanjin_touch_toes', 'rt_forward_back_bend', 'rt_diagonal_bend'];   // deep folds: not soon after a meal
+const SLOW_HEELS = 'Lower your heels slowly, with no jolt.';
 // Ordered pools (moments.md §3.4, plus the phase-A standing and seated items). Tradition ids drop out when not visible.
 const MP = {
   morningMob: ['marching_in_place', 'arm_circles', 'rt_stretch_up', 'rt_side_bend', 'hip_circles', 'rt_trunk_twist', 'leg_swings', 'taichi_commencement', 'open_book',
-    'cat_cow', 'thoracic_opener', 'worlds_greatest_stretch', 'baduanjin_hold_up_sky', 'taichi_cloud_hands'],
+    'cat_cow', 'thoracic_opener', 'worlds_greatest_stretch', 'baduanjin_hold_up_sky', 'taichi_cloud_hands', 'rt_arms_up_down', 'rt_chest_opener', 'rt_arm_swing_knee_bend',
+    'baduanjin_separate_heaven_earth', 'baduanjin_heel_bounce'],
   morningStr: [['bodyweight_squat', 'box_squat'], ['incline_push_up', 'wall_push_up'], ['glute_bridge'], ['bird_dog'], ['calf_raise']],
-  deskMove: ['marching_in_place', 'box_squat', 'calf_raise', 'wall_push_up', 'single_leg_rdl', 'seated_calf_raise'],
+  deskMove: ['marching_in_place', 'box_squat', 'calf_raise', 'wall_push_up', 'single_leg_rdl', 'seated_calf_raise', 'rt_arm_swing_knee_bend'],
   deskOpen: ['rt_stretch_up', 'doorway_chest_stretch', 'wall_angel', 'standing_hip_flexor_stretch', 'seated_trunk_rotation', 'rt_side_bend', 'hip_circles', 'arm_circles',
-    'rt_trunk_twist', 'leg_swings', 'taichi_cloud_hands', 'baduanjin_hold_up_sky', 'baduanjin_look_back'],
+    'rt_trunk_twist', 'leg_swings', 'taichi_cloud_hands', 'baduanjin_hold_up_sky', 'baduanjin_look_back', 'rt_chest_opener', 'rt_arms_up_down', 'rt_arm_circles',
+    'baduanjin_separate_heaven_earth'],
   burstImpact: ['high_knees', 'jumping_jack', 'squat_jump'],
   burstLow: ['marching_in_place', 'bodyweight_squat', 'baithak', 'mountain_climber'],
-  easy: ['arm_circles', 'hip_circles', 'rt_stretch_up', 'rt_trunk_twist', 'rt_side_bend', 'leg_swings'],
+  easy: ['arm_circles', 'hip_circles', 'rt_stretch_up', 'rt_trunk_twist', 'rt_side_bend', 'leg_swings', 'rt_arms_up_down', 'rt_arm_swing_knee_bend'],
   meal: ['marching_in_place', 'calf_raise', 'bodyweight_squat', 'box_squat', 'hip_circles', 'arm_circles', 'rt_stretch_up', 'rt_side_bend', 'leg_swings', 'taichi_cloud_hands',
-    'taichi_part_horse_mane', 'taichi_brush_knee', 'baduanjin_hold_up_sky', 'baduanjin_draw_bow', 'single_leg_calf_raise', 'seated_calf_raise', 'standing_hip_flexor_stretch'],
-  raise: ['marching_in_place', 'jumping_jack', 'high_knees'],
-  activate: ['glute_bridge', 'bird_dog', 'split_squat', 'calf_raise', 'single_leg_rdl', 'side_plank', 'plank_shoulder_tap', 'reverse_lunge', 'baduanjin_draw_bow', 'taichi_golden_rooster'],
-  mobilise: ['leg_swings', 'hip_circles', 'arm_circles', 'worlds_greatest_stretch', 'inchworm', 'open_book', 'rt_trunk_twist', 'rotational_lunge'],
+    'taichi_part_horse_mane', 'taichi_brush_knee', 'baduanjin_hold_up_sky', 'baduanjin_draw_bow', 'single_leg_calf_raise', 'seated_calf_raise', 'standing_hip_flexor_stretch',
+    'rt_arm_swing_knee_bend', 'baduanjin_separate_heaven_earth', 'baduanjin_clench_fists'],
+  raise: ['marching_in_place', 'jumping_jack', 'high_knees', 'rt_arm_swing_knee_bend'],
+  activate: ['glute_bridge', 'bird_dog', 'split_squat', 'calf_raise', 'single_leg_rdl', 'side_plank', 'plank_shoulder_tap', 'reverse_lunge', 'baduanjin_draw_bow', 'taichi_golden_rooster',
+    'baduanjin_clench_fists'],
+  mobilise: ['leg_swings', 'hip_circles', 'arm_circles', 'worlds_greatest_stretch', 'inchworm', 'open_book', 'rt_trunk_twist', 'rotational_lunge', 'rt_arm_circles',
+    'rt_forward_back_bend', 'rt_diagonal_bend', 'rt_trunk_circle'],
   potentiate: ['squat_jump', 'high_knees'],
   cool: ['hip_flexor_stretch', 'standing_hip_flexor_stretch', 'standing_hamstring_stretch', 'calf_stretch', 'doorway_chest_stretch', 'pigeon_stretch', 'childs_pose',
-    'thread_the_needle', 'open_book', 'cat_cow', 'deep_squat_hold', 'worlds_greatest_stretch'],
+    'thread_the_needle', 'open_book', 'cat_cow', 'deep_squat_hold', 'worlds_greatest_stretch', 'baduanjin_separate_heaven_earth', 'baduanjin_touch_toes'],
   wind: ['cat_cow', 'open_book', 'thread_the_needle', 'childs_pose', 'thoracic_opener', 'hip_flexor_stretch', 'pigeon_stretch', 'standing_hamstring_stretch', 'calf_stretch',
-    'taichi_cloud_hands', 'baduanjin_hold_up_sky', 'baduanjin_look_back', 'taichi_commencement'],
+    'taichi_cloud_hands', 'baduanjin_hold_up_sky', 'baduanjin_look_back', 'taichi_commencement', 'baduanjin_separate_heaven_earth', 'baduanjin_touch_toes', 'baduanjin_heel_bounce'],
   calm: ['marching_in_place', 'rt_stretch_up', 'rt_side_bend', 'hip_circles', 'arm_circles', 'cat_cow', 'open_book', 'childs_pose', 'taichi_cloud_hands', 'baduanjin_hold_up_sky'],
   calmStr: [['incline_push_up', 'wall_push_up'], ['box_squat'], ['glute_bridge'], ['bird_dog']],
 };
@@ -2474,12 +2508,13 @@ const MOMENT_RULES = {
   morning: { exclude: EARLY_FLEXION, holdCap: 30 },
   desk: { posture: ['standing', 'seated'], noImpact: true, space: 'small', holdCap: 30 },
   energy: {},
-  after_meal: { posture: ['standing', 'seated'], noImpact: true, forceLowImpact: true, exclude: ['baduanjin_touch_toes', 'baduanjin_heel_bounce'] },
+  after_meal: { posture: ['standing', 'seated'], noImpact: true, forceLowImpact: true, exclude: [...FOLDS, 'baduanjin_heel_bounce'] },
   before_sport: { holdCap: 30 },
   after_sport: { noLoad: true, noImpact: true, longHolds: 1 },
-  wind_down: { noLoad: true, noImpact: true, longHolds: 1, exclude: ['radio_taiso_1', 'plank', 'hollow_body_hold'] },
-  low_energy: { noImpact: true, levelOffset: -1, exclude: ['radio_taiso_1'] },
+  wind_down: { noLoad: true, noImpact: true, longHolds: 1, exclude: ['radio_taiso_1', 'plank', 'hollow_body_hold', ...RT_BRISK] },
+  low_energy: { noImpact: true, levelOffset: -1, exclude: ['radio_taiso_1', ...RT_BRISK] },
 };
+const BREATH_IDS = ['paced_breathing', 'rt_deep_breath'];
 const TRAVEL_KIT = ['wall', 'bench', 'table'];
 const TRAVEL_BAN = ['bear_crawl', 'burpee', 'dead_hang'];
 const travelLibs = new WeakMap();
@@ -2537,13 +2572,15 @@ function momentSession(request, profile, levels, library, V = {}) {
   const ok = ex => !!ex && ctx.isAvail(ex) && (!R.posture || R.posture.includes(ex.posture)) && !(R.noImpact && ex.impact === 'high') && !(R.exclude || []).includes(ex.id)
     && !(R.noLoad && ['strength', 'conditioning', 'core', 'skill'].includes(ex.category) && !/^flow_/.test(ex.family) && ex.id !== 'marching_in_place') && levelOk(ex);
   const used = new DrillSet();
-  const pick = ids => ids.map(i => ctx.byId[i]).filter(e => ok(e) && !used.has(e.id));
+  const auto = e => !NO_AUTO.includes(e.id) || (id === 'before_sport' && e.id === 'rt_trunk_circle');
+  const pick = ids => ids.map(i => ctx.byId[i]).filter(e => ok(e) && auto(e) && !used.has(e.id));
   const firstOf = alts => avoidLast(ctx, pick(alts).sort((a, b) => b.level - a.level))[0] || null; // the hardest allowed of the alternatives (never above the level)
   // static stretches only: timed dynamic moves (marching, bursts) keep their length
   const capHold = it => { if (R.holdCap && it.holdSec && !it.flow && ctx.byId[it.exerciseId]?.category === 'mobility') it.holdSec = [Math.min(it.holdSec[0], R.holdCap - 10), Math.min(it.holdSec[1], R.holdCap)]; return it; };
   const gentle = (ex, sets = 1, o = {}) => {
     const it = ex.family === 'mobility' && ex.mode === 'hold' ? mobilityItem(ctx)(ex, sets) : poolSingle(ex, ctx, sets);
-    if (o.reps && it.reps) it.reps = o.reps;
+    if (o.reps && it.reps && !ex.dose) it.reps = o.reps; // a promoted flow step keeps its tradition's count
+    if (ex.id === 'baduanjin_heel_bounce' && id === 'wind_down' && !it.notes.includes(SLOW_HEELS)) it.notes = [it.notes, SLOW_HEELS].filter(Boolean).join(' ');
     if (o.hold && it.holdSec) it.holdSec = o.hold;
     if (o.rest != null) it.restSec = o.rest;
     if (o.rir != null) it.rir = o.rir;
@@ -2569,9 +2606,19 @@ function momentSession(request, profile, levels, library, V = {}) {
     }
     return null;
   };
-  const breathItem = sec => flatItem(ctx.byId.paced_breathing, { hold: [sec, sec], sets: 1, notes: 'In for about 4 s, out for about 6 s. No breath holds.' });
-  const breath = (sec, title = 'Breathe') => { // paced breathing only: never a breath hold (moments.md §3.3 step 8)
-    const ex = ctx.byId.paced_breathing;
+  // Breath blocks (moments.md §3.3 step 8; flow-and-breath.md §8.3): Morning Taisō's deep breath when it is visible and
+  // available (founder decision, v1.3a), otherwise paced breathing. Both are slow and never a breath hold.
+  const deep = ctx.byId.rt_deep_breath && ctx.isAvail(ctx.byId.rt_deep_breath) ? ctx.byId.rt_deep_breath : null;
+  const breathItem = sec => {
+    if (deep) { // one breath takes about 10 s (the item's tempo): as many as fill the block
+      const n = Math.max(4, Math.round(sec / deep.tempo.secPerRep));
+      const notes = [DEEP_BREATH_NOTE, ...(D.inj.includes('shoulder') ? ['Keep your arms below shoulder height.'] : [])].join(' ');
+      return { ...flatItem(deep, { sets: 1, notes }), reps: [n, n] };
+    }
+    return flatItem(ctx.byId.paced_breathing, { hold: [sec, sec], sets: 1, notes: 'In for about 4 s, out for about 6 s. No breath holds.' });
+  };
+  const breath = (sec, title = 'Breathe') => {
+    const ex = deep || ctx.byId.paced_breathing;
     if (!ex || !ctx.isAvail(ex)) return null;
     return { kind: 'mobility', title, items: [breathItem(sec)] };
   };
@@ -2602,7 +2649,7 @@ function momentSession(request, profile, levels, library, V = {}) {
     }
     case 'desk': { // standing (a chair allowed): the Dempsey break pattern, then chest, upper-back and trunk openers
       const move = mainBlock('main', 'Move');
-      fillTo(move, pick(MP.deskMove), Math.round(0.45 * T), ex => ex.id === 'marching_in_place' ? gentle(ex, 1, { hold: [45, 60] })
+      fillTo(move, pick(MP.deskMove), Math.round(0.45 * T), ex => ex.id === 'marching_in_place' ? gentle(ex, 1, { hold: [45, 60] }) : ex.category === 'warmup' ? gentle(ex, 1)
         : strengthIt(ex, 3, [10, 15], ex.id === 'box_squat' ? 'Half range: sit to your chair and stand.' : ''));
       main = mainBlock('mobility', 'Open up');
       const open = pick(MP.deskOpen);
@@ -2692,7 +2739,7 @@ function momentSession(request, profile, levels, library, V = {}) {
   const caps = { main: id === 'morning' || id === 'desk' ? 2 : 1, pool: id === 'before_sport' ? 2 : 3, cool: 2, keepCool: true };
   const okMore = e => ok(e) && !used.has(e.id) && !(id === 'before_sport' && e.mode === 'hold');
   fitLength(sess, T, ctx, main ? { kind: main.kind, title: main.title, singles: rot(rest), filler: [], ok: okMore, coolCands: rest } : { ok: okMore, coolCands: rest }, caps);
-  sess.blocks.forEach(b => b.items.forEach(it => { if (it.exerciseId !== 'paced_breathing') capHold(it); }));
+  sess.blocks.forEach(b => b.items.forEach(it => { if (!BREATH_IDS.includes(it.exerciseId)) capHold(it); }));
   const tags = new Set(sess.blocks.flatMap(b => [b.kind, ...b.items.map(i => patternOf(i.family))]));
   sess.focus = ['push', 'pull', 'legs', 'core', 'conditioning', 'balance', 'flow', 'mobility', 'breath'].filter(f => tags.has(f));
   if (shift) extra.levelShift = shift;
