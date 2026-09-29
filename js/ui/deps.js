@@ -10,6 +10,8 @@ export { hasAnimation } from '../data/animated.js';
 export { createSkeletonPlayer } from '../anim/skeleton.js';
 export { renderBodyMap, bodyMapSVG } from '../anim/bodymap.js';
 export { initialLevels, generateWeek, applySessionLog, computeStreak, explainPlan, estimateMinutes, generateQuickSession, quickPoolIds } from '../engine/planner.js';
+// v1.3: swaps for moves that are not ladders, and why a move is unavailable
+export { swapAlternatives, unavailableReason } from '../engine/planner.js';
 
 // Optional (non-contract) helper: the planner's own availability rule, so the UI agrees with the plan.
 import * as planner from '../engine/planner.js';

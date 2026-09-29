@@ -870,3 +870,46 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .mk-name { font-weight: 600; min-width: 0; }
 .mk-item .muted { text-align: right; flex: none; max-width: 55%; }
 .mk-cta { padding: 12px 0 calc(4px + var(--safe-b)); background: linear-gradient(to bottom, transparent, var(--surface) 30%); }
+
+/* ---------- v1.3: today's kit, level, shuffle, swap, reasons ---------- */
+.kit-chips { gap: 6px; }
+.kit-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: .86rem; }
+.kit-chip svg { flex: none; color: var(--muted); }
+.kit-chip[aria-pressed="true"] svg { color: var(--accent-2); }
+.kit-help { margin: 8px 0 0; }
+.kit-help .link { padding: 0 4px; min-height: 0; }
+.qkit .switch-row { margin-top: 12px; }
+.kit-box { margin: 0 0 12px; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0 12px; background: var(--surface); }
+.kit-box > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; cursor: pointer; }
+.kit-box > summary::-webkit-details-marker { display: none; }
+.kit-box[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.kit-box[open] { padding-bottom: 10px; }
+.kit-sum { min-width: 0; font-size: .9rem; }
+.kit-sum .label { display: inline; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 6px 0 0; }
+.link-like { color: var(--accent); font-weight: 600; font-size: .9rem; text-decoration: underline; text-underline-offset: 3px; flex: none; }
+.lvl-seg .chip { min-width: 48px; font-variant-numeric: tabular-nums; }
+.lvl-help { margin: 8px 0 0; }
+.mk-level { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; }
+.mk-level .label { margin: 0; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.lvl-note { margin: 6px 0 8px; display: flex; gap: 8px; align-items: baseline; }
+.lvl-note .badge { flex: none; font-variant-numeric: tabular-nums; }
+.shuffle-note { margin: 4px 0 8px; }
+.mk-cta.btn-row { display: flex; gap: 8px; }
+.mk-cta.btn-row .btn-primary { flex: 1; }
+.na-note { align-items: flex-start; }
+.na-note strong { font-weight: 650; }
+.similar { list-style: none; padding: 0; margin: 0; }
+.similar li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.similar a { font-weight: 600; min-height: 36px; display: inline-flex; align-items: center; }
+.swap-list { list-style: none; padding: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+.swap-opt { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; padding: 6px 12px 6px 6px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+.swap-opt:hover { border-color: var(--ink); }
+.swap-opt > .ico { color: var(--muted); flex: none; margin-left: auto; }
+.swap-thumb { width: 64px; height: 64px; flex: none; border-radius: 10px; background: var(--bg); overflow: hidden; }
+.swap-thumb svg { width: 100%; height: 100%; }
+.swap-text { display: flex; flex-direction: column; min-width: 0; }
+/* the motion trail in the workout player: the Library's path, fainter so it never competes with the figure */
+/* v1.3: the reason label ("not with your knee", "needs a pull-up bar") is longer than "needs kit": a quiet pill that wraps */
+.lib-na { left: 14px; right: auto; width: max-content; max-width: calc(100% - 28px); text-transform: none; letter-spacing: 0; font-size: .72rem; line-height: 1.3; border-radius: 10px; padding: 2px 8px; }
+.pl-stage .kt-pl .pl-trail { opacity: .5; }
+.pl-stage .kt-pl .pl-comet { opacity: .55; }

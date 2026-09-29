@@ -45,6 +45,14 @@ This is the current state for a new Claude session picking up the project. Claud
   - The trademark status of the name is unconfirmed.
 - A `balance` goal is added. Morning Taisō keeps the day streak alive but doesn't count towards the weekly target.
 
+## v1.3 founder feedback (branch `worktree-agent-a40366e84087e403c`, not deployed)
+- Quick, moments and Library "Make a workout": **Kit today** chips (profile kit by default, changed for the day only, never written to the profile) and a **Level** −2…+2 control; the preview says what the level changed.
+- **Shuffle** gives a different workout each press while the pool allows (`request.shuffle`, logged with the request); a small pool says so.
+- Warm-up, mobility and cardio moves get **Swap** (same region and purpose) instead of Easier / Harder; the Library detail lists "Similar moves".
+- Library "not for you now" is now the reason ("not with your knee", "needs a pull-up bar", "high impact (you chose low impact)"…).
+- The player shows the motion trail (fainter) and the breath ring on holds, breathing and flows, following Me → Animation extras. Flow copy: "Follow the count on screen. There's no music to keep time with."
+- Tests: 141,938 passed. Screenshots in `docs/v1.3-ui/`.
+
 ## In progress / next
 1. **Logo B into the app:** seal(), splash, Welcome, icons, favicon, and a 済 stamp. Designer agent, branch `worktree-agent-a77ca9ac54c00de37`.
 2. **Anim v2 for v1.2 content:** rotation and anti-rotation (14 clips, generic, can ship first), then dand, baithak and horse stance, then Morning Taisō, Tai Chi and Baduanjin. Animator agent, branch `worktree-agent-a9739dc712fdd0781`.

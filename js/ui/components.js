@@ -39,6 +39,8 @@ const P = {
   timer: '<circle cx="12" cy="13" r="7"/><path d="M12 9v4l2.5 2M9 3h6"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
   filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
+  shuffle: '<path d="M3 7h4c4 0 6 10 10 10h4M3 17h4c1.6 0 2.8-1.6 3.9-3.6M13.1 9.6C14.2 8.1 15.4 7 17 7h4"/><path d="m18 4 3 3-3 3M18 14l3 3-3 3"/>',
+  swap: '<path d="M4 8h14M14 4l4 4-4 4M20 16H6M10 12l-4 4 4 4"/>',
 };
 export function icon(name, { size = 24, label = '' } = {}) {
   const a = label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"';
