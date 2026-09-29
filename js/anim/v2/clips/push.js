@@ -117,16 +117,19 @@ const decline_push_up = floorPlank(c => ({
   },
 }));
 
-// hands together under the sternum (thumbs and index fingers form a diamond), elbows brush the ribs
+// hands together under the sternum, turned in about 45° so the index fingers and thumbs touch and frame a diamond;
+// elbows track back close to the ribs. A higher camera shows the hands under the chest, and a close-up inset (top-down
+// on the hands) makes the diamond obvious.
 const diamond_push_up = floorPlank(c => ({
-  name: 'Diamond push-up', cam: { az: 24, el: 9 },
+  name: 'Diamond push-up', cam: { az: 30, el: 17 },
   muscles: { primary: ['triceps', 'chest'], secondary: ['front_delts', 'abs'] },
-  arms: { both: { mode: 'ik', grip: 'palm', pole: [-1, -.9, .3], dir: s => [.6, 0, -.8 * s], target: (sd, s) => [c._hx, 0, c._hz * s] } },
+  arms: { both: { mode: 'ik', grip: 'palm', pole: [-.9, -1, .12], dir: s => [.76, 0, -.65 * s], target: (sd, s) => [c._hx, 0, c._hz * s] } },
+  detail: { at: ['palmR', 'palmL'], r: 17, cam: { az: 90, el: 72 }, label: 'hands' },
   keys: { top: { bodyAngle: 19, scapProt: 12 }, bottom: { bodyAngle: 8, scapProt: -7, cervical: -4, head: -12 } },
   timeline: rep('top', 'bottom', { ecc: 2.1 }),
   prep({ settle }) {
     straighten(c, settle, 'top', 12);
-    palmsUnder(c, settle, 'top', { dx: -7, z: 7, lo: 8, hi: 30 });
+    palmsUnder(c, settle, 'top', { dx: -7, z: 9, lo: 8, hi: 30 });
     const b = c.keys.bottom;       // chest just above the hands
     b.bodyAngle = solve(2, c.keys.top.bodyAngle, th => settle({ ...b, bodyAngle: th }).pt.sternum[1], 12);
   },

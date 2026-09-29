@@ -83,6 +83,9 @@ const STYLE = `
 .kt-pl .pl-pr{fill:var(--line,#E3DCCB);stroke:var(--pl-ink);stroke-width:.26}
 .kt-pl .pl-br{fill:none;stroke:var(--accent-2,#D9A441);stroke-width:.5}
 .kt-pl .pl-brf{fill:var(--accent-2,#D9A441);fill-opacity:.18}
+.kt-pl .pl-dtb{fill:var(--surface,#FFFDF7);stroke:none}
+.kt-pl .pl-dto{fill:none;stroke:var(--ink-muted,#6B665C);stroke-width:.45;stroke-opacity:.7}
+.kt-pl .pl-dtl{fill:var(--ink-muted,#6B665C);font:600 3.2px system-ui,sans-serif;letter-spacing:.02em}
 .kt-pl .pl-s0{stop-color:var(--pl-hi)} .kt-pl .pl-s1{stop-color:var(--bone,#EFE8D8)} .kt-pl .pl-s2{stop-color:var(--pl-sh)}
 .kt-pl .pl-p0{stop-color:color-mix(in srgb,var(--pl-mp) 62%,#fff)} .kt-pl .pl-p1{stop-color:var(--pl-mp)} .kt-pl .pl-p2{stop-color:color-mix(in srgb,var(--pl-mp) 62%,#000)}
 .kt-pl .pl-q0{stop-color:color-mix(in srgb,var(--pl-ms) 60%,#fff)} .kt-pl .pl-q1{stop-color:var(--pl-ms)} .kt-pl .pl-q2{stop-color:color-mix(in srgb,var(--pl-ms) 62%,#000)}
@@ -152,6 +155,11 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   const GROUPS = ['floor', 'barFar', 'bar', 'barNear', 'spine', 'skull', 'sternum', 'pelvisR', 'pelvisL', 'ribsR', 'ribsL', 'shoulderR', 'shoulderL', 'legR', 'legL', 'armR', 'armL'];
   for (const n of GROUPS) G[n] = new Grp(root, n);
   const over = new Grp(svg, 'over');
+  // detail inset (clip.detail): a small round close-up drawn with its own camera, on top of everything
+  const DT = { g: document.createElementNS(NS, 'g'), cp: document.createElementNS(NS, 'clipPath'), cc: document.createElementNS(NS, 'circle') };
+  DT.cp.id = `kt${uid}dc`; DT.cp.appendChild(DT.cc); defs.appendChild(DT.cp); svg.appendChild(DT.g);
+  DT.bg = new Grp(DT.g, 'dtbg'); DT.inner = document.createElementNS(NS, 'g'); DT.inner.setAttribute('clip-path', `url(#${DT.cp.id})`); DT.g.appendChild(DT.inner);
+  DT.view = document.createElementNS(NS, 'g'); DT.inner.appendChild(DT.view); DT.body = new Grp(DT.view, 'dt'); DT.fg = new Grp(DT.g, 'dtfg');
   const st = { clip: null, cam: null, playing: playing && !reduce, visible: true, t0: 0, elapsed: 0, last: 0, raf: 0, fixedT: null,
     trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), pace, fit, rate: 1, flow, avg: {}, trailPath: {}, trailPathM: {}, order: '', ms: [],
     lod: size < 160 ? 1 : 0, n: 0, slow: false, props: [], props0: [], propsM: [], pnames: [], gnames: GROUPS };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
@@ -568,6 +576,39 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     }
   }
 
+  // ---------- detail inset ----------
+  // clip.detail = { at: [skeleton point names] (the view centres on their mean), r: cm of the world shown across the
+  // radius, cam: { az, el }, label, corner: 'tl' | 'tr' | 'bl' | 'br' (default 'tl') }. For moves where how the hands are
+  // placed is the point (diamond push-up): the forearms and hands only, over a patch of floor, in a round inset drawn
+  // with its own camera. Generic: any clip can declare one (feet would add their own parts here).
+  function drawDetail(S) {
+    const d = st.clip.detail;
+    if (!d || st.lod) { if (DT.on) { DT.g.setAttribute('display', 'none'); DT.on = false; } return; }
+    if (!DT.on) { DT.g.removeAttribute('display'); DT.on = true; }
+    const vb = st.vb, R = .19 * Math.min(vb[2], vb[3]), m = 2.5, crn = d.corner || 'tl';
+    const cx = crn[1] === 'l' ? vb[0] + R + m : vb[0] + vb[2] - R - m, cy = crn[0] === 't' ? vb[1] + R + m : vb[1] + vb[3] - R - m;
+    const cam = DT.cam || (DT.cam = camera(d.cam?.az ?? 90, d.cam?.el ?? 70));
+    const pts = d.at.map(n => S.pt[n]).filter(Boolean), c = pts.reduce((a, p) => K.add(a, K.mul(p, 1 / pts.length)), [0, 0, 0]);
+    const q = cam.pr(c), k = R / (d.r || 20);
+    for (const [e, v] of [[DT.cc, { cx: f2(cx), cy: f2(cy), r: f2(R) }]]) for (const a in v) e.setAttribute(a, v[a]);
+    const tr = `translate(${f2(cx)} ${f2(cy)}) scale(${f2(k * 100) / 100}) translate(${f2(-q[0])} ${f2(-q[1])})`;
+    if (DT.tr !== tr) { DT.tr = tr; DT.view.setAttribute('transform', tr); }
+    DT.bg.begin(); DT.bg.add('circle', { cx: f2(cx), cy: f2(cy), r: f2(R) }, 'pl-dtb'); DT.bg.end();
+    const g = DT.body; g.begin();
+    const w = (d.r || 20) * 1.6, fl = [[-w, -w], [w, -w], [w, w], [-w, w]].map(([x, z]) => cam.pr([c[0] + x, 0, c[2] + z]));
+    if (st.clip.floor) g.add('path', { d: `M${PT(fl[0])}L${PT(fl[1])}L${PT(fl[2])}L${PT(fl[3])}Z` }, 'pl-mat');
+    const sides = K.SIDES.map(([sd]) => sd).sort((a, b) => cam.depth(S.pt['wrist' + a]) - cam.depth(S.pt['wrist' + b]));   // far first
+    for (const sd of sides) {
+      const fo = S.F['fore' + sd];
+      longBone(g, cam, 'dul' + sd, fo, PROFILE.ulna); longBone(g, cam, 'dra' + sd, fo, PROFILE.radius);
+      drawHand(g, cam, S.F['hand' + sd], sd);
+    }
+    g.end();
+    DT.fg.begin(); DT.fg.add('circle', { cx: f2(cx), cy: f2(cy), r: f2(R) }, 'pl-dto');
+    if (d.label) DT.fg.add('text', { x: f2(cx), y: f2(cy + R - 2.6), 'text-anchor': 'middle' }, 'pl-dtl').textContent = d.label;
+    DT.fg.end();
+  }
+
   // ---------- frame ----------
   function depthOf(S, cam) {
     const d = p => cam.depth(p);
@@ -625,6 +666,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
       drawShoulder(S, cam, sd); drawLeg(S, cam, sd, s); drawArm(S, cam, sd);
     }
     drawOverlay(S, cam, tn);
+    drawDetail(S);
     for (const k in G) G[k].end(); over.end();
     // painter's order by anatomical group, far groups fade
     const D = depthOf(S, cam), cd = cam.depth(S.F.pelvis.o);
@@ -663,6 +705,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     svg.setAttribute('viewBox', viewBox(clip, st.cam).join(' '));
     svg.setAttribute('aria-label', `${clip.name} animation`);
     for (const k in G) G[k].reset(); over.reset(); st.order = '';
+    DT.cam = null; DT.tr = ''; DT.body.reset(); DT.bg.reset(); DT.fg.reset();
     st.elapsed = 0; st.rate = rateOf(clip);
     draw();
   }
