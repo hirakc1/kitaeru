@@ -1,5 +1,5 @@
 // Kitaeru service worker: cache-first app shell, versioned caches, runtime caching for fonts.
-const VERSION = 'v2026.09.29-1105';
+const VERSION = 'v2026.09.29-1147';
 const SHELL = `kitaeru-shell-${VERSION}`;
 const RUNTIME = `kitaeru-runtime-${VERSION}`;
 
