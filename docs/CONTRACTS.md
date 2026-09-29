@@ -234,6 +234,7 @@ Research: `docs/world-movement.md` (§3 rotation, §4 programming, §5 cultural 
   nativeName: { text: '云手', romanised: 'yún shǒu', lang: 'zh-Hans', alt: [{ text: '雲手', lang: 'zh-Hant' }] }, // show FIRST (§5.1.2)
   aka: ['Wave hands like clouds'],   // search aliases
   planes: ['frontal', 'transverse'], // 'sagittal' | 'frontal' | 'transverse'
+  posture: 'standing',              // (moments) 'standing' | 'seated' | 'kneeling' | 'floor' | 'hanging'; on every exercise (explicit, or backfilled in exercises.js); postureOf(ex) reads it
   breath: { pattern: 'natural' } | { in: 'arms rise', out: 'arms lower' },
   tempo: { secPerRep: 8 } | { countsPerSec: 2 },
   evidence: 'A' | 'B' | 'C' | 'D',   // world-movement.md grades; copy must not claim more
