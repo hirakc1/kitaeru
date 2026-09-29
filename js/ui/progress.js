@@ -135,17 +135,18 @@ export function render(root, ctx) {
     const st = getStreak();
     const totalMin = s.logs.reduce((a, l) => a + (l.durationMin || 0), 0);
     const cons = consistency(s);
+    const plan = !!s.profile;   // Quick-only users (no plan): day streak only, no weekly target or freezes
     const units = s.settings.units, wu = weightUnit();
     root.innerHTML = `
     <div class="screen progress">
       <header class="screen-head"><p class="eyebrow">進歩 · Progress</p><h1 class="title">Your forging</h1></header>
       <section class="card"><div class="stat-grid">
-        <div class="stat stat-hero"><span class="stat-num">${st.weekly?.current ?? 0}</span><span class="stat-lab">week streak<br><span class="muted">best ${st.weekly?.best ?? 0}</span></span></div>
-        <div class="stat"><span class="stat-num">${st.current ?? 0}</span><span class="stat-lab">day streak<br><span class="muted">best ${st.best ?? 0}</span></span></div>
+        ${plan ? `<div class="stat stat-hero"><span class="stat-num">${st.weekly?.current ?? 0}</span><span class="stat-lab">week streak<br><span class="muted">best ${st.weekly?.best ?? 0}</span></span></div>` : ''}
+        <div class="stat ${plan ? '' : 'stat-hero stat-wide'}"><span class="stat-num">${st.current ?? 0}</span><span class="stat-lab">day streak<br><span class="muted">best ${st.best ?? 0}</span></span></div>
         <div class="stat"><span class="stat-num">${s.logs.length}</span><span class="stat-lab">sessions</span></div>
         <div class="stat"><span class="stat-num">${totalMin >= 600 ? `${Math.round(totalMin / 60)}<small>h</small>` : totalMin}</span><span class="stat-lab">${totalMin >= 600 ? 'hours' : 'minutes'}</span></div>
       </div>
-      <p class="small muted stat-foot">${icon('snow', { size: 14 })}<span>${freezesBanked(st)}/2 freezes banked${cons != null ? ` · ${cons}% consistency over 8 weeks` : ''}</span></p></section>
+      ${plan ? `<p class="small muted stat-foot">${icon('snow', { size: 14 })}<span>${freezesBanked(st)}/2 freezes banked${cons != null ? ` · ${cons}% consistency over 8 weeks` : ''}</span></p>` : ''}</section>
       <section class="section"><h2 class="section-title">Last ${WEEKS} weeks</h2><div class="card hm-card">${heatmap(s.logs)}</div></section>
       <section class="section"><h2 class="section-title">This week’s volume</h2><div class="card">${weeklyVolume(s.logs)}</div></section>
       <section class="section"><h2 class="section-title">Progressions</h2><div class="card card-flush">${ladders(s)}</div></section>

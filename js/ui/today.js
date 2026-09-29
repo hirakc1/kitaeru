@@ -29,6 +29,16 @@ function greeting() {
 }
 
 export function streakCard(streak) {
+  // Quick-only users (no plan) have no weekly target and no freezes: the day streak only.
+  if (!getState().profile) {
+    const d = streak.current ?? 0;
+    return `<section class="card streak-card" aria-label="Streak">
+    <div class="streak-main">
+      <div class="streak-seal ${d > 0 ? 'lit' : ''}" aria-hidden="true">${icon('flame', { size: 30 })}</div>
+      <div><div class="streak-num"><span class="big">${d}</span> ${d === 1 ? 'day' : 'days'}</div>
+        <div class="muted small">day streak${streak.best > d ? ` · best ${streak.best}` : ''}</div></div>
+    </div></section>`;
+  }
   const target = weeklyTarget();
   const done = Math.min(sessionsThisWeek(), 7);
   const wk = streak.weekly?.current ?? 0;

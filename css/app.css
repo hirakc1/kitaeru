@@ -607,6 +607,7 @@ body.has-tabs .view { padding-bottom: calc(var(--tabh) + var(--safe-b) + 28px); 
 .stat-num { font: 700 2rem/1 var(--serif); min-width: 44px; font-variant-numeric: tabular-nums; }
 .stat-num small { font-size: 1rem; }
 .stat-hero .stat-num { color: var(--accent); }
+.stat-wide { grid-column: 1 / -1; }
 .stat-lab { font-size: .8rem; line-height: 1.3; }
 .stat-foot { display: flex; align-items: flex-start; gap: 6px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .hm-card { padding: 16px 14px; }
