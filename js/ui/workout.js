@@ -2,7 +2,7 @@
 // v1.2: flow items (mode 'flow') play step by step with Kitaeru's own visual count. No music, ever.
 // v1.3: moves that are not ladders (warm-up, mobility, cardio) get one "Swap" (same region and purpose) instead of
 // Easier / Harder; the animation extras (Me → Animation extras) apply in the player too.
-import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, applySessionLog, MORNING_TAISO_SESSION_ID, MOMENTS, RECOVERY_MOMENTS, isShortMomentLog,
+import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, showsMuscles, applySessionLog, MORNING_TAISO_SESSION_ID, MOMENTS, RECOVERY_MOMENTS, isShortMomentLog,
   swapAlternatives } from './deps.js';
 import { getState, update, getActiveWorkout, saveActiveWorkout, clearActiveWorkout } from '../store.js';
 import { esc, icon, seal, fmtTarget, exName, muscleName, familyName, neighbour, varietySwaps, stepper, handleStepper, ring, setRing, mountAnims,
@@ -116,14 +116,25 @@ function setStage(exId, step = null, { lead = false } = {}) {
   const fit = step && !step.count ? step.sec : null;                 // (a timed step: whole cycles in its seconds)
   if (player && stageId === key) return;
   const mus = e?.muscles || { primary: [], secondary: [] };
+  const muscles = musOn(exId, step);   // (the Morning Taisō: no muscle highlight; breath ring and trail unchanged)
   const { breath, trail } = extras(e, step);
   try {
-    const opts = step ? { flow: true, blend: !lead } : {};   // flow steps: no fades at the ends; blend from the last pose
+    const opts = step ? { flow: true, blend: !lead, muscles } : { muscles };   // flow steps: no fades at the ends; blend from the last pose
     if (player && player.setAnim) { player.setPace?.(pace, fit); player.setAnim(animId, mus.primary, mus.secondary, opts); player.setBreath?.(breath); player.setTrail?.(trail); }
-    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath, trail, pace, fit, flow: !!step }); }
+    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath, trail, pace, fit, flow: !!step, muscles }); }
   } catch (err) { console.warn('skeleton failed', err); }
   stageEl.setAttribute('aria-label', `${e?.name || (step ? step.name : '')} demonstration`);
   stageId = key;
+}
+
+/**
+ * Muscles on or off for the item (and flow step) on stage: off when its tradition card sets showMuscles: false (the
+ * Morning Taisō: a loosening-up routine, no muscle effort to show). Off for the item hides the figure's highlight, the
+ * muscle chips and the "Muscles worked" panel.
+ */
+function musOn(exId, step = null) {
+  if (!showsMuscles(byId[exId] || ALL_BY_ID[exId])) return false;
+  return !step || !step.exercise || showsMuscles(step.exercise);
 }
 
 // ---------- flows (v1.2) ----------
@@ -221,7 +232,7 @@ function flowLoggerHTML() {
 /** During a flow the muscle chips follow the current step (a pause shows none). */
 function stepChips(s) {
   const el = root.querySelector('.pl-muscles'); if (!el) return;
-  const m = s?.exercise?.muscles || { primary: [], secondary: [] };
+  const m = musOn(item().exerciseId, s) ? s?.exercise?.muscles || { primary: [], secondary: [] } : { primary: [], secondary: [] };
   el.innerHTML = `${m.primary.map(x => `<span class="mchip mchip-p">${esc(muscleName(x))}</span>`).join('')}${m.secondary.map(x => `<span class="mchip mchip-s">${esc(muscleName(x))}</span>`).join('')}`;
 }
 /** Per-tick flow update: count, beads, current step and stage; re-renders the step panel when the step changes. */
@@ -288,10 +299,11 @@ function draw() {
   // A flow's muscles are the union of every step: show only its main ones as chips (all of them under "Muscles worked").
   // (while it runs, the chips follow the current step: stepChips)
   const cur = isFlow && running && Date.now() >= hold.start ? flowAt(flowInfo(), flowEl()).s : null, cm = cur ? (cur.exercise?.muscles || { primary: [], secondary: [] }) : null;
-  const chipsP = cm ? cm.primary : isFlow ? muscles.primary.slice(0, 5) : muscles.primary, chipsS = cm ? cm.secondary : isFlow ? [] : muscles.secondary;
+  const showMus = musOn(it.exerciseId);   // false: no chips, no "Muscles worked" panel (the Morning Taisō)
+  const chipsP = !showMus ? [] : cm ? cm.primary : isFlow ? muscles.primary.slice(0, 5) : muscles.primary, chipsS = !showMus ? [] : cm ? cm.secondary : isFlow ? [] : muscles.secondary;
   root.classList.toggle('is-flow', isFlow);   // flows: a shorter stage and the count panel right under the name (fits 375×812)
   const headHTML = `
-    <p class="pl-muscles" aria-label="Muscles worked">${chipsP.map(m => `<span class="mchip mchip-p">${esc(muscleName(m))}</span>`).join('')}${chipsS.map(m => `<span class="mchip mchip-s">${esc(muscleName(m))}</span>`).join('')}</p>
+    <p class="pl-muscles" aria-label="Muscles worked"${showMus ? '' : ' hidden'}>${chipsP.map(m => `<span class="mchip mchip-p">${esc(muscleName(m))}</span>`).join('')}${chipsS.map(m => `<span class="mchip mchip-s">${esc(muscleName(m))}</span>`).join('')}</p>
     <p class="eyebrow pl-block">${esc(it.blockTitle || it.blockKind)} · ${w.idx + 1} of ${w.items.length}${grp ? ` · <span class="pl-group">${grp.circuit ? 'Circuit' : 'Superset'} ${grp.label}</span>` : ''}</p>
     ${e.nativeName ? nativeNameHTML(e.nativeName, { cls: 'pl-native' }) : ''}<h1 class="pl-name">${esc(e.name)}</h1>`;
   const infoHTML = `
@@ -313,13 +325,13 @@ function draw() {
       : `<button class="btn btn-quiet btn-sm" data-act="swap-open" ${swaps.length ? '' : 'disabled'} aria-label="${swaps.length ? `Swap for a similar move: ${esc(swaps.map(x => x.name).join(', '))}` : 'No similar move to swap to'}">${icon('swap', { size: 18 })} Swap</button>`}
       ${variety.map(v => `<button class="btn btn-quiet btn-sm" data-act="variety" data-id="${esc(v.id)}" aria-label="Swap to a variety move: ${esc(v.name)}">${esc(v.aka?.[0] || v.name)}</button>`).join('')}
       <button class="btn btn-quiet btn-sm" data-act="skip">${icon('skip', { size: 18 })} Skip</button></div>` : ''}
-    <details class="pl-details"><summary>Muscles worked</summary>
+    ${showMus ? `<details class="pl-details"><summary>Muscles worked</summary>
       <div class="pl-body"><div class="bodymap" data-bodymap></div>
       <div><p class="small"><span class="key key-p"></span>${muscles.primary.map(muscleName).join(', ')}</p>
       ${muscles.secondary.length ? `<p class="small muted"><span class="key key-s"></span>${muscles.secondary.map(muscleName).join(', ')}</p>` : ''}
-      <p class="small muted">${esc(familyName(e.family))}${isProgression(e.family) ? ` · level ${e.level}` : ''}</p></div></div></details>`;
+      <p class="small muted">${esc(familyName(e.family))}${isProgression(e.family) ? ` · level ${e.level}` : ''}</p></div></div></details>` : ''}`;
   const bm = content.querySelector('[data-bodymap]');
-  content.querySelector('.pl-details').addEventListener('toggle', ev => { if (ev.target.open && !bm.childNodes.length) { try { renderBodyMap(bm, { primary: muscles.primary, secondary: muscles.secondary, size: 150 }); } catch (err) { console.warn(err); } } }, { once: false });
+  if (bm) content.querySelector('.pl-details').addEventListener('toggle', ev => { if (ev.target.open && !bm.childNodes.length) { try { renderBodyMap(bm, { primary: muscles.primary, secondary: muscles.secondary, size: 150 }); } catch (err) { console.warn(err); } } }, { once: false });
 }
 
 function loggerHTML() {

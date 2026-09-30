@@ -230,7 +230,7 @@ const V12 = [
   // ---- Morning Taisō steps (tradition radio_taiso). Standalone in v1.2: stretch up, side bend, trunk twist.
   { ...BASE, ...RT, id: 'rt_stretch_up', sources: [SRC.rtA, SRC.rtC, SRC.rtD], name: 'Stretch up', nativeName: ja('伸びの運動', 'nobi no undō'), family: 'warmup', level: 6, category: 'warmup', mode: 'reps',
     muscles: { primary: ['side_delts'], secondary: ['calves', 'upper_back'] }, difficulty: 1, anim: 'rt_stretch_up',
-    planes: ['sagittal'], breath: { in: 'arms rise', out: 'arms lower' }, tempo: { secPerRep: 5 },
+    planes: ['sagittal'], breath: { in: 'arms rise', out: 'arms lower' }, tempo: { secPerRep: 4 },
     cues: ['Heels together; swing your arms forward and up overhead', 'Stretch tall through your fingertips', 'Lower your arms out to the sides'],
     description: 'The opening movement of the Japanese morning exercises: an easy, full stretch upwards.',
     verified: { date: '2026-09-29', notes: `${RT.verified.notes} 2026-09-29: heels together, not feet apart (founder observation, confirmed against Kampo fig. 1 and NHK fig. 1); clip and first cue changed.` } },
@@ -253,14 +253,14 @@ const V12 = [
     description: 'From the arms crossed in front of the chest, the arms swing down and out to the sides as the knees bend deeply and straighten, then swing back to cross as the heels lower and lift, in time. It opens the morning routine as a pulse-raiser and closes it as a wind-down. Here: two rounds of 8.',
     verified: { date: '2026-09-29', notes: 'Promoted from flowOnly. Standard 8 counts checked against NHK sheet (2呼間×8回); heel-raise timing per Kampo tip; standalone dose (8 × 2) labelled Kitaeru’s; grade C for the single move. Later on 2026-09-29: deeper knee bend (founder observation, confirmed against Kampo fig. 2 and NHK fig. 2, text あしの屈伸…をじゅうぶんに); heels together, and the crossed-arms start at chest height with the heels up (Kampo fig. 2 かかとを引き上げ腕を交差した状態から); the knees bend as the arms swing out (NHK 腕を横に振りながらあしのまげのばし); clip, cues and description changed.' } },
   { ...BASE, ...RT, ...RT1, id: 'rt_arm_circles', sources: [SRC.rtA, SRC.nhk, SRC.rtE, SRC.rtSeated], name: 'Taisō arm circles', nativeName: ja('腕を回す運動', 'ude o mawasu undō'), family: 'warmup', level: 9, category: 'warmup', mode: 'reps',
-    muscles: { primary: ['front_delts', 'side_delts'], secondary: [] }, stress: ['shoulder'], difficulty: 1, planes: ['frontal'], breath: { pattern: 'natural' }, tempo: { secPerRep: 4 },
+    muscles: { primary: ['front_delts', 'side_delts'], secondary: [] }, stress: ['shoulder'], difficulty: 1, planes: ['frontal'], breath: { pattern: 'natural' }, tempo: { secPerRep: 3.5 },
     dose: { reps: [8, 8] },
     cues: ['Heels together; elbows straight, shoulders relaxed, and let the swing carry your arms', 'Arms sweep out and up the sides, cross overhead, and come down in front', 'Then circle back the other way: up in front, crossing overhead, down the sides'],
     description: 'Big, loose arm circles from the shoulders, using the swing rather than effort. At the top of each circle the straight arms reach right up and cross overhead, close to the ears. The circles alternate: one out and up the sides, then one back the other way. One rep is a circle each way; here, two rounds of 4.',
     verified: { date: '2026-09-29', notes: 'Promoted. Direction checked against Kampo seated sheet, NHK sheet (fig. 1) and Federation FAQ: first circle up the sides, crossing overhead, down in front; alternates one circle each way ×4 (NHK 4呼間×4回); cue reworded; centrifugal-force tip per Kampo; standalone dose Kitaeru’s. Later on 2026-09-29: the arms reach right up with straight elbows and cross overhead on both circles (founder observation, confirmed against Kampo fig. 3 and NHK fig. 3, text ひじをよくのばし; “brush the ears” is NHK’s wording for No. 2, not No. 1); heels together (Kampo fig. 3); clip, cues and description changed.' } },
   { ...BASE, ...RT, ...RT1, id: 'rt_chest_opener', sources: [SRC.rtA, SRC.nhk, SRC.rtSeated], name: 'Chest opener', nativeName: ja('胸を反らす運動', 'mune o sorasu undō'), family: 'warmup', level: 10, category: 'warmup', mode: 'reps',
     muscles: { primary: ['chest', 'upper_back'], secondary: ['front_delts'] }, stress: ['lower_back'], difficulty: 1, planes: ['sagittal', 'frontal'],
-    breath: { in: 'arms rise, chest opens', out: 'arms swing down' }, tempo: { secPerRep: 3 }, dose: { reps: [8, 8] },
+    breath: { in: 'arms rise, chest opens', out: 'arms swing down' }, tempo: { secPerRep: 4 }, dose: { reps: [8, 8] },
     cues: ['Feet apart; swing your arms out and up', 'Lift and open your chest as you breathe in', 'Don’t tip your head too far back; keep the arch in your upper back'],
     description: 'The arms swing out and up on a diagonal as the chest lifts and opens, then swing down. A good counter to sitting. Here: two rounds of 4.',
     verified: { date: '2026-09-29', notes: 'Promoted. 4 counts per NHK (4呼間×4回); breath direction per Kampo seated sheet; “don’t tip the head back” per Kampo tip; standalone dose Kitaeru’s.' } },
@@ -306,25 +306,28 @@ const V12 = [
     verified: { date: '2026-09-29', notes: 'Promoted. Arm path and 4 breaths per NHK and Kampo; “return to rest” attributed to Kampo seated sheet; 4–5 s in / 5–6 s out marked [practice]; no outcome claim (Zaccaro 2018 indirect). Later on 2026-09-29: heels together (Kampo fig. 13); clip changed.' } },
   { ...RT, id: 'radio_taiso_1', sources: [SRC.rtA, SRC.nhk, SRC.rtC, SRC.osuka], name: 'Morning Taisō', nativeName: null, aka: ['Morning exercises'], family: 'flow_sequence', level: 1, category: 'flow', mode: 'flow',
     unilateral: false, equipment: [], space: 'medium', difficulty: 2, anim: 'rt_stretch_up', planes: ['sagittal', 'frontal', 'transverse'], breath: { pattern: 'natural' },
-    tempo: { countsPerSec: 1 },
+    tempo: { countsPerSec: 1.1 },   // 200 official counts in about 180 s
     cues: ['Brisk and on the count', 'Big, relaxed movements', 'Skip or shrink anything that pinches'],
     description: 'Thirteen brisk movements in about three minutes that take every joint through its range. Kitaeru uses its own count; there is no music.',
-    // Order per the official illustrated guide (SRC.rtA). Seconds are Kitaeru's own count at about 1 count per second.
+    // Order per the official illustrated guide (SRC.rtA). Seconds per step: the official Kampo demonstration's timing
+    // (fact-check 2026-09-30, docs/flow-and-breath-factcheck.md §10: about 180 s from the first movement to the end of the
+    // deep breath, 200 counts, about 0.8-1.0 s a count and 0.5 s a hop), rounded to whole seconds. The deep breath keeps
+    // Kitaeru's 5 s a breath (the demonstration: about 4 s).
     // No nativeName: "Morning Taisō" is Kitaeru's own name, not a Japanese title.
     sequence: [
-      { move: 'rt_stretch_up', reps: 2, sec: 10, cue: 'Stretch up tall', breath: 'in-out' },
-      { move: 'rt_arm_swing_knee_bend', reps: 8, sec: 12, cue: 'Swing and bend, light on your feet' },
-      { move: 'rt_arm_circles', reps: 4, sec: 12, cue: 'Out and up the sides, then back the other way' },   // a rep = one circle each way (NHK 4呼間×4回)
-      { move: 'rt_chest_opener', reps: 4, sec: 12, cue: 'Open the chest' },
-      { move: 'rt_side_bend', reps: 2, side: 'both', sec: 16, cue: 'Bend to the side' },
-      { move: 'rt_forward_back_bend', reps: 2, sec: 16, cue: 'Forward, then back, gently' },
-      { move: 'rt_trunk_twist', reps: 8, side: 'alternate', sec: 16, cue: 'Twist one way, then the other; eyes follow your hands' },
-      { move: 'rt_arms_up_down', reps: 4, sec: 16, cue: 'Up, and down' },
-      { move: 'rt_diagonal_bend', reps: 2, side: 'both', sec: 16, cue: 'Down diagonally, then open up' },
-      { move: 'rt_trunk_circle', reps: 2, side: 'both', sec: 16, cue: 'Big slow circles' },
-      { move: 'rt_two_foot_hops', reps: 16, sec: 14, cue: 'Four light hops, then open and close' },
-      { move: 'rt_arm_swing_knee_bend', reps: 8, sec: 12, cue: 'Swing and bend again' },
-      { move: 'rt_deep_breath', reps: 4, sec: 20, cue: 'Breathe in as the arms rise', breath: 'in-out' },
+      { move: 'rt_stretch_up', reps: 2, sec: 8, cue: 'Stretch up tall', breath: 'in-out' },   // (seconds: official 8 counts in about 7.5 s)
+      { move: 'rt_arm_swing_knee_bend', reps: 8, sec: 13, cue: 'Swing and bend, light on your feet' },   // 16 counts, about 13.5 s
+      { move: 'rt_arm_circles', reps: 4, sec: 14, cue: 'Out and up the sides, then back the other way' },   // a rep = one circle each way (NHK 4呼間×4回); about 14 s
+      { move: 'rt_chest_opener', reps: 4, sec: 16, cue: 'Open the chest' },   // about 16 s
+      { move: 'rt_side_bend', reps: 2, side: 'both', sec: 15, cue: 'Bend to the side' },   // about 15.5 s
+      { move: 'rt_forward_back_bend', reps: 2, sec: 14, cue: 'Forward, then back, gently' },   // about 13.5 s
+      { move: 'rt_trunk_twist', reps: 8, side: 'alternate', sec: 13, cue: 'Twist one way, then the other; eyes follow your hands' },   // about 13.5 s
+      { move: 'rt_arms_up_down', reps: 4, sec: 15, cue: 'Up, and down' },   // about 15 s
+      { move: 'rt_diagonal_bend', reps: 2, side: 'both', sec: 15, cue: 'Down diagonally, then open up' },   // about 15 s
+      { move: 'rt_trunk_circle', reps: 2, side: 'both', sec: 17, cue: 'Big slow circles' },   // about 16.5 s
+      { move: 'rt_two_foot_hops', reps: 16, sec: 8, cue: 'Four light hops, then open and close' },   // about 8.5 s: a hop every half second
+      { move: 'rt_arm_swing_knee_bend', reps: 8, sec: 15, cue: 'Swing and bend again' },   // about 15 s: a little easier than step 2 (Federation FAQ ゆったりと)
+      { move: 'rt_deep_breath', reps: 4, sec: 17, cue: 'Breathe in as the arms rise', breath: 'in-out' },   // official about 16.5 s (founder, 2026-09-30: use the official pace)
     ],
     variants: { lowImpact: { replace: { rt_two_foot_hops: 'rt_heel_raise' } } },
     progression: null },

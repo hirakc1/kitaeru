@@ -1,5 +1,5 @@
 // Shared UI helpers: escaping, icons, the seal mark, sheets, toasts, formatting, audio, thumbnails.
-import { MUSCLES, FAMILIES, ALL_FAMILIES, EXERCISES, byId, varietyFor, ALL_BY_ID, createSkeletonPlayer, plannerIsAvailable } from './deps.js';
+import { MUSCLES, FAMILIES, ALL_FAMILIES, EXERCISES, byId, varietyFor, ALL_BY_ID, createSkeletonPlayer, plannerIsAvailable, showsMuscles } from './deps.js';
 import { getState } from '../store.js';
 import { esc, $, $$, clamp, reducedMotion, icon, toast } from './base.js';
 export * from './base.js';
@@ -123,7 +123,7 @@ export function mountAnims(root) {
     try {
       const p = createSkeletonPlayer(el, ex.anim || ex.id, {
         primary: ex.muscles?.primary || [], secondary: ex.muscles?.secondary || [],
-        size: +el.dataset.size || 96, playing: el.dataset.play === '1' && !reducedMotion(),
+        size: +el.dataset.size || 96, playing: el.dataset.play === '1' && !reducedMotion(), muscles: showsMuscles(ex),
       });
       players.push(p);
     } catch (e) { console.warn('anim failed', ex.id, e); }

@@ -110,6 +110,7 @@
   import { CLIPS } from './js/anim/v2/clips/lib.js';
   import './js/anim/v2/clips/taiso.js';
   import { ALL_BY_ID } from './js/data/exercises.js';
+  import { showsMuscles } from './js/data/traditions.js';
 
   const KEY = 'kitaeru.taisoCheck.v1', VKEY = 'kitaeru.taisoCheck.video';
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -191,9 +192,9 @@
       <textarea id="note-${s.key}" placeholder="e.g. at the top of the circle the arms should be higher">${esc(n.note)}</textarea>`;
     $('#steps').append(card);
 
-    const m = ex ? ex.muscles : { primary: [], secondary: [] };
+    const m = ex ? ex.muscles : { primary: [], secondary: [] }, muscles = showsMuscles(ex);   // Morning Taisō: no muscle highlight (TRADITIONS.radio_taiso.showMuscles)
     const st = { view: '3/4', slow: false, paused: false };
-    const player = createPlatePlayer(card.querySelector('.stage'), s.id, { primary: m.primary, secondary: m.secondary, size: 640, pace: s.pace, flow: true });
+    const player = createPlatePlayer(card.querySelector('.stage'), s.id, { primary: m.primary, secondary: m.secondary, size: 640, pace: s.pace, flow: true, muscles });
     players.push(player);
     const pace = () => player.setPace(s.pace * (st.slow ? 2 : 1));
     const b = a => card.querySelector(`[data-a="${a}"]`), scrub = card.querySelector('input[type=range]');
@@ -201,7 +202,7 @@
     b('slow').onclick = () => { st.slow = !st.slow; b('slow').setAttribute('aria-pressed', st.slow); pace(); };
     b('view').onclick = () => {
       const vs = Object.keys(VIEWS); st.view = vs[(vs.indexOf(st.view) + 1) % vs.length];
-      player.setAnim(viewId(s.id, st.view), m.primary, m.secondary, { flow: true }); pace();
+      player.setAnim(viewId(s.id, st.view), m.primary, m.secondary, { flow: true, muscles }); pace();
       if (st.paused) player.seek(+scrub.value);
       b('view').textContent = `View: ${st.view}`;
     };

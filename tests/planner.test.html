@@ -21,7 +21,7 @@
 <details><summary>Sample weeks</summary><pre id="sample"></pre></details>
 <script type="module">
 import { EXERCISES, ALL_EXERCISES, ALL_BY_ID, ALL_FAMILIES, FAMILIES, byId as visibleById, flowSeconds, flowSteps, familyLadder, varietyFor, isVisible } from '../js/data/exercises.js';
-import { TRADITIONS, EXCLUDED_TRADITIONS, RADIO_TAISO_ATTRIBUTION, setTraditionPreview, traditionPreview, traditionVisible, contentVisible } from '../js/data/traditions.js';
+import { TRADITIONS, EXCLUDED_TRADITIONS, RADIO_TAISO_ATTRIBUTION, setTraditionPreview, traditionPreview, traditionVisible, contentVisible, showsMuscles } from '../js/data/traditions.js';
 import { MUSCLE_IDS } from '../js/data/muscles.js';
 import { hasAnimation, exerciseAnimated, registerAnimationIds, clearRegisteredAnimationIds, animationGateVersion } from '../js/data/animated.js';
 import { ANIMS } from '../js/anim/poses.js';
@@ -563,6 +563,15 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
   for (const e of ALL_EXERCISES) ok(!radioRe.test(scrub(e)), `${e.id}: user-facing text names Radio Taiso outside attribution`);
   ok(!radioRe.test(scrub(TRADITIONS.radio_taiso)) && TRADITIONS.radio_taiso.attribution === RADIO_TAISO_ATTRIBUTION && rt1.attribution === RADIO_TAISO_ATTRIBUTION, 'radio_taiso card: name only in attribution');
   ok(rt1.name === 'Morning Taisō', 'flow is named Morning Taisō');
+  // muscles off for the Taisō (founder 2026-09-30): a tradition-level flag, not an id check
+  ok(TRADITIONS.radio_taiso.showMuscles === false && TRAD_IDS.filter(id => TRADITIONS[id].showMuscles === false).join() === 'radio_taiso', 'only the radio_taiso card sets showMuscles: false');
+  ok(ALL_EXERCISES.filter(e => e.tradition === 'radio_taiso').every(e => !showsMuscles(e)) && ALL_EXERCISES.filter(e => e.tradition === 'radio_taiso').length >= 14, 'showsMuscles: false for the Morning Taisō and every rt_* move (heel-raise swap included)');
+  ok(ALL_EXERCISES.filter(e => e.tradition !== 'radio_taiso').every(showsMuscles) && showsMuscles(ALL_BY_ID.taichi_cloud_hands) && showsMuscles(ALL_BY_ID.push_up) && showsMuscles(null), 'showsMuscles: true for every other exercise (other traditions and generic)');
+  {
+    const saved = TRADITIONS.tai_chi.showMuscles; TRADITIONS.tai_chi.showMuscles = false;
+    ok(!showsMuscles(ALL_BY_ID.taichi_cloud_hands) && showsMuscles(ALL_BY_ID.push_up), 'showsMuscles follows the card flag (data-driven)');
+    if (saved === undefined) delete TRADITIONS.tai_chi.showMuscles; else TRADITIONS.tai_chi.showMuscles = saved;
+  }
 
   // ---- accuracy gate (preview off)
   ok(EXERCISES.every(e => contentVisible(e) && !e.flowOnly), 'EXERCISES hides unverified tradition items and flow-only steps');
@@ -847,6 +856,41 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     const rate = count && c.counts ? T / (c.counts * (st.sec / count)) : T * Math.max(1, Math.round(st.sec / T)) / st.sec;   // plate.js rateOf
     const cycles = st.sec * rate / T;
     ok(Math.abs(cycles - Math.round(cycles)) < 1e-6 && cycles >= 1, `${id}${o.variant ? ' ' + o.variant : ''} ${anim}: ${cycles.toFixed(2)} cycles in the step`);
+  }
+  { // Taisō pace (factcheck §10, 2026-09-30): the official Kampo demonstration's timing per step, 200 counts in about 180 s;
+    // the deep breath at the official pace, about 4 s a breath (founder, 2026-09-30)
+    const rt = ALL_BY_ID.radio_taiso_1, secs = rt.sequence.map(st => st.sec);
+    ok(secs.join() === '8,13,14,16,15,14,13,15,15,17,8,15,17', `Morning Taisō: official seconds per step (${secs})`);
+    ok(rt.estSec === 180 && flowSeconds(rt) - 17 === 163 && Math.abs(flowSeconds(rt) - 17 + 16.5 - 180) < 1, `Morning Taisō: 180 s, the movements before the deep breath as the official ~163.5 s (${rt.estSec})`);
+    ok(flowSeconds(rt, { replace: { rt_two_foot_hops: 'rt_heel_raise' } }) === 180, 'Morning Taisō: the no-hop swap keeps the timing');
+    const NHK = [8, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16];   // official counts (呼間) per step, NHK sheet: 200 in all
+    const perCount = rt.sequence.map((st, i) => st.sec / NHK[i]);
+    ok(perCount.slice(0, 12).every((c, i) => i === 10 ? c <= .55 : c >= .75 && c <= 1.07), `Morning Taisō: 0.75-1.07 s a count, the hops ≤ 0.55 s (${perCount.map(c => c.toFixed(2))})`);
+    ok(rt.sequence[12].sec / rt.sequence[12].reps === 4.25, 'Morning Taisō: the deep breath at the official ~4 s a breath');
+    // readable at that pace: each clip's own cycle is the official one (the flow plays it at 0.8-1.25×; the deep breath
+    // at about 2.35×, the official pace), and no movement phase lasts under 0.09 s on screen
+    for (const st of flowSteps('radio_taiso_1').concat(flowSteps('radio_taiso_1', { replace: { rt_two_foot_hops: 'rt_heel_raise' } })[10])) {
+      const c = CLIPS[st.move], T = K.period(c), count = st.side === 'both' ? st.reps * 2 : st.reps, rate = T * count / (c.counts * st.sec);
+      const minPh = Math.min(...c.timeline.filter(ph => !ph.hold).map(ph => ph.dur)) / rate;   // (a hold may be a brief pause)
+      const lim = st.move === 'rt_deep_breath' ? [1.9, 2.4] : [.8, 1.25];
+      ok(rate >= lim[0] && rate <= lim[1] && minPh >= .09, `Morning Taisō ${st.move}: flow rate ${rate.toFixed(2)} (natural cycle ${T.toFixed(2)} s), shortest phase ${minPh.toFixed(2)} s`);
+    }
+  }
+  { // the players' muscles option (2026-09-30): false draws no muscle highlight, whatever primary / secondary say
+    const { createPlatePlayer } = await import('../js/anim/v2/plate.js');
+    const { createSkeletonPlayer, createV1Player, loadV2 } = await import('../js/anim/skeleton.js');
+    const box = document.createElement('div'); box.style.cssText = 'position:absolute;left:-9999px;width:300px'; document.body.appendChild(box);
+    const n = () => box.querySelectorAll('.pl-m, .pl-m2, .mp, .ms').length;
+    const ca = ALL_BY_ID.rt_arm_circles.muscles, pu = ALL_BY_ID.push_up.muscles;
+    let pl = createPlatePlayer(box, 'rt_arm_circles', { primary: ca.primary, secondary: ca.secondary, size: 300, playing: false, muscles: false });
+    const off = n(); pl.setAnim('rt_arm_circles', ca.primary, ca.secondary, { muscles: true }); const on = n(); pl.destroy();
+    ok(off === 0 && on > 0, `plate player: muscles: false draws none, setAnim({ muscles: true }) draws them (${off}, ${on})`);
+    await loadV2('push_up');
+    pl = createSkeletonPlayer(box, 'push_up', { primary: pu.primary, secondary: pu.secondary, size: 300, playing: false, muscles: false });
+    const off2 = n(), kind = pl.renderer; pl.setAnim('push_up', pu.primary, pu.secondary, { muscles: true }); const on2 = n(); pl.destroy();
+    ok(kind === 'v2' && off2 === 0 && on2 > 0, `skeleton player: muscles: false draws none, setAnim({ muscles: true }) draws them (${kind}, ${off2}, ${on2})`);
+    pl = createV1Player(box, 'push_up', { primary: [], secondary: [], size: 300, playing: false }); const v1off = n(); pl.setAnim('push_up', pu.primary, pu.secondary); const v1on = n(); pl.destroy(); box.remove();
+    ok(v1off === 0 && v1on > 0, `v1 player: empty muscle lists (what muscles: false passes) draw none (${v1off}, ${v1on})`);
   }
   const tw = ALL_BY_ID.radio_taiso_1.sequence.find(x => x.move === 'rt_trunk_twist');
   ok(tw.side === 'alternate' && tw.reps === 8, 'Morning Taisō trunk twist alternates every count (its clip goes one way, then the other)');

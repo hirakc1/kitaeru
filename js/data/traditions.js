@@ -49,6 +49,9 @@ export const TRADITIONS = {
     learnMore: [],
     families: ['flow_sequence', 'warmup', 'rotation'],
     since: '1.2',
+    // A brisk loosening-up routine: no muscle is worked hard (founder, 2026-09-30), so the player and the Library draw the
+    // figure without muscle highlight and hide the muscle chips and body map for its items (see showsMuscles).
+    showMuscles: false,
   },
   tai_chi: {
     name: 'Tai Chi',
@@ -282,6 +285,12 @@ export const TRADITIONS = {
   },
 };
 export const TRADITION_IDS = Object.keys(TRADITIONS);
+
+/**
+ * Does the UI show muscles (figure highlight, muscle chips, body map) for this exercise? False only when its tradition
+ * card sets `showMuscles: false` (the Morning Taisō). Generic exercises and every other tradition: true.
+ */
+export const showsMuscles = ex => !(ex && ex.tradition && TRADITIONS[ex.tradition]?.showMuscles === false);
 
 /**
  * Practices Kitaeru never packages as exercise (world-movement.md §5.3), not even with ?preview=traditions:

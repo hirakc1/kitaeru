@@ -1,5 +1,5 @@
 // Library tab: searchable, filterable exercise grid with a detail sheet (#/library/:id).
-import { EXERCISES, FAMILIES, MUSCLES, byId, EQUIPMENT, TRADITIONS, flowSteps, createSkeletonPlayer, renderBodyMap, swapAlternatives, unavailableReason } from './deps.js';
+import { EXERCISES, FAMILIES, MUSCLES, byId, EQUIPMENT, TRADITIONS, flowSteps, createSkeletonPlayer, renderBodyMap, swapAlternatives, unavailableReason, showsMuscles } from './deps.js';
 import { getState } from '../store.js';
 import { esc, icon, openSheet, mountAnims, muscleName, familyName, ladder, isAvailable, isProgression, reducedMotion, nativeNameHTML, fmtDur, stepName, stepCount } from './components.js';
 import { cardFor, cardChipHTML, visibleCards, openCultureCard, traditionName } from './culture.js';
@@ -158,9 +158,9 @@ function detailHTML(e) {
       <span class="badge">${target}${e.unilateral ? ' · per side' : ''}</span><span class="badge">Difficulty ${e.difficulty}/10</span>${e.impact === 'high' ? '<span class="badge badge-gold">High impact</span>' : ''}</div>
     ${ok ? '' : `<p class="note small na-note">${icon('info', { size: 18 })}<span><strong>Not in your plans right now.</strong> ${esc(whyNot(e, profile)?.detail || '')}</span></p>`}
     ${e.description ? `<p>${esc(e.description)}</p>` : ''}
-    <div class="detail-muscles"><div class="bodymap" data-bodymap></div>
+    ${showsMuscles(e) ? `<div class="detail-muscles"><div class="bodymap" data-bodymap></div>
       <div><h3 class="h3">Muscles</h3><p class="small"><span class="key key-p"></span>${e.muscles.primary.map(muscleName).join(', ')}</p>
-      ${e.muscles.secondary.length ? `<p class="small muted"><span class="key key-s"></span>${e.muscles.secondary.map(muscleName).join(', ')}</p>` : ''}</div></div>
+      ${e.muscles.secondary.length ? `<p class="small muted"><span class="key key-s"></span>${e.muscles.secondary.map(muscleName).join(', ')}</p>` : ''}</div></div>` : ''}
     ${e.cues?.length ? `<h3 class="h3">Cues</h3><ol class="cues">${e.cues.map(c => `<li>${esc(c)}</li>`).join('')}</ol>` : ''}
     ${e.mode === 'flow' ? flowStepsHTML(e) : ''}
     ${e.attribution ? `<p class="small muted cc-attr"><span class="label">Based on</span> ${esc(e.attribution[0].toUpperCase() + e.attribution.slice(1))}</p>` : ''}
@@ -195,8 +195,9 @@ function openDetail(id) {
       let p = null;
       const st = getState().settings;   // animation extras: trail always here, breath guide on holds
       try { p = createSkeletonPlayer(el.querySelector('[data-stage]'), e.anim || e.id, { primary: e.muscles.primary, secondary: e.muscles.secondary, size: Math.min(260, window.innerWidth - 80), playing: !reducedMotion(),
-        trail: st.animTrail !== false, breath: e.mode === 'hold' && st.animBreath !== false }); } catch (err) { console.warn(err); }
-      try { renderBodyMap(el.querySelector('[data-bodymap]'), { primary: e.muscles.primary, secondary: e.muscles.secondary, size: 140 }); } catch (err) { console.warn(err); }
+        trail: st.animTrail !== false, breath: e.mode === 'hold' && st.animBreath !== false, muscles: showsMuscles(e) }); } catch (err) { console.warn(err); }
+      const bm = el.querySelector('[data-bodymap]');   // (none when the tradition hides muscles: the Morning Taisō)
+      if (bm) try { renderBodyMap(bm, { primary: e.muscles.primary, secondary: e.muscles.secondary, size: 140 }); } catch (err) { console.warn(err); }
       return () => { try { p && p.destroy(); } catch { /* ignore */ } };
     },
     onClose() {

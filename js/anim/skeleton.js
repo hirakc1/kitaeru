@@ -782,23 +782,26 @@ function placeholder(container, size) {
   return { svg, play: nop, pause: nop, seek: nop, setAnim: nop, destroy() { svg.remove(); } };
 }
 // opts.breath / opts.trail (default off): v2 breath ring and motion trail; v1 ignores both
+// opts.muscles (default true): false draws the figure with no muscle highlight (v1 and v2), e.g. for a tradition whose
+// card sets showMuscles: false (the Morning Taisō); setAnim's opts.muscles changes it for the next clip
 export function createSkeletonPlayer(container, animId, opts = {}) {
-  const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, pace: null, fit: null, ...opts };
+  const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, pace: null, fit: null, muscles: true, ...opts };
+  const mus = () => (o.muscles === false ? { primary: [], secondary: [] } : { primary: o.primary, secondary: o.secondary });
   let p = null, kind = null, cur = null, gen = 0, dead = false, fixedT = null;
   function mount(k) {
     const old = p;
-    p = k === 'v2' ? plateMod.createPlatePlayer(container, cur, { ...o }) : k === 'v1' ? createV1Player(container, cur, { ...o }) : placeholder(container, o.size);
+    p = k === 'v2' ? plateMod.createPlatePlayer(container, cur, { ...o, ...mus() }) : k === 'v1' ? createV1Player(container, cur, { ...o, ...mus() }) : placeholder(container, o.size);
     kind = k;
     if (old) { if (old.svg.parentNode === container) container.insertBefore(p.svg, old.svg); old.destroy(); }
     if (fixedT != null) p.seek(fixedT);
   }
   function show(id, opts) {
     const k = isV2(id) ? 'v2' : 'v1';
-    if (p && kind === k) p.setAnim(id, o.primary, o.secondary, opts); else mount(k);
+    if (p && kind === k) { const m = mus(); p.setAnim(id, m.primary, m.secondary, { ...opts, muscles: o.muscles !== false }); } else mount(k);
   }
   // opts (v2): { flow, blend } for flow steps: no fades at the step's ends, and a pose blend from the previous step
   function load(id, prim, sec, opts = {}) {
-    cur = id; if (prim) o.primary = prim; if (sec) o.secondary = sec; o.flow = !!opts.flow;
+    cur = id; if (prim) o.primary = prim; if (sec) o.secondary = sec; o.flow = !!opts.flow; if ('muscles' in opts) o.muscles = opts.muscles !== false;
     const my = ++gen;
     if (!isV2(id) || v2Ready(id)) { show(id, opts); return; }
     if (kind !== 'ph') mount('ph');

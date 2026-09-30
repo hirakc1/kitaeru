@@ -119,7 +119,9 @@ function follow(clip, S) {
 }
 
 // ---------- renderer ----------
-export function createPlatePlayer(container, animId, { primary, secondary, size = 320, playing = true, trail = false, breath = false, pace = null, fit = null, flow = false } = {}) {
+// muscles: false draws the figure without any muscle highlight (e.g. the Morning Taisō: TRADITIONS[t].showMuscles === false);
+// setAnim's opts.muscles changes it for the next clip
+export function createPlatePlayer(container, animId, { primary, secondary, size = 320, playing = true, trail = false, breath = false, pace = null, fit = null, flow = false, muscles: showMus = true } = {}) {
   injectStyle();
   const uid = ++UID;
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -161,7 +163,7 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
   DT.bg = new Grp(DT.g, 'dtbg'); DT.inner = document.createElementNS(NS, 'g'); DT.inner.setAttribute('clip-path', `url(#${DT.cp.id})`); DT.g.appendChild(DT.inner);
   DT.view = document.createElementNS(NS, 'g'); DT.inner.appendChild(DT.view); DT.body = new Grp(DT.view, 'dt'); DT.fg = new Grp(DT.g, 'dtfg');
   const st = { clip: null, cam: null, playing: playing && !reduce, visible: true, t0: 0, elapsed: 0, last: 0, raf: 0, fixedT: null,
-    trail, breath, groups: new Set(), prim: new Set(), sec: new Set(), pace, fit, rate: 1, flow, avg: {}, trailPath: {}, trailPathM: {}, order: '', ms: [],
+    trail, breath, mus: showMus !== false, groups: new Set(), prim: new Set(), sec: new Set(), pace, fit, rate: 1, flow, avg: {}, trailPath: {}, trailPathM: {}, order: '', ms: [],
     lod: size < 160 ? 1 : 0, n: 0, slow: false, props: [], props0: [], propsM: [], pnames: [], gnames: GROUPS };   // lod 1: thumbnails (list / plan / today): fewer, bolder strokes
   if (st.lod) { svg.classList.add('lod'); st.trail = st.breath = false; }   // no overlays on thumbnails
 
@@ -697,7 +699,8 @@ export function createPlatePlayer(container, animId, { primary, secondary, size 
     }
     st.flow = !!opts.flow;
     st.clip = clip; st.id = id;
-    st.prim = new Set(prim ?? clip.muscles.primary); st.sec = new Set(sec ?? clip.muscles.secondary);
+    if ('muscles' in opts) st.mus = opts.muscles !== false;
+    st.prim = new Set(st.mus ? prim ?? clip.muscles.primary : []); st.sec = new Set(st.mus ? sec ?? clip.muscles.secondary : []);
     st.groups = new Set([...st.prim, ...st.sec]);
     st.cam = camera(clip.cam.az, clip.cam.el);
     st.off = [0, 0, 0]; st.tr = ''; root.removeAttribute('transform');

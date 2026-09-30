@@ -264,7 +264,7 @@ const MOMENTS = {
    - `exclude` / `ban` → drop those ids. `EARLY_FLEXION` = `standing_hamstring_stretch`, `pancake_stretch`, `childs_pose`, `lying_leg_raise`, `hollow_body_hold`, `baduanjin_touch_toes`.
    - `after_meal` also excludes prone and supine floor items (every item in the pool is standing).
    - `cond: 0` and `strength: 0` remove those blocks entirely.
-4. **Flows first.** Walk `flowFirst`. Use the first flow that is available (`availableFlows`) and fits in ≤70% of the time. The `:short` suffix = the `short` variant. At 5 min, Morning uses `radio_taiso_1` (186 s) plus one standing item. Before sport uses it only for the 5-min version. Otherwise the pool alone fills the time.
+4. **Flows first.** Walk `flowFirst`. Use the first flow that is available (`availableFlows`) and fits in ≤70% of the time. The `:short` suffix = the `short` variant. At 5 min, Morning uses `radio_taiso_1` (180 s) plus one standing item. Before sport uses it only for the 5-min version. Otherwise the pool alone fills the time.
 5. **Fill from the pool in order**, using `fillFlat` with the moment's `holdCap` and `longHolds` and rotating the start index by `seed`. Tradition singles in a pool are skipped when not visible, so each pool must still work with **zero** tradition items (the pools below lead with generic ids for that reason).
 6. **Levels.** Strength items use the user's current family level (the `levelsEx` default), capped by `levelCap`, or offset by `levelOffset`. Never above the current level, and never an exercise never logged before, for `before_sport`, `energy` and `low_energy` **[practice]**. RIR comes from the moment when set; otherwise use `health`.
 7. **Special templates.**

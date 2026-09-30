@@ -378,3 +378,89 @@ Independent check of the two items still at `verified: null` after the re-base: 
 ### Tests
 
 `tests/planner.test.html` was run in the browser after the edits, with no service worker registered and caches cleared: **149,408 passed, 0 failed** (was 148,845 passed, 0 failed). The count rose because the yoga items now enter the planner sweeps.
+
+## 10. Taisō pace (2026-09-30)
+
+Founder feedback: the Morning Taisō is performed faster than Kitaeru played it, and it needs no muscle highlighting. This section covers the pace. The muscles change is data (`TRADITIONS.radio_taiso.showMuscles: false`, docs/CONTRACTS.md).
+
+### Sources
+
+| Source | What it gives | Status |
+|---|---|---|
+| Japan Post Insurance (Kampo) official video, "ラジオ体操第一（通し）", channel ラジオ体操チャンネル【かんぽ生命公式】 (@radiotaisou), https://www.youtube.com/watch?v=SGPBSqxKGAc | Total length and the timing of each movement | Page metadata read: `lengthSeconds` 208 (published 2021-07-29). The description has no chapters or timestamps. The whole video includes a title card (0–5 s), the call and the music intro (to about 15 s), and a closing card (from about 199 s). Per-step timing measured from the picture (method below) |
+| NHK illustrated sheet, https://www.nhk.or.jp/program/radio-taisou/pdf/radio.pdf | Counts per movement | Read (text extracted). No. 1: movement 1 is 4呼間×2回＝8呼間; movements 2–13 are 16呼間 each (2呼間×8回, 4呼間×4回 or 8呼間×2回). **200 counts in all** |
+| Radio Taiso Federation FAQ, https://www.radio-exercises.org/archives/category/faq/faq-cate02 | Duration and tempo statements | Read. (1) 2016 and 2010 answers: みんなの体操 takes about 4 min 30 s, about 1 min 20 s longer than Radio Taisō No. 1 and No. 2, so each is **about 3 min 10 s** (a broadcast length, with the intro). (2) 2017.11.22 answer: No. 1 keeps the pulse in the 90–100 beats/min range (a heart-rate figure, not the count tempo), and **速度は決まっておりません** (no fixed speed; any comfortable pace is fine). (3) Movement 12 is done ゆったりと, to settle the breathing, and movement 13 returns the body to rest |
+| Kampo column, https://www.jp-life.japanpost.jp/health/column/health-lab_030.html | Duration | Read: "たった3分で全身を動かすことのできる「ラジオ体操」" (about 3 minutes) |
+| Kampo Radio Taisō pages (index, illustrated guide radio_first.html, health/radio, app, usage rules) | Duration or tempo | Read. No duration, tempo or count timing stated |
+| Kampo YouTube channel, other official videos (the "サクッと" explainers and others) | Chapters or timestamps | Checked 27 videos' metadata. None has chapters or timestamps. Not used |
+
+No official source gives a count tempo or per-step seconds. The music was never used or copied, and no unofficial video was used.
+
+### Method: per-step timing from the official video
+
+I played the official video muted in a browser and saved still frames of the standing demonstrator every 1 s, and every 0.5 s around the step changes. From these I read when each movement starts: the first frame of its new pose (for example the arms crossing for step 2, the feet stepping apart for step 4, the first hop for step 11). No audio was analysed, stored or copied. Each boundary is accurate to about ±0.5 s.
+
+The movements run from about 15 s to about 195 s: **about 180 s for the 200 counts**, which is roughly 0.9 s per count. This fits the Federation's "about 3 min 10 s" (190 s) with the intro, and Kampo's "about 3 minutes". The tempo is not even across the steps: the stretch and the hops are brisk, and steps 4 and 12 and the deep breath are slower.
+
+### Old and new timing
+
+`sec` in `radio_taiso_1.sequence`, rounded to whole seconds (`flowSteps` rounds to whole seconds).
+
+| # | Step | Counts (NHK) | Official (measured) | Old | **New** |
+|---|---|---|---|---|---|
+| 1 | Stretch up | 8 | 15.0 → 22.5: ~7.5 s | 10 | **8** |
+| 2 | Arm swing and knee bend | 16 | 22.5 → 36: ~13.5 s | 12 | **13** |
+| 3 | Arm circles | 16 | 36 → 50: ~14 s | 12 | **14** |
+| 4 | Chest opener | 16 | 50 → 66: ~16 s | 12 | **16** |
+| 5 | Side bend | 16 | 66 → 81.5: ~15.5 s | 16 | **15** |
+| 6 | Forward and back bend | 16 | 81.5 → 95: ~13.5 s | 16 | **14** |
+| 7 | Trunk twist | 16 | 95 → 108.5: ~13.5 s | 16 | **13** |
+| 8 | Arms up and down | 16 | 108.5 → 123.5: ~15 s | 16 | **15** |
+| 9 | Diagonal bend and chest opener | 16 | 123.5 → 138.5: ~15 s | 16 | **15** |
+| 10 | Trunk circle | 16 | 138.5 → 155: ~16.5 s | 16 | **17** |
+| 11 | Two-foot hops (or Kitaeru's heel raises) | 16 | 155 → 163.5: ~8.5 s | 14 | **8** |
+| 12 | Arm swing and knee bend | 16 | 163.5 → 178.5: ~15 s | 12 | **15** |
+| 13 | Deep breath | 16 | 178.5 → 195: ~16.5 s (4 breaths of ~4 s) | 20 | **20** (kept) |
+| | **Total** | 200 | **~180 s** | **188 s** | **183 s** |
+
+- Steps 1–12 now follow the official timing (163 s against ~163.5 s measured).
+- **Deep breath kept at 20 s**, 5 s a breath (about 2.25 s in, 2.75 s out). The demonstration takes about 4 s a breath; Kitaeru keeps the slower breath so it stays a full, slow breath (never a hold). Setting it to 17 s would bring the total to 180 s.
+- The routine as a whole was already close to the official length (188 s against ~180 s). The steps that were really too slow are the ones the founder would notice: the **hops** (14 → 8 s: a hop every half second, not every 0.9 s) and the **stretch** (10 → 8 s). Steps 5–7 are 1–3 s faster. Steps 2, 3, 4 and 12 were *faster* than the demonstration and are now 1–4 s slower, as it shows. `countsPerSec` on the flow is now 1.1 (200 counts in about 180 s).
+
+### Clips (js/anim/v2/clips/taiso.js)
+
+Each clip's own cycle is now the official timing for that movement. The fact-checked phases are scaled in proportion (`fit(T, phases)`); no pose was cut. So a Taisō move plays at the same pace in the Library as in the flow. In the flow every step still ends on a whole clip cycle (tested). The flow plays each clip at 0.9–1.05× its own cycle; the deep breath plays at 2× (5 s a breath; 10 s a breath on its own, unchanged).
+
+| Clip | Old cycle | New cycle |
+|---|---|---|
+| `rt_stretch_up` | 5.0 s | 4.0 s |
+| `rt_arm_swing_knee_bend` | 1.5 s | 1.7 s |
+| `rt_arm_circles` (a circle each way) | 5.0 s | 3.5 s |
+| `rt_chest_opener` | 3.0 s | 4.0 s |
+| `rt_side_bend` (per side) | 6.7 s | 7.5 s |
+| `rt_forward_back_bend` | 8.0 s | 7.0 s |
+| `rt_trunk_twist` | 5.0 s | 6.5 s |
+| `rt_arms_up_down` (per side) | 4.0 s | 3.75 s |
+| `rt_diagonal_bend` (per side) | 7.0 s | 7.5 s |
+| `rt_trunk_circle` (per side) | 9.4 s | 8.5 s |
+| `rt_two_foot_hops` (8 hops) | 7.04 s | 4.0 s |
+| `rt_heel_raise` (no-hop swap) | 1.0 s | 0.5 s (in time with the hops' count) |
+| `rt_deep_breath` | 10 s | 10 s (unchanged) |
+
+Readability: the shortest movement phases on screen are about 0.14 s (the small weight shift before step 8's side step) and 0.17 s (a hop's spring up or landing). A test checks that no movement phase is shorter than 0.09 s at flow pace.
+
+### Standalone moves (`tempo.secPerRep`, used for time estimates)
+
+- Changed to the official per-rep timing: `rt_stretch_up` 5 → 4, `rt_arm_circles` 4 → 3.5, `rt_chest_opener` 3 → 4.
+- Already about right, unchanged: `rt_side_bend` 4, `rt_arm_swing_knee_bend` 2, `rt_arms_up_down` 4, `rt_diagonal_bend` 4, `rt_trunk_circle` 4, `rt_trunk_twist` 3. `rt_deep_breath` stays 10 (a standalone breath).
+- **`rt_forward_back_bend` stays 8** (official about 6.75). Setting it to 7 changes the Before-sport fill so that `rt_trunk_circle` is no longer planned anywhere, and a planner test requires it. The clip itself is 7 s. Left for the founder: accept 8 as a slightly generous estimate, or change the planner test.
+
+### Copy
+
+The flow's description ("Thirteen brisk movements in about three minutes") still holds at 183 s, so it is unchanged. `docs/moments.md` §3.3 now says 183 s (was 186 s).
+
+### Tests
+
+`tests/planner.test.html`, run in the browser with no service worker registered and caches cleared: **149,444 passed, 0 failed** (was 149,408). New checks: the per-step seconds and the 183 s total; the no-hop swap keeps the timing; 0.75–1.07 s a count (the hops ≤ 0.55 s); the deep breath at 5 s a breath; each Taisō clip plays at 0.8–1.25× its own cycle in the flow, with no movement phase under 0.09 s; the `showMuscles` flag and `showsMuscles()`; and the players' `muscles` option.
+
+**Founder decision, 2026-09-30:** the deep breath uses the official pace, 17 s (4 breaths of about 4.25 s) instead of 20 s. The flow totals 180 s, matching the official routine.
