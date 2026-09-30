@@ -97,6 +97,10 @@ This is the current state for a new Claude session picking up the project. Claud
 - **Seated Taisō is on hold:** it needs one official NHK seated video check by the founder (`docs/founder-tasks.md`, local only, excluded from git). The KeikoFlex video the founder used is unofficial and doesn't count as a source.
 - The Makkō-hō courtesy email is dropped. The trademark checks (真向法, ラジオ体操, Systema) are still needed before any marketing use.
 
+## v1.3b "Flow and breath": built 2026-09-30, not yet deployed
+- 8 items: standing post, bow stance, Surya Namaskar, tree (new `balance_hold` family), Warrior II, triangle, Makkō-hō (one flow, step 4 adapted), breath-paced walk (generic). Cards: yoga, Makkō-hō, standing post; the horse-stance card widened to "Martial-arts stances". 27 new clips (anim QA 159/159); tests 148,845 passed.
+- **Still gated:** the yoga card (योग) and Warrior II have `verified: null` and wait for an independent fact-check; until the card passes, every yoga item (Surya Namaskar, tree, triangle, Warrior II) stays hidden. See `?preview=traditions`.
+
 ## In progress / next
 1. **Founder animation review:** the founder is reviewing all 132 clips on `anim-review.html` and will send the exported notes. Route each note to the animator (anim branch `worktree-agent-a9739dc712fdd0781`, which is merged into main). The generic `detail` inset exists for hand and foot close-ups.
 2. **Founder is still reviewing v1.2/v1.3** in depth. Expect more feedback.

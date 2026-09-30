@@ -38,7 +38,7 @@ export function exerciseAnimated(ex, lookup = {}) {
   if (!ex) return false;
   if (traditionPreview()) return true;
   if (ex.mode !== 'flow') return hasAnimation(ex.anim || ex.id);
-  const stepAnim = st => (st.move ? (lookup[st.move]?.anim || st.move) : st.anim);
+  const stepAnim = st => st.clip || (st.move ? (lookup[st.move]?.anim || st.move) : st.anim);   // step.clip: the step's own clip (v1.3b)
   if (!(ex.sequence || []).every(st => hasAnimation(stepAnim(st)))) return false;
   const repl = Object.values(ex.variants || {}).flatMap(v => Object.values(v.replace || {}));
   return repl.every(id => hasAnimation(lookup[id]?.anim || id));

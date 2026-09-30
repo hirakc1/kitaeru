@@ -1,5 +1,5 @@
 // Kitaeru service worker: cache-first app shell, versioned caches, runtime caching for fonts.
-const VERSION = 'v2026.09.29-1634';
+const VERSION = 'v2026.09.30-0820';
 const SHELL = `kitaeru-shell-${VERSION}`;
 const RUNTIME = `kitaeru-runtime-${VERSION}`;
 
@@ -14,7 +14,7 @@ const SHELL_FILES = [
   './js/anim/v2/ids.js', './js/anim/v2/core.js', './js/anim/v2/anatomy.js', './js/anim/v2/plate.js', './js/anim/v2/clips/lib.js',
   './js/anim/v2/clips/push.js', './js/anim/v2/clips/pull.js', './js/anim/v2/clips/legs.js', './js/anim/v2/clips/trunk.js', './js/anim/v2/clips/abs.js', './js/anim/v2/clips/strength.js', './js/anim/v2/clips/cond.js', './js/anim/v2/clips/mob.js', './js/anim/v2/clips/moments.js',
   './js/anim/v2/clips/rot.js', './js/anim/v2/clips/trad.js', './js/anim/v2/clips/taiso.js', './js/anim/v2/clips/taichi.js',
-  './js/anim/v2/clips/baduanjin.js',
+  './js/anim/v2/clips/baduanjin.js', './js/anim/v2/clips/stances.js', './js/anim/v2/clips/yoga.js', './js/anim/v2/clips/makko.js',
   './js/engine/planner.js',
   './icons/favicon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
 ];

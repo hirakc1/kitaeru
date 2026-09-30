@@ -137,12 +137,14 @@ export const TRADITIONS = {
     families: ['push_horizontal', 'conditioning'],
     since: '1.2',
   },
+  // v1.3b: widened from "Horse stance" to the basic wushu stances (步型), so the bow stance belongs here too
+  // (docs/flow-and-breath.md §7.5; fact-check 2026-09-29 §3: PASS WITH CORRECTIONS, Zhengzhou standard added to sources)
   horse_stance: {
-    name: 'Horse stance',
-    nativeName: { text: '马步', romanised: 'mǎbù', lang: 'zh-Hans', alt: [{ text: '馬步', lang: 'zh-Hant' }] },
+    name: 'Martial-arts stances',
+    nativeName: { text: '步型', romanised: 'bùxíng', lang: 'zh-Hans' },
     region: 'East Asia', countries: ['CN'],
-    card: 'Generations of martial artists began by simply holding the horse stance. '
-      + 'It builds strong, patient legs and a steady centre, and it teaches you to breathe calmly under effort.',
+    card: 'Chinese martial artists begin with a handful of basic stances: the wide, square horse stance and the long, lunging bow stance among them. '
+      + 'Holding them builds strong, patient legs and a steady centre, and teaches you to breathe calmly under effort.',
     principles: ['Hold still with good alignment', 'Stay relaxed and breathe slowly', 'Lower the stance over months'],
     trains: { strength: 2, mobility: 0, balance: 1, breath: 1, coordination: 0 },
     evidence: [
@@ -151,17 +153,103 @@ export const TRADITIONS = {
     ],
     safety: ['Deep holds load the knees: start high, knees only slightly bent', 'Go lower before you hold for longer',
       'Never hold your breath, especially if you have high blood pressure'],
-    attribution: 'Foundation stance of Chinese martial arts (mǎbù)',
+    attribution: 'Foundation stances of Chinese martial arts (bùxíng)',
     sensitivity: 'attributed',
     sources: [
       S('Wikipedia: Horse stance', 'https://en.wikipedia.org/wiki/Horse_stance', 'reference'),
-      S('Guangzhou College of Technology and Business: university wushu course plan, basic stances (马步)', 'https://www.gzgs.edu.cn/__local/7/D6/39/AB29C045F11DC31F11D99E4EC9C_E7669F1F_27A40B.pdf', 'reference'),
+      S('Guangzhou College of Technology and Business: university wushu course plan, basic stances (武术步型: 弓步, 马步)', 'https://www.gzgs.edu.cn/__local/7/D6/39/AB29C045F11DC31F11D99E4EC9C_E7669F1F_27A40B.pdf', 'reference'),
+      S('Zhengzhou municipal standard DB4101/T 73—2023, 少林武术基本动作要求 §5.3 步型', 'https://www.shaolinkungfu.edu.cn/ueditor/php/upload/file/20231229/1703820828137111.pdf', 'official'),
       S('Edwards et al. 2023, BJSM: exercise training and resting blood pressure', 'https://pubmed.ncbi.nlm.nih.gov/37491419/', 'research'),
     ],
-    verified: { date: '2026-09-28', notes: '马步 mǎbù checked against Wikipedia and Guangzhou College of Technology and Business wushu course; grade C indirect (Edwards 2023 BJSM); knee and breath-holding cautions present.' },
+    verified: { date: '2026-09-29', notes: 'Widened card re-checked: 步型 bùxíng per Guangzhou wushu course and Zhengzhou standard DB4101/T 73—2023; horse and bow stance forms confirmed in both; evidence unchanged (Edwards 2023, grade C indirect); knee and breath-holding cautions present.' },
     learnMore: [],
     families: ['stance'],
     since: '1.2',
+  },
+  // ---- v1.3b "Flow and breath" cards (docs/flow-and-breath.md §7; fact-check docs/flow-and-breath-factcheck.md §3)
+  // Yoga card independently checked 2026-09-30, including the योग two-source check (factcheck §3 and §9).
+  yoga: {
+    name: 'Yoga',
+    nativeName: { text: 'योग', romanised: 'yoga', lang: 'sa' },
+    region: 'South Asia', countries: ['IN'],
+    era: 'Āsana practice mostly 20th century; Sun Salutation popularised 1920s–30s',
+    card: 'Yoga is a South Asian philosophy and spiritual path, of which physical postures, āsana, are one part. '
+      + 'Most of today’s standing poses and flowing sequences took shape in the 20th century, and the Sun Salutation was popularised by the Rajah of Aundh, who wrote that it was an age-old practice. '
+      + 'In trials, yoga modestly improved balance and mobility in adults over 60. Kitaeru teaches the postures only: no chanting or breath-holding.',
+    principles: ['Link each movement to a breath', 'Steady and comfortable', 'Never force a pose', 'Keep breathing: no breath holds'],
+    trains: { strength: 1, mobility: 3, balance: 2, breath: 2, coordination: 1 },
+    evidence: [
+      { grade: 'B', claim: 'May modestly improve balance and mobility in adults over 60', cite: 'Youkhana et al. 2016, Age Ageing (meta-analysis)', url: 'https://pubmed.ncbi.nlm.nih.gov/26707903/' },
+    ],
+    safety: ['Bend your knees in forward folds', 'Keep backbends small', 'Use a wall or chair for one-leg poses', 'Plank and dog load the wrists'],
+    attribution: 'Yoga āsana; Sun Salutation in the Sivananda tradition',
+    sensitivity: 'attributed',
+    sources: [
+      S('Ministry of AYUSH: Common Yoga Protocol (2019)', 'https://www.mea.gov.in/images/pdf/common-yoga-protocol-english.pdf', 'official'),
+      S('Sivananda Yoga Vedanta Centres: The Sun Salutation', 'https://sivanandayoga.org/teachings/the-sun-salutation/', 'official'),
+      S('Department of Tourism, Government of Kerala: Surya Namaskar', 'https://www.keralatourism.org/yoga/popular-asanas/surya-namaskar', 'official'),
+      S('The Art of Living (Hindi): सूर्य नमस्कार', 'https://www.artofliving.org/in-hi/yoga/yoga-poses/sun-salutation', 'reference'),
+      S('Wikipedia: Sun Salutation', 'https://en.wikipedia.org/wiki/Sun_Salutation', 'reference'),
+      S('Youkhana et al. 2016, Age Ageing (meta-analysis)', 'https://pubmed.ncbi.nlm.nih.gov/26707903/', 'research'),
+    ],
+    verified: { date: '2026-09-30', notes: 'Independent check (not the author). योग yoga per Wikipedia (Sanskrit योग), Wiktionary (Sanskrit योग, yóga) and Art of Living (Hindi); “philosophy and spiritual path, āsana one part” per Common Yoga Protocol 2019 (“essentially a spiritual discipline”; āsana one of its practices) and Wikipedia; 20th-century origin of most standing poses per Wikipedia (Standing asanas: very few before the 20th century); Rajah of Aundh popularised the Sun Salutation (Wikipedia), “age-old method” per his book as quoted by the Wellcome Collection; era 1920s–30s fits 1928 and 1938 editions; Youkhana 2016 re-read (6 trials, 307 people, g 0.40 balance; 3 trials, g 0.50 mobility), hedged; no chanting, mantras or breath holds; no Iyengar source.' },
+    learnMore: [{ label: 'Ministry of AYUSH: Common Yoga Protocol (free)', url: 'https://www.mea.gov.in/images/pdf/common-yoga-protocol-english.pdf' }],
+    families: ['flow_sequence', 'balance_hold', 'stance', 'mobility'],
+    since: '1.3',
+  },
+  makko_ho: {
+    name: 'Makkō-hō',
+    nativeName: { text: '真向法', romanised: 'makkōhō', lang: 'ja' },
+    region: 'East Asia', countries: ['JP'],
+    era: '1933–',
+    // Kitaeru's own wording: the association asks that its text and illustrations are not reused. No life dates, no aikidō claim.
+    card: 'After a stroke at 42, Nagai Wataru practised the deep bow he had read about in a Buddhist sutra until his stiff hips moved freely again, and in 1933 he began teaching it. '
+      + 'From it came Makkō-hō, four simple seated stretches done in about three minutes with a slow out-breath on every fold. '
+      + 'It is still taught across Japan by the Makkō-hō Association.',
+    principles: ['Breathe out as you fold', 'No bouncing, no forcing', 'Keep your back long', 'Come all the way back up'],
+    trains: { strength: 0, mobility: 3, balance: 0, breath: 1, coordination: 0 },
+    evidence: [],   // grade D: not studied in trials, so no outcome line
+    safety: ['Skip the fourth stretch if your knees or ankles complain', 'Lean back only as far as is comfortable', 'Not straight after a meal'],
+    attribution: 'Makkō-hō, created by Nagai Wataru (1933); taught by the Makkō-hō Association',
+    sensitivity: 'attributed',
+    sources: [
+      S('Makkō-hō Association (公益社団法人真向法協会): the four exercises', 'https://makkoho.or.jp/shiru__about3', 'official'),
+      S('Makkō-hō Association: origin (真向法の由来)', 'https://makkoho.or.jp/shiru__history', 'official'),
+      S('Sasakawa Sports Foundation, sports dictionary: 真向法', 'https://www.ssf.or.jp/knowledge/dictionary/makkoho.html', 'reference'),
+      S('Kotobank: 真向法 (Kyodo News; Britannica)', 'https://kotobank.jp/word/%E7%9C%9F%E5%90%91%E6%B3%95-163241', 'reference'),
+    ],
+    verified: { date: '2026-09-29', notes: 'Card checked against Makkō-hō Association, SSF and Kotobank: stroke at 42, sutra bows, 1933 start of teaching, four stretches, ~3 min, out-breath on the fold; card timing corrected; no life dates, no health claims.' },
+    learnMore: [{ label: 'Makkō-hō Association (classes across Japan)', url: 'https://makkoho.or.jp/' }],
+    families: ['flow_sequence'],
+    since: '1.3',
+  },
+  zhan_zhuang: {
+    name: 'Standing post',
+    nativeName: { text: '站桩', romanised: 'zhàn zhuāng', lang: 'zh-Hans', alt: [{ text: '站樁', lang: 'zh-Hant' }] },
+    region: 'East Asia', countries: ['CN'],
+    era: 'Popularised in the 20th century',
+    card: 'In Chinese internal martial arts and Qigong, students often begin by simply standing still, arms rounded as if hugging a tree. '
+      + 'Zhan zhuang, “standing like a post”, was popularised in the 20th century by Wang Xiangzhai, the founder of Yiquan, and is also practised as a standing meditation. '
+      + 'It trains patient legs, relaxed shoulders and slow, easy breathing.',
+    principles: ['Stand still and relaxed, not slack', 'Knees soft, shoulders down', 'Breathe slowly; never hold your breath', 'Lower the stance over months'],
+    trains: { strength: 1, mobility: 0, balance: 1, breath: 2, coordination: 0 },
+    evidence: [
+      { grade: 'C', claim: 'Indirect: still, isometric holds lowered resting blood pressure in trials; standing post itself has not been properly trialled',
+        cite: 'Edwards et al. 2023, BJSM', url: 'https://pubmed.ncbi.nlm.nih.gov/37491419/' },
+    ],
+    safety: ['Start high, knees only slightly bent', 'Lower your arms if your shoulders tire', 'Sit down if you feel dizzy'],
+    attribution: 'Standing practice of Chinese internal arts and Qigong (zhàn zhuāng)',
+    sensitivity: 'attributed',
+    sources: [
+      S('China Medical Qigong Society (中国医学气功学会): 站桩功', 'https://www.cmqg.cn/Home/Details/1573bded-fac8-4b55-b53c-a2f479de4e28', 'official'),
+      S('Lyu et al. 2021, Medicine: three-circle standing qigong (protocol, Table 1)', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8213330/', 'research'),
+      S('Wikipedia: Zhan zhuang', 'https://en.wikipedia.org/wiki/Zhan_zhuang', 'reference'),
+      S('Edwards et al. 2023, BJSM: exercise training and resting blood pressure', 'https://pubmed.ncbi.nlm.nih.gov/37491419/', 'research'),
+    ],
+    verified: { date: '2026-09-29', notes: 'Card checked: 站桩 zhàn zhuāng per CMQG and Wikipedia; Wang Xiangzhai/Yiquan per Wikipedia and Baike; standing meditation framed as the tradition’s; evidence grade C indirect (Edwards 2023), standing post itself untrialled (Lyu 2021 is a protocol).' },
+    learnMore: [],
+    families: ['stance'],
+    since: '1.3',
   },
   // Not a tradition: an explainer card for the generic rotation / anti-rotation families. It never gates anything.
   rotation: {

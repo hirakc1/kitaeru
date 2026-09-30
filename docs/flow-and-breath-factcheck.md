@@ -285,3 +285,96 @@ The founder watched an unofficial video (KeikoFlex, youtube `K2ACdJrb48A`) and r
 Stance check, every step (Kampo figs, NHK text): heels together for 1, 2, 3, 12, 13; 4 opens with 左あしを横に出しながら and the feet stay apart (開脚) through 7, which ends 左あしをもどして直立; 8 steps out and back on every rep (腕を肩にまげ、左あしを出す (1) … 腕を下にのばし、左あしをもどす (4)、次に右あし); 9 and 10 apart, 10 ending 左あしをもどして直立; 11 is four hops with the feet together (両脚を揃えて軽く4回跳ぶ), then open-and-close jumps with the arms rising to the sides (腕を横へ上げながら大きく開脚跳び). Also found: in 9 the arms open diagonally down (NHK 起こして正面を向いて腕を斜め下に開き胸をそらせる, Kampo fig. 9), not up.
 
 Changed: `js/anim/v2/clips/taiso.js` (stances per step; 2 rebuilt from the crossed start with a deeper bend; 3 with straight arms crossed overhead; 8 steps out and back, alternating; 9 arms diagonally down; 11 four hops together, then open and close with the arms); `js/anim/v2/core.js` (a flow blend that changes a foothold lifts the foot instead of sliding it); cues, descriptions and `verified` notes in `js/data/exercises.js`. Review page: `taiso-check.html`.
+
+## 9. v1.3b check (2026-09-30)
+
+Independent check of the two items still at `verified: null` after the re-base: `virabhadrasana_2` and the `yoga` card. A separate agent from the author did the check on 2026-09-30, against sources it opened itself.
+
+### Verdicts
+
+| Item | Verdict |
+|---|---|
+| `virabhadrasana_2` (Warrior II) | **PASS WITH CORRECTIONS** (one history sentence changed; a second independent form source added) |
+| `yoga` card | **PASS** (no copy change) |
+
+### Sources opened
+
+| Source | What I used it for | Status |
+|---|---|---|
+| The Art of Living (Hindi), वीरभद्रासन page | Devanagari; form; high-blood-pressure caution | Read. वीरभद्रासन; feet 3–4 ft apart; front foot 90°, back foot 15°; arms at shoulder height, palms **up**; front knee in line with the heel, not past the ankle; head turned to the front hand; high blood pressure: do not do this pose (उच्च रक्तचाप … नहीं करना चाहिए) |
+| BIYOME, Virabhadrasana II | Form; caution; hold | Read. Front shin at 90° to the floor (knee over the ankle); back leg straight, outer back heel pressed down; arms parallel to the floor at shoulder height; look over the fingers; 30–60 s; avoid with diarrhoea or high blood pressure. Its foot sentence ("slightly rotate both legs 90 degrees") is ambiguous, so I don't use it for the back-foot angle |
+| Yoga Journal, Warrior 2 Pose (updated 10 Mar 2026) | **New independent second form source** | Read. Front foot and knee turn to face the front; back toes angled slightly in; front knee stacked over the ankle; press through the outer edge of the back foot, back heel planted; arms straight out from the shoulders; look past the front fingertips; 5–10 breaths; palms turn up, then back down to the floor. No contraindications listed |
+| Wikipedia, Virabhadrasana (raw wikitext) | Name, myth, history | Read. वीरभद्रासन, *vīrabhadrāsana*; the name comes from the Hindu myth of Vīrabhadra; the pose is not recorded in the hatha yoga tradition until the 20th century; it has some similarity with Niels Bukh's gymnastic poses; adoption into yoga from physical culture "has been suggested"; Warrior II palms down |
+| Common Yoga Protocol 2019 (mea.gov.in PDF) | An official Warrior II source? Card framing | Read (text extracted). **No Vīrabhadrāsana in the CYP** (no "Vira", "Veer" or "Warrior"). Its "What is Yoga?" section calls yoga essentially a spiritual discipline; the word comes from the root *yuj*; āsana is one of many practices (yama, niyama, āsana, prāṇāyāma, …) |
+| Kerala Tourism `/yoga/popular-asanas/virabhadrasana` | An official second form source? | Returns an empty page shell. **No content I could use** |
+| Wikipedia, Yoga (raw wikitext) | योग | Read. Sanskrit योग, romanised *yoga*; a group of physical, mental and spiritual practices |
+| Wiktionary, योग (Sanskrit) | योग | Read. Sanskrit noun योग, *yóga*, from the root युज् "yoke" |
+| The Art of Living (Hindi), योग क्या है? | योग | Read. Page title "योग क्या है? (Yoga in Hindi)" (a Hindi page, same spelling) |
+| Wikipedia, Sun Salutation; Standing asanas | Card history | Read. The Rajah of Aundh popularised and named the practice in the 1920s (book 1928); Pant called it a commonplace Marathi tradition. Standing asanas: very few existed before the 20th century, and Tree is the best example |
+| Wellcome Collection, "Sun salutations and yoga synthesis in India" | "age-old" | Confirmed from a search-result extract of the article: the book calls it "the age-old method" (1938 edition). I did not reopen the full page |
+| Youkhana 2016 abstract (Europe PMC) | Card evidence line | Read. 6 trials, 307 people, balance g 0.40 (small); 3 trials, mobility g 0.50 (medium); people aged 60+ |
+
+### Check 1: `virabhadrasana_2`
+
+1. **Name.** वीरभद्रासन / *vīrabhadrāsana* is in Wikipedia (Devanagari and IAST) and Art of Living (Devanagari). Yoga Journal and BIYOME spell it "Virabhadrasana" without diacritics. Confirmed.
+2. **Form.** All confirmed:
+   - Front foot at 90°: Art of Living; Yoga Journal (turned to face the front).
+   - Back foot slightly in: Art of Living (15°); Yoga Journal ("slightly in").
+   - Front knee over the ankle, not past it: Art of Living; Yoga Journal; BIYOME (shin at 90°).
+   - Back leg straight, heel down: BIYOME; Yoga Journal.
+   - Arms at shoulder height, gaze over the front hand: all three.
+
+   **Palms:** Art of Living has them up; Wikipedia, BIYOME and Yoga Journal (end position) have them down. Neither the cues nor the description state a palm direction. Confirmed.
+3. **No Light on Yoga numbers.** There is no 4–4½ ft figure and no Iyengar source. "20–30 s per side … that hold is Kitaeru's own choice" is labelled. The sources give 30–60 s (BIYOME) and 5–10 breaths (Yoga Journal). Confirmed.
+4. **High blood pressure.** Art of Living and BIYOME both give this caution, as the copy states ("Leave it out if you have high blood pressure"). Confirmed.
+5. **History: corrected.** The copy said the pose "is not recorded before the 20th century, and it has been suggested that it resembles poses in Niels Bukh's gymnastics". Wikipedia says two things differently:
+   - It limits the first claim to the hatha yoga tradition. It also mentions Ellora carvings of a Shiva figure in a somewhat similar pose.
+   - It states the Bukh resemblance as fact and hedges only the claim that the pose was adopted from physical culture.
+
+   New wording: "the pose is not recorded in hatha yoga before the 20th century. It resembles poses in Niels Bukh's gymnastics, and it has been suggested that it came into yoga from the physical culture of that time."
+6. **Does it meet the bar? Yes: PASS.**
+   - No official source exists. The Ministry of AYUSH Common Yoga Protocol, the official source for the other yoga items, does not include Warrior II. The Kerala Tourism page has no content.
+   - The primary source for the modern pose, *Light on Yoga*, was dropped by the founder's decision and is not cited.
+   - Yoga Journal is a major, long-running yoga publication with no link to Art of Living, and it independently confirms every point of the form.
+   - So there are two independent form sources (Art of Living and Yoga Journal), a third weaker one (BIYOME), Wikipedia for name and history, grade C and no outcome claim. The bar asks for an official or primary source only "where one exists", so this meets it.
+
+`verified: { date: '2026-09-30', notes: 'Independent check (not the author). वीरभद्रासन vīrabhadrāsana per Wikipedia and Art of Living (Hindi); form (…) per Art of Living, Yoga Journal (added as the independent second form source) and BIYOME; palm direction differs between sources and is not stated; no Iyengar-only numbers, 20–30 s labelled Kitaeru’s; high-blood-pressure caution per Art of Living and BIYOME; history re-worded to Wikipedia (…); no official source exists (not in the Common Yoga Protocol 2019); grade C.' }` (full text in the data)
+
+### Check 2: `yoga` card
+
+1. **योग.** Found in Wikipedia (Sanskrit योग, *yoga*), Wiktionary (Sanskrit योग, *yóga*) and Art of Living (Hindi योग). The CYP also romanises it *yoga*. The `lang: 'sa'` tag matches the Sanskrit entries in Wikipedia and Wiktionary. Confirmed.
+2. **Copy.**
+   - "a South Asian philosophy and spiritual path, of which physical postures, āsana, are one part": supported by the CYP (a spiritual discipline; āsana is one practice in a list) and Wikipedia (physical, mental and spiritual practices). Confirmed.
+   - "Most of today's standing poses and flowing sequences took shape in the 20th century": supported by Wikipedia, Standing asanas (very few before the 20th century). Warrior II is not recorded in hatha yoga before the 20th century. Confirmed.
+   - "the Sun Salutation was popularised by the Rajah of Aundh, who wrote that it was an age-old practice": Wikipedia (popularised in the 1920s) and the Wellcome quote ("the age-old method"). The earlier correction from "household" holds. The era "Sun Salutation popularised 1920s–30s" fits the 1928 book and the 1938 edition. Confirmed.
+   - "In trials, yoga modestly improved balance and mobility in adults over 60": matches Youkhana 2016 (a small effect on balance and a medium one on mobility, ages 60+). The evidence line is hedged ("May modestly improve"), grade B. Acceptable.
+   - "Kitaeru teaches the postures only: no chanting or breath-holding": consistent with the data (Surya Namaskar keeps breathing in the plank; no mantras). Confirmed.
+   - **§5 respect.** Yoga is presented as a wider philosophy and spiritual path, and Kitaeru says it teaches the postures only. There is no mantra, chanting or *bīja*. The Warrior II myth is a history note, and there is no Iyengar source. Pass.
+
+`verified: { date: '2026-09-30', notes: 'Independent check (not the author). योग yoga per Wikipedia (Sanskrit योग), Wiktionary (Sanskrit योग, yóga) and Art of Living (Hindi); … Youkhana 2016 re-read (…), hedged; no chanting, mantras or breath holds; no Iyengar source.' }` (full text in the data)
+
+### Edits made
+
+- `js/data/exercises.js`: added `SRC.yjWarrior` (Yoga Journal) and cited it on `virabhadrasana_2`; corrected the history sentence (above); set `verified`; updated the header comment.
+- `js/data/traditions.js`: set `yoga.verified` and replaced the "NOT verified" comment. No copy change.
+- `docs/CONTRACTS.md`, v1.3b Items: "`virabhadrasana_2` (`verified: null`)" → "(independently checked 2026-09-30, factcheck §9)".
+- `tests/planner.test.html`: expectations that assumed hidden yoga items now reflect the verified state:
+  1. Both notes are dated 2026-09-30 (was: both null).
+  2. The yoga items are visible and planned (was: hidden, never planned). A new check keeps the gate tested: with the card set back to null, all four are hidden and never planned.
+  3. With the card verified, Warrior II shows and plans too (was: "Warrior II never").
+  4. After the test block, the card has its real note again (was: back to null).
+  5. The stance ladder now ends with `virabhadrasana_2` (the test comment already said "< Warrior II once verified").
+  6. The flexibility-goal test (`flexItem`) now accepts `virabhadrasana_2`. The planner lists it in `FLEX_HOLDS`, per flow-and-breath.md §8.2, but it is category `strength`, family `stance`. Once it became visible, the old predicate rejected it in 22 goal-flexibility sessions.
+
+  **For the founder:** item 6 is a design choice, not a fact. Either keep Warrior II in the flexibility pool (as now), or drop it from `FLEX_HOLDS` and revert that one test line.
+
+### Could not reach or did not use
+
+- *Light on Yoga*: not read (the founder dropped it; not cited).
+- Kerala Tourism, Virabhadrasana: the page has no content.
+- Wellcome Collection article: "age-old method" confirmed from a search-result extract, not a fresh full read (the earlier check read it in full).
+- No practitioner review exists (world-movement §5.1.7); this check rests on sources only.
+
+### Tests
+
+`tests/planner.test.html` was run in the browser after the edits, with no service worker registered and caches cleared: **149,408 passed, 0 failed** (was 148,845 passed, 0 failed). The count rose because the yoga items now enter the planner sweeps.

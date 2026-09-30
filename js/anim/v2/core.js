@@ -160,7 +160,10 @@ function gauss(A, b) {
 // footLift = heel height above the floor, footTurn = toe-out (deg), footPitch = + toes up about the heel (heel strike),
 // - heel up about the ball (toe-off)
 const SIDED = ['scapElev', 'scapProt', 'scapUp', 'shFlex', 'shAbd', 'elbow', 'wrist', 'palm', 'fingers', 'handX', 'handY', 'handZ',
-  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch', 'footPivot', 'handShape', 'release', 'elbowOut', 'trace', 'traceAt', 'plantX', 'plantY'];
+  'hipFlex', 'hipAbd', 'knee', 'ankle', 'footX', 'footZ', 'footLift', 'footTurn', 'footPitch', 'footPivot', 'handShape', 'release', 'elbowOut', 'trace', 'traceAt', 'plantX', 'plantY',
+  'footPoint'];
+// footPoint (stepping feet, v1.3b): 0 = the step foot as keyed; 1 = pointed and lying prone, the top of the foot on the floor and
+// the toes back (a cobra), the ankle just in front of where the ball was
 // plantX / plantY: free numbers a clip's limb spec may read (a palm spot that walks: the inchworm's hands)
 // release: a planted palm (grip 'palm') lifts off towards the free target handX/Y/Z (0 = planted, 1 = at the target)
 // footPivot: 1 = footX / footZ locate the ball and the foot turns on it (0 = heel). handShape: rounded to HAND_SHAPES
@@ -232,6 +235,7 @@ export function sample(clip, ts) {
   let b;
   if (ph.breath === 'in') b = u; else if (ph.breath === 'out') b = 1 - u;
   else if (ph.breath === 'cycle') b = .5 - .5 * Math.cos(2 * Math.PI * (u * (ph.breaths || 1)));
+  else if (ph.b0 != null) b = ph.b0 + ((ph.b1 ?? ph.b0) - ph.b0) * u;   // a breath spread over several phases (breath-paced walk)
   else b = ph.b ?? .5;
   return { ch, ts, T, phase: ph, u, tau, breath: clamp(b, 0, 1) };
 }
@@ -465,9 +469,17 @@ function leg(S, ch, ctx, sd, s) {
       else if (pe < 0) { const o = onBall(pe); Rf = o.R2; A = o.A2; }
       foot = frameR(A, Rf);
       if (pe < 0) foot.toeFlat = Rf0;
+      const fp = clamp(ch['footPoint' + sd] || 0, 0, 1);
+      if (fp > 0) {   // rolling over the toes to lie pointed: the foot pitches on to its top (sole up, toes back) as the ball lifts
+        const th = pe + (-180 - pe) * fp, R2 = mm(Rf0, rz(th));
+        const b = add(ball, mv(Rf0, [-10.2 * fp * fp, 10.5 * Math.pow(fp, 1.5), 0]));   // (up before back: no scuff)
+        A = sub(b, mv(R2, FOOT.ball));
+        foot = frameR(A, R2);
+        foot.toeFlat = mm(Rf0, rz(180 * fp));   // the toes flip up and over (never through the floor)
+      }
       if (onBallPivot && pe < 0) (S.pivoting = S.pivoting || []).push(sd);   // on the ball, turning: the toes sweep with it
       S.support = S.support || [];
-      if (lift < .05) S.support.push(sd);   // touching the floor (flat, heel strike or toe-off): can bear the keyed weight
+      if (lift < .05 && !(ch['footPoint' + sd] > .02)) S.support.push(sd);   // touching the floor (flat, heel strike or toe-off): can bear the keyed weight (a pointed or rolling foot does not)
     } else if (spec.foot === 'fixed') {                     // planted in any orientation: axes = [toes, up, lateral] (world)
       const [x, y, z] = spec.axes(sd, s, ch);
       A = spec.ankle(sd, s, ch);

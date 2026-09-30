@@ -108,7 +108,7 @@ function extras(e, step) {
  */
 function setStage(exId, step = null, { lead = false } = {}) {
   const e = step ? step.exercise : (byId[exId] || ALL_BY_ID[exId]);
-  const animId = step ? (e?.anim || step.move || step.anim) : (e?.anim || e?.id);
+  const animId = step ? (step.clip || e?.anim || step.move || step.anim) : (e?.anim || e?.id);   // step.clip (v1.3b): this step's own clip (e.g. how a Surya Namaskar position is reached)
   if (!animId) return;
   const size = 1200; // CSS sizes the hero (full column width, clamp height); this only caps max-width
   const key = `${exId}|${animId}|${step ? (lead ? 'lead' : step.i) : ''}`;

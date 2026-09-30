@@ -548,7 +548,7 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     ok(Array.isArray(t.sources) && t.sources.length >= 2 && t.sources.every(s => /^https:\/\//.test(s.url)), `tradition ${id}: 2+ sources`);
     ok(!/reviewed by/i.test(JSON.stringify(t)), `tradition ${id}: card copy must never say "Reviewed by"`);
   }
-  ok(TRAD_IDS.length === 6 && TRADITIONS.rotation.gate === false, 'six traditions.js entries; rotation is a non-gating explainer');
+  ok(TRAD_IDS.length === 9 && TRADITIONS.rotation.gate === false, 'nine traditions.js entries (v1.3b: yoga, Makkō-hō, standing post); rotation is a non-gating explainer');
   ok(ALL_EXERCISES.filter(isTrad).every(e => TRADITIONS[e.tradition]), 'every tradition item has a tradition card');
   ok(TRADITIONS.radio_taiso.nativeName === null && ALL_BY_ID.radio_taiso_1.nativeName === null, 'Morning Taisō has no invented native name');
   const rt1 = ALL_BY_ID.radio_taiso_1;
@@ -839,9 +839,10 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
 {
   const K = await import('../js/anim/v2/core.js');
   const { CLIPS } = await import('../js/anim/v2/clips.js');
-  const V = { radio_taiso_1: [{}, { replace: { rt_two_foot_hops: 'rt_heel_raise' } }], taichi_short_flow: [{}], baduanjin_sequence: [{}, { variant: 'short' }] };
+  const V = { radio_taiso_1: [{}, { replace: { rt_two_foot_hops: 'rt_heel_raise' } }], taichi_short_flow: [{}], baduanjin_sequence: [{}, { variant: 'short' }],
+    surya_namaskar: [{}], makko_ho: [{}, { skip: ['makko_4'] }] };   // v1.3b
   for (const [id, opts] of Object.entries(V)) for (const o of opts) for (const st of flowSteps(id, o)) {
-    const anim = st.exercise?.anim || st.move || st.anim, c = CLIPS[anim], T = K.period(c);
+    const anim = st.clip || st.exercise?.anim || st.move || st.anim, c = CLIPS[anim], T = K.period(c);   // (step.clip: v1.3b)
     const count = st.reps ? (st.side === 'both' ? st.reps * 2 : st.reps) : 0;   // as the workout player counts
     const rate = count && c.counts ? T / (c.counts * (st.sec / count)) : T * Math.max(1, Math.round(st.sec / T)) / st.sec;   // plate.js rateOf
     const cycles = st.sec * rate / T;
@@ -901,7 +902,8 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
   const balanceItem = (it, b) => { const ex = byId[it.exerciseId]; return b.kind === 'balance' || ex.category === 'balance' || ex.family === 'flow_taichi' || it.exerciseId === 'taichi_short_flow'
     || ex.family === 'anti_rotation' || (ex.unilateral && ['squat', 'hinge', 'calves'].includes(ex.family)); };
   const flexItem = it => { const ex = byId[it.exerciseId]; return ex.family === 'mobility' || ex.category === 'mobility' || ex.mode === 'flow' || /^flow_/.test(ex.family)
-    || (ex.family === 'rotation' && ex.level <= 3); };
+    || (ex.family === 'rotation' && ex.level <= 3)
+    || ex.id === 'virabhadrasana_2'; };   // Warrior II is in the flexibility pool by design (flow-and-breath.md §8.2); visible since its check (2026-09-30)
   const noProf = req => ({ ...mk({}), sex: 'unspecified', equipment: req.equipment ?? ['wall'], space: req.space || 'medium', lowImpact: !!req.lowImpact });
   const PROFS = [[null, 'noprofile', true], [quickSample, 'sample', true], [mk({ equipment: ALL_EQ, experience: 'advanced', space: 'large' }), 'kit', true],
     [mk({ injuries: ['wrist'] }), 'wrist'], [mk({ injuries: ['wrist', 'shoulder', 'neck'] }), 'wrist+shoulder+neck'], [mk({ injuries: ['knee', 'ankle'], age: 60 }), 'knee+ankle 60'],
@@ -1046,8 +1048,8 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
       const outside = content.filter(i => !pool.has(i.exerciseId));
       if (outside.length || secOf(inPool) < 0.5 * secOf(content)) ok(typeof q.note === 'string' && q.note.length > 20, `${T}: filled outside the pool without a note (${outside.map(i => i.exerciseId)})`);
       if (!q.note) ok(!outside.length, `${T}: no note but outside items`);
-      // a one-move pool (horse stance) is always filled around, with a note, at every length
-      if (pool.size === 1) ok(typeof q.note === 'string' && outside.length > 0, `${T}: one-move pool without filler and a note (${content.map(i => i.exerciseId)})`);
+      // a one-move pool (horse stance) is always filled around, with a note, at every length (a whole flow, e.g. Makkō-hō, is not one move)
+      if (pool.size === 1 && ALL_BY_ID[[...pool][0]].mode !== 'flow') ok(typeof q.note === 'string' && outside.length > 0, `${T}: one-move pool without filler and a note (${content.map(i => i.exerciseId)})`);
       const warmB = f.category === 'warmup' ? null : q.blocks.find(b => b.kind === 'warmup');
       const own = q.blocks.filter(b => b !== warmB && b.kind !== 'cooldown').flatMap(b => b.items).filter(i => pool.has(i.exerciseId));
       if (secOf(own) < 0.5 * (P.estimateSeconds(q, EXERCISES) - (warmB ? P.estimateSeconds({ blocks: [warmB] }, EXERCISES) : 0))) ok(!!q.note, `${T}: pool work under half the session without a note`);
@@ -1062,7 +1064,7 @@ const quickSample = mk({ age: 42, sex: 'female', experience: 'regular', baseline
   const rtIt = contentOf(rt10).find(i => i.exerciseId === 'radio_taiso_1');
   ok(rtIt && (rtIt.sets >= 2 || contentOf(rt10).length > 1), `10-min Morning Taisō repeats or adds related moves (${contentOf(rt10).map(i => i.exerciseId + 'x' + i.sets)})`);
   const hs = P.generateQuickSession({ minutes: 20, tradition: 'horse_stance' }, null, null, EXERCISES);
-  ok(/single hold/.test(hs.note || '') && contentOf(hs).some(i => i.exerciseId === 'horse_stance') && contentOf(hs).some(i => ['squat', 'hinge', 'calves'].includes(i.family)), `20-min Horse stance: leg work around it, with a note (${hs.note})`);
+  ok(/still holds/.test(hs.note || '') && contentOf(hs).some(i => i.exerciseId === 'horse_stance') && contentOf(hs).some(i => ['squat', 'hinge', 'calves'].includes(i.family)), `20-min Horse stance: leg work around it, with a note (${hs.note})`);
   const cardio = P.generateQuickSession({ minutes: 10, category: 'conditioning', lowImpact: true }, null, null, EXERCISES);
   ok(allItems(cardio).every(i => ALL_BY_ID[i.exerciseId].impact !== 'high'), 'low-impact cardio has no jumping');
   // precedence: muscles > pool > focus / goal
@@ -1508,7 +1510,7 @@ let v13Checked = 0;
     const warm = q.blocks.find(b => b.kind === 'warmup');
     if (warm && warm.items.length > 1) ok(!['rt_forward_back_bend', 'rt_diagonal_bend'].includes(warm.items[0].exerciseId), `v1.3a: a Taisō bend opens the warm-up (${q.name})`);
     // the dose: a promoted single keeps its tradition's count wherever it is planned (the breath block sets its own number of breaths)
-    for (const i of its) { const e = byId[i.exerciseId]; if (e?.dose && !(q.blocks.find(b => b.items.includes(i)).title || '').startsWith('Breathe')) ok(i.reps && i.reps.join() === e.dose.reps.join(), `v1.3a: ${i.exerciseId} dose ${i.reps} in ${q.name}`); }
+    for (const i of its) { const e = byId[i.exerciseId]; if (e?.dose?.reps && !(q.blocks.find(b => b.items.includes(i)).title || '').startsWith('Breathe')) ok(i.reps && i.reps.join() === e.dose.reps.join(), `v1.3a: ${i.exerciseId} dose ${i.reps} in ${q.name}`); }
     checked++;
   }
   v13Checked += checked;
@@ -1562,6 +1564,135 @@ let v13Checked = 0;
   ok(sw('hip_circles').includes('rt_trunk_circle') || P.swapAlternatives('rt_diagonal_bend', sp, EXERCISES, { n: 20 }).some(e => e.id === 'rt_trunk_circle'), 'v1.3a swap: the trunk circle is offered as a swap');
 }
 
+// ---- v1.3b "Flow and breath": 8 new items (docs/flow-and-breath.md §4-8; fact-check 2026-09-29)
+let v13bChecked = 0;
+{
+  const NEW = ['zhan_zhuang', 'bow_stance', 'surya_namaskar', 'vrikshasana', 'virabhadrasana_2', 'trikonasana', 'makko_ho', 'breath_paced_walk'];
+  const YOGA = ['surya_namaskar', 'vrikshasana', 'virabhadrasana_2', 'trikonasana'];
+  const items = s => s.blocks.flatMap(b => b.items);
+  const ids = s => items(s).map(i => i.exerciseId);
+  const kit = mk({ equipment: ALL_EQ, space: 'large', experience: 'regular' });
+  // data and verification: every fact-checked item carries the checker's note; Warrior II and the yoga card were checked 2026-09-30
+  ok(NEW.every(id => ALL_BY_ID[id]), `v1.3b: the eight items exist (${NEW.filter(id => !ALL_BY_ID[id])})`);
+  for (const id of ['zhan_zhuang', 'bow_stance', 'surya_namaskar', 'vrikshasana', 'trikonasana', 'makko_ho', 'makko_1', 'makko_2', 'makko_3', 'makko_4'])
+    ok(ALL_BY_ID[id].verified?.date === '2026-09-29' && ALL_BY_ID[id].verified.notes.length > 40, `v1.3b ${id}: the fact-check note`);
+  ok(ALL_BY_ID.virabhadrasana_2.verified?.date === '2026-09-30' && ALL_BY_ID.virabhadrasana_2.verified.notes.length > 40 && TRADITIONS.yoga.verified?.date === '2026-09-30' && TRADITIONS.yoga.verified.notes.length > 40, 'v1.3b: Warrior II and the yoga card carry the independent check note (2026-09-30)');
+  ok(TRADITIONS.makko_ho.verified && TRADITIONS.zhan_zhuang.verified && TRADITIONS.horse_stance.name === 'Martial-arts stances' && TRADITIONS.horse_stance.nativeName.text === '步型', 'v1.3b: Makkō-hō and standing post cards verified; the stances card widened to 步型');
+  ok(/age-old practice/.test(TRADITIONS.yoga.card) && !/household/i.test(TRADITIONS.yoga.card) && !TRADITIONS.yoga.sources.some(s => /Iyengar|Light on Yoga/i.test(s.label)), 'v1.3b yoga card: "age-old practice", no Iyengar source');
+  ok(!/19\d\d–19\d\d|aikid/i.test(JSON.stringify(TRADITIONS.makko_ho)) && /Nagai Wataru/.test(TRADITIONS.makko_ho.card) && /Makkō-hō Association/.test(TRADITIONS.makko_ho.card), 'v1.3b Makkō-hō card: Nagai and the association credited, no life dates, no aikidō claim');
+  ok(!ALL_BY_ID.breath_paced_walk.tradition && ALL_BY_ID.breath_paced_walk.sources.length >= 3 && !/systema/i.test(JSON.stringify(ALL_BY_ID.breath_paced_walk)) && !TRADITIONS.systema, 'v1.3b: the breath-paced walk is generic, sourced, with no Systema name or card');
+  ok(ALL_BY_ID.surya_namaskar.name === 'Surya Namaskar' && ALL_BY_ID.surya_namaskar.nativeName.text === 'सूर्य नमस्कार', 'v1.3b: "Surya Namaskar" with the space');
+  const sq = ALL_BY_ID.surya_namaskar.sequence;
+  ok(sq.length === 24 && sq[3].move === 'sn_lunge_r' && sq[15].move === 'sn_lunge_l' && sq[5].move === 'sn_knees_chest' && sq[4].move === 'sn_plank' && ALL_BY_ID.sn_plank.adaptation
+    && /breathe normally/i.test(sq[4].cue) && /Kitaeru keeps breathing/.test(ALL_BY_ID.surya_namaskar.description), 'v1.3b Surya Namaskar: 12 positions a half, right leg first; position 5 breathes normally (disclosed); position 6 knees, chest, forehead');
+  ok(sq.every(st => st.clip && V2_IDS.has(st.clip)), 'v1.3b Surya Namaskar: every step has its own arrival clip');
+  ok(!/\b70\s*\/\s*30|70\/30/.test(JSON.stringify(ALL_BY_ID.bow_stance)) && /toes turned slightly in/.test(ALL_BY_ID.zhan_zhuang.cues[0]), 'v1.3b: no 70/30 split stated for the bow stance; standing post toes slightly in');
+  ok(!/4–4½|4-4.5|Light on Yoga/.test(JSON.stringify(ALL_BY_ID.virabhadrasana_2)) && /Kitaeru’s own choice/.test(ALL_BY_ID.virabhadrasana_2.description), 'v1.3b Warrior II: no Light on Yoga numbers; the hold is labelled Kitaeru’s');
+  ok(ALL_BY_ID.makko_ho.sequence.length === 4 && ['makko_1', 'makko_2', 'makko_3', 'makko_4'].every(id => ALL_BY_ID[id].flowOnly) && ALL_BY_ID.makko_ho.estSec >= 170 && ALL_BY_ID.makko_ho.estSec <= 200,
+    `v1.3b Makkō-hō: one flow of 4 flow-only steps, about 3 minutes (${ALL_BY_ID.makko_ho.estSec} s)`);
+  ok(/hands or elbows/.test(ALL_BY_ID.makko_4.description) && /knees or ankles/.test(ALL_BY_ID.makko_4.description), 'v1.3b Makkō-hō step 4: lean onto the hands or elbows; left out for knees or ankles (disclosed)');
+
+  // visible only when verified (or generic): the card and all four yoga items are verified (2026-09-30), so they show
+  ok(['zhan_zhuang', 'bow_stance', 'makko_ho', 'breath_paced_walk'].every(id => visibleById[id]) && YOGA.every(id => visibleById[id] && isVisible(ALL_BY_ID[id])), 'v1.3b: standing post, bow stance, Makkō-hō, the walk and the yoga items are visible');
+  const sweep = (lib, prof) => {
+    const lv = prof ? P.initialLevels(prof, lib) : null, out = [];
+    if (prof) for (const w of [0, 2]) out.push(...P.generateWeek(prof, lv, lib, w).sessions.flatMap(s => [...items(s), ...(s.options || []).flatMap(o => o.block.items)]));
+    for (const goal of ['flexibility', 'balance', 'health', 'strength']) for (const m of [10, 20, 30]) out.push(...items(P.generateQuickSession({ minutes: m, goal, date: '2026-10-01' }, prof, lv, lib)));
+    for (const focus of ['flow', 'balance', 'lower', 'mobility']) out.push(...items(P.generateQuickSession({ minutes: 30, focus, date: '2026-10-01' }, prof, lv, lib)));
+    for (const mo of Object.keys(P.MOMENTS)) for (const m of P.MOMENTS[mo].minutes) out.push(...items(P.generateQuickSession({ minutes: m, moment: mo, date: '2026-10-01' }, prof, lv, lib)));
+    for (const c of ['breath', 'balance', 'flow', 'mobility']) out.push(...items(P.generateQuickSession({ minutes: 20, category: c, date: '2026-10-01' }, prof, lv, lib)));
+    return new Set(out.map(i => i.exerciseId));
+  };
+  const profs = [null, mk({ age: 60, primaryGoal: 'balance', goals: ['balance'], minutesPerSession: 30 }), mk({ primaryGoal: 'flexibility', goals: ['flexibility'], daysPerWeek: 4, minutesPerSession: 45 }), kit];
+  const gated = new Set();
+  for (const p of profs) for (const lib of [EXERCISES, ALL_EXERCISES]) sweep(lib, p).forEach(id => gated.add(id));
+  ok(YOGA.every(id => gated.has(id)), `v1.3b: the verified yoga items are planned somewhere (${YOGA.filter(id => !gated.has(id))})`);
+  {   // the gate still works: with the card unverified, no yoga item shows or plans
+    const saved = TRADITIONS.yoga.verified;
+    TRADITIONS.yoga.verified = null;
+    const LIBH = [...ALL_EXERCISES], hid = new Set();
+    for (const p of profs) sweep(LIBH, p).forEach(id => hid.add(id));
+    ok(YOGA.every(id => !isVisible(ALL_BY_ID[id]) && !hid.has(id)), `v1.3b: with the yoga card unverified, the yoga items are hidden and never planned (${YOGA.filter(id => hid.has(id))})`);
+    TRADITIONS.yoga.verified = saved;
+  }
+  ok(['zhan_zhuang', 'makko_ho', 'breath_paced_walk'].every(id => gated.has(id)), `v1.3b: visible new items are planned somewhere (${['zhan_zhuang', 'makko_ho', 'breath_paced_walk', 'bow_stance'].filter(id => !gated.has(id))})`);
+  // with the yoga card verified (here a test note), the verified yoga items show and plan
+  {
+    const saved = TRADITIONS.yoga.verified;
+    TRADITIONS.yoga.verified = { date: '2099-01-01', notes: 'test only' };
+    const LIBY = [...ALL_EXERCISES];   // a fresh library: the planner caches each library's visible items per gate state
+    ok(YOGA.every(id => isVisible(ALL_BY_ID[id])), 'v1.3b: with the yoga card verified, Surya Namaskar, tree, Warrior II and triangle show');
+    const open = new Set();
+    for (const p of profs) sweep(LIBY, p).forEach(id => open.add(id));
+    ok(YOGA.every(id => open.has(id)), `v1.3b: then they are planned (${YOGA.filter(id => !open.has(id))})`);
+    // Surya Namaskar: out for wrist and lower back, with the reason shown; no chair version
+    for (const inj of ['wrist', 'lower_back']) {
+      const p = mk({ injuries: [inj], space: 'medium' }), r = P.unavailableReason(ALL_BY_ID.surya_namaskar, p);
+      ok(!P.isAvailable(ALL_BY_ID.surya_namaskar, p) && r?.code === 'injury' && r.injury === inj && r.label === `not with your ${inj.replace('_', ' ')}`, `v1.3b Surya Namaskar: not with ${inj} (${JSON.stringify(r)})`);
+      ok(!sweep(LIBY, p).has('surya_namaskar'), `v1.3b Surya Namaskar: never planned with ${inj}`);
+    }
+    ok(P.isAvailable(ALL_BY_ID.surya_namaskar, mk({ injuries: ['shoulder'] })) && !ALL_BY_ID.surya_namaskar.variants, 'v1.3b Surya Namaskar: a shoulder flag keeps it (smaller range); no chair variant');
+    // balance_hold: the tree is the generic one-leg hold of the balance block when Tai Chi is hidden, and second to the golden rooster
+    ok(ALL_FAMILIES.balance_hold?.name === 'Balance holds' && ALL_FAMILIES.balance_hold.progression === false && !P.PROGRESSION_FAMILIES.includes('balance_hold'), 'v1.3b balance_hold: named, not a ladder');
+    const tcv = TRADITIONS.tai_chi.verified; TRADITIONS.tai_chi.verified = null;
+    for (const [req, tag] of [[{ minutes: 20, goal: 'balance' }, 'balance goal'], [{ minutes: 20, focus: 'balance' }, 'balance focus']]) {
+      const q = P.generateQuickSession({ ...req, date: '2026-10-01' }, null, null, LIBY), bal = q.blocks.find(b => b.kind === 'balance');
+      const tr = bal && bal.items.find(i => i.exerciseId === 'vrikshasana');
+      ok(tr && tr.perSide && tr.holdSec.join() === '15,30' && /wall or sturdy chair/.test(tr.notes), `v1.3b balance_hold: the ${tag} block leads with the tree when Tai Chi is hidden (${bal && bal.items.map(i => i.exerciseId)})`);
+    }
+    const w = P.generateWeek(mk({ age: 60, primaryGoal: 'balance', goals: ['balance'] }), null, LIBY, 2);
+    ok(w.sessions.some(s => s.blocks.some(b => b.kind === 'balance' && b.items.some(i => i.exerciseId === 'vrikshasana'))), 'v1.3b balance_hold: plan balance blocks use the tree when Tai Chi is hidden');
+    TRADITIONS.tai_chi.verified = tcv;
+    const bq = P.generateQuickSession({ minutes: 20, goal: 'balance', date: '2026-10-01' }, null, null, LIBY).blocks.find(b => b.kind === 'balance');
+    ok(bq && !bq.items.some(i => i.exerciseId === 'vrikshasana' && bq.items.findIndex(x => x.exerciseId === 'vrikshasana') < bq.items.findIndex(x => x.exerciseId === 'taichi_golden_rooster')), 'v1.3b balance_hold: the golden rooster stays first when Tai Chi is visible');
+    const sw = P.swapAlternatives('vrikshasana', mk({}), LIBY, { n: 5 }).map(e => e.id);
+    ok(sw.includes('taichi_golden_rooster') && P.swapAlternatives('taichi_golden_rooster', mk({}), LIBY, { n: 5 }).some(e => e.id === 'vrikshasana'), `v1.3b balance_hold: tree and golden rooster swap with each other (${sw})`);
+    ok(!P.isAvailable(ALL_BY_ID.vrikshasana, mk({ injuries: ['ankle'] })) && P.unavailableReason(ALL_BY_ID.vrikshasana, mk({ injuries: ['ankle'] })).label === 'not with your ankle', 'v1.3b tree: not with an ankle flag');
+    const tri = P.generateQuickSession({ minutes: 10, moment: 'after_sport', date: '2026-10-01' }, mk({ injuries: ['neck'] }), null, LIBY);
+    ok(items(tri).filter(i => i.exerciseId === 'trikonasana').every(i => /Look ahead/.test(i.notes)), 'v1.3b triangle: a neck flag looks ahead');
+    TRADITIONS.yoga.verified = saved;
+  }
+  ok(isVisible(ALL_BY_ID.surya_namaskar) && TRADITIONS.yoga.verified?.date === '2026-09-30', 'v1.3b: the yoga card is back to its real check note');
+
+  // Makkō-hō: step 4 is left out (and the flow kept) for knee or ankle flags; out entirely for a hip flag (two steps would go)
+  for (const inj of ['knee', 'ankle']) {
+    const p = mk({ injuries: [inj] });
+    ok(P.isAvailable(ALL_BY_ID.makko_ho, p), `v1.3b Makkō-hō: available with a ${inj} flag`);
+    const it = items(P.generateQuickSession({ minutes: 10, moment: 'wind_down', date: '2026-10-01' }, p, P.initialLevels(p, EXERCISES), EXERCISES)).find(i => i.exerciseId === 'makko_ho');
+    ok(it && it.flow.skip.join() === 'makko_4' && /fourth stretch is left out/.test(it.notes) && it.holdSec[0] < ALL_BY_ID.makko_ho.estSec, `v1.3b Makkō-hō: ${inj} skips step 4 (${it && JSON.stringify(it.flow.skip)})`);
+    ok(flowSteps('makko_ho', it ? it.flow : {}).length === 3, `v1.3b Makkō-hō: 3 of 4 steps for ${inj}`);
+  }
+  ok(!items(P.generateQuickSession({ minutes: 10, moment: 'wind_down', date: '2026-10-01' }, null, null, EXERCISES)).find(i => i.exerciseId === 'makko_ho')?.flow.skip.length, 'v1.3b Makkō-hō: all four steps with no flags');
+  ok(P.unavailableReason(ALL_BY_ID.makko_ho, mk({ injuries: ['hip'] }))?.label === 'not with your hip', 'v1.3b Makkō-hō: not with a hip flag');
+  ok(!sweep(EXERCISES, null).has('makko_1') && !ALL_BY_ID.makko_ho.sequence.some(st => visibleById[st.move]), 'v1.3b Makkō-hō: its steps are never shown or planned alone');
+  // moments: Makkō-hō leads the wind-down and after-sport flows, never after a meal or at the desk (floor)
+  for (const mo of ['wind_down', 'after_sport']) ok(ids(P.generateQuickSession({ minutes: 10, moment: mo, date: '2026-10-01' }, null, null, EXERCISES))[mo === 'wind_down' ? 0 : 1] === 'makko_ho', `v1.3b: Makkō-hō in ${mo}`);
+  for (const mo of ['after_meal', 'desk', 'morning']) for (const m of P.MOMENTS[mo].minutes) ok(!ids(P.generateQuickSession({ minutes: m, moment: mo, date: '2026-10-01' }, null, null, EXERCISES)).includes('makko_ho'), `v1.3b: no Makkō-hō in ${mo}`);
+  // plans: Makkō-hō is offered as a cool-down option
+  const wk = P.generateWeek(kit, P.initialLevels(kit, EXERCISES), EXERCISES, 2);
+  ok(wk.sessions.some(s => (s.options || []).some(o => o.id === 'makko_ho_cooldown' && o.block.items[0].exerciseId === 'makko_ho')), 'v1.3b: Makkō-hō cool-down option in plans');
+
+  // breath blocks: always Morning Taisō's deep breath or paced breathing (never the walk or the standing post), whatever the moment
+  for (const mo of Object.keys(P.MOMENTS)) for (const m of P.MOMENTS[mo].minutes) for (const p of [null, mk({ injuries: ['knee'] })]) {
+    const q = P.generateQuickSession({ minutes: m, moment: mo, date: '2026-10-02' }, p, p ? P.initialLevels(p, EXERCISES) : null, EXERCISES);
+    for (const b of q.blocks.filter(x => /^Breathe/.test(x.title))) ok(b.items.length === 1 && ['rt_deep_breath', 'paced_breathing'].includes(b.items[0].exerciseId), `v1.3b breath block ${mo} ${m}: ${b.items.map(i => i.exerciseId)}`);
+    v13bChecked++;
+  }
+  ok(['breath_paced_walk', 'zhan_zhuang', 'paced_breathing', 'rt_deep_breath'].every(id => P.quickPoolIds({ category: 'breath' }, null, EXERCISES).includes(id)), 'v1.3b: the Breath pool has the walk and the standing post');
+  const br = P.generateQuickSession({ minutes: 10, category: 'breath', date: '2026-10-01' }, null, null, EXERCISES);
+  ok(items(br).filter(i => i.exerciseId === 'breath_paced_walk').every(i => i.holdSec.join() === '90,150') && items(br).every(i => !/hold your breath/i.test(i.notes) || /never/i.test(i.notes)), 'v1.3b: the walk keeps its dose; no breath holds');
+  const wd20 = P.generateQuickSession({ minutes: 20, moment: 'wind_down', date: '2026-10-01' }, null, null, EXERCISES), wdIds = ids(wd20);
+  ok(wdIds[wdIds.length - 1] === 'rt_deep_breath' && (!wdIds.includes('zhan_zhuang') || wdIds.indexOf('zhan_zhuang') < wdIds.length - 1), `v1.3b: the wind-down still closes with the deep breath (${wdIds})`);
+  // stances: one ladder, standing post < bow stance < horse stance (< Warrior II once verified); they swap among themselves
+  const lad = familyLadder('stance').map(e => e.id);
+  ok(lad.join() === 'zhan_zhuang,bow_stance,horse_stance,virabhadrasana_2', `v1.3b stance ladder (${lad})`);
+  ok(P.swapAlternatives('bow_stance', kit, EXERCISES, { n: 5 }).every(e => e.family === 'stance') && P.swapAlternatives('zhan_zhuang', kit, EXERCISES, { n: 5 }).some(e => e.id === 'horse_stance'), 'v1.3b: stances swap among themselves');
+  ok(P.unavailableReason(byId.bow_stance, mk({ injuries: ['ankle'] }))?.label === 'not with your ankle' && P.isAvailable(byId.bow_stance, mk({ injuries: ['knee'] })) && P.isAvailable(byId.zhan_zhuang, mk({ injuries: ['knee', 'shoulder'] })), 'v1.3b: bow stance out with an ankle flag, kept (high) with a knee flag; standing post suits knee and shoulder flags');
+  const dz = items(P.generateQuickSession({ minutes: 15, moment: 'desk', date: '2026-10-01' }, null, null, EXERCISES)).find(i => i.exerciseId === 'zhan_zhuang');
+  ok(!dz || dz.holdSec.join() === '30,60', 'v1.3b: the standing post keeps its dose (30-60 s)');
+  v13bChecked += 60;
+}
+
 // ---- sample
 {
   const p = grid[0 + 13];
@@ -1575,7 +1706,7 @@ let v13Checked = 0;
 }
 
 const el = document.getElementById('summary');
-el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions · ${v12Checked} v1.2 sessions · ${goalChecked} goal-led · ${poolChecked} pool sessions · ${momentChecked} moment sessions · ${v13Checked} v1.3 checks`;
+el.innerHTML = `<span class="${fail ? 'fail' : 'pass'}">${pass} passed, ${fail} failed</span> · ${grid.length} profiles · ${sessionsChecked} build sessions timed · worst time deviation ${(worstDev * 100).toFixed(1)}% · ${quickChecked} quick sessions · ${v12Checked} v1.2 sessions · ${goalChecked} goal-led · ${poolChecked} pool sessions · ${momentChecked} moment sessions · ${v13Checked} v1.3 checks · ${v13bChecked} v1.3b checks`;
 document.getElementById('fails').textContent = fails.join('\n') || 'All tests passed.';
 window.__results = { pass, fail, fails, sessionsChecked, worstDev, quickChecked, v12Checked, passBeforeV12, failBeforeV12, goalChecked, poolChecked, momentChecked };
 </script>

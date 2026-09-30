@@ -15,6 +15,9 @@ import './clips/trad.js';
 import './clips/taiso.js';
 import './clips/taichi.js';
 import './clips/baduanjin.js';
+import './clips/stances.js';
+import './clips/yoga.js';
+import './clips/makko.js';
 
 export { CLIPS };
 export const CLIP_IDS = Object.keys(CLIPS);

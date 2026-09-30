@@ -27,7 +27,9 @@ const FAMILY_DEFS = {
   // v1.2
   anti_rotation: { name: 'Core: anti-rotation', pattern: 'core', description: 'Holding your trunk steady against a twist, from the bird dog reach-through to the Pallof press.' },
   rotation: { name: 'Rotation', pattern: 'core', description: 'Turning your trunk smoothly and powerfully, from floor-supported openers to loaded chops.' },
-  stance: { name: 'Stances', pattern: 'legs', description: 'Still, rooted leg holds from martial arts traditions.' },
+  stance: { name: 'Stances', pattern: 'legs', description: 'Still, rooted leg holds from martial-arts, Qigong and yoga traditions.' },
+  // v1.3b: one-leg balance holds (docs/flow-and-breath.md §5.2, §9.6). Generic, not a ladder: the player offers Swap.
+  balance_hold: { name: 'Balance holds', pattern: 'balance', progression: false, description: 'Still, one-leg balance holds, with a wall or chair nearby.' },
   flow_taichi: { name: 'Tai Chi forms', pattern: 'flow', progression: false, description: 'Single forms from the Simplified 24-form.' },
   flow_qigong: { name: 'Baduanjin movements', pattern: 'flow', progression: false, description: 'The eight standing movements of Baduanjin.' },
   flow_sequence: { name: 'Flows', pattern: 'flow', progression: false, description: 'Whole sequences, done start to finish at their own pace.' },
@@ -80,6 +82,37 @@ const SRC = {
   zaccaro: { label: 'Zaccaro et al. 2018, Front Hum Neurosci: slow breathing (systematic review)', url: 'https://www.frontiersin.org/journals/human-neuroscience/articles/10.3389/fnhum.2018.00353/full', kind: 'research' },
   balban: { label: 'Balban et al. 2023, Cell Rep Med: brief exhale-focused breathing (RCT)', url: 'https://pubmed.ncbi.nlm.nih.gov/36630953/', kind: 'research' },
   horseGzgs: { label: 'Guangzhou College of Technology and Business: university wushu course plan, basic stances (马步)', url: 'https://www.gzgs.edu.cn/__local/7/D6/39/AB29C045F11DC31F11D99E4EC9C_E7669F1F_27A40B.pdf', kind: 'reference' },
+  // ---- v1.3b "Flow and breath" (docs/flow-and-breath.md §4-6; fact-check docs/flow-and-breath-factcheck.md)
+  edwards: { label: 'Edwards et al. 2023, BJSM: exercise training and resting blood pressure', url: 'https://pubmed.ncbi.nlm.nih.gov/37491419/', kind: 'research' },
+  cmqg: { label: 'China Medical Qigong Society (中国医学气功学会): 站桩功', url: 'https://www.cmqg.cn/Home/Details/1573bded-fac8-4b55-b53c-a2f479de4e28', kind: 'official' },
+  lyu: { label: 'Lyu et al. 2021, Medicine: three-circle standing qigong (protocol, Table 1)', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8213330/', kind: 'research' },
+  zzWiki: { label: 'Wikipedia: Zhan zhuang', url: 'https://en.wikipedia.org/wiki/Zhan_zhuang', kind: 'reference' },
+  bowGzgs: { label: 'Guangzhou College of Technology and Business: university wushu course plan, basic stances (弓步)', url: 'https://www.gzgs.edu.cn/__local/7/D6/39/AB29C045F11DC31F11D99E4EC9C_E7669F1F_27A40B.pdf', kind: 'reference' },
+  zhengzhou: { label: 'Zhengzhou municipal standard DB4101/T 73—2023, 少林武术基本动作要求 §5.3.1 弓步', url: 'https://www.shaolinkungfu.edu.cn/ueditor/php/upload/file/20231229/1703820828137111.pdf', kind: 'official' },
+  sivananda: { label: 'Sivananda Yoga Vedanta Centres: The Sun Salutation', url: 'https://sivanandayoga.org/teachings/the-sun-salutation/', kind: 'official' },
+  keralaSurya: { label: 'Department of Tourism, Government of Kerala: Surya Namaskar', url: 'https://www.keralatourism.org/yoga/popular-asanas/surya-namaskar', kind: 'official' },
+  aolSurya: { label: 'The Art of Living (Hindi): सूर्य नमस्कार', url: 'https://www.artofliving.org/in-hi/yoga/yoga-poses/sun-salutation', kind: 'reference' },
+  suryaWiki: { label: 'Wikipedia: Sun Salutation', url: 'https://en.wikipedia.org/wiki/Sun_Salutation', kind: 'reference' },
+  choudhary: { label: 'Choudhary et al. 2026, Healthcare: Sūryanamaskār (systematic review)', url: 'https://www.mdpi.com/2227-9032/14/13/1924', kind: 'research' },
+  cyp: { label: 'Ministry of AYUSH: Common Yoga Protocol (2019)', url: 'https://www.mea.gov.in/images/pdf/common-yoga-protocol-english.pdf', kind: 'official' },
+  keralaTree: { label: 'Department of Tourism, Government of Kerala: Vrikshasana', url: 'https://www.keralatourism.org/yoga/standing-postures/vrikshasana', kind: 'official' },
+  aolTree: { label: 'The Art of Living (Hindi): वृक्षासन', url: 'https://www.artofliving.org/in-hi/yoga/yoga-poses/tree-pose-vrikshasana', kind: 'reference' },
+  treeWiki: { label: 'Wikipedia: Tree pose', url: 'https://en.wikipedia.org/wiki/Tree_pose', kind: 'reference' },
+  youkhana: { label: 'Youkhana et al. 2016, Age Ageing: yoga and balance in older adults (meta-analysis)', url: 'https://pubmed.ncbi.nlm.nih.gov/26707903/', kind: 'research' },
+  aolWarrior: { label: 'The Art of Living (Hindi): वीरभद्रासन', url: 'https://www.artofliving.org/in-hi/yoga/yoga-poses/veerabhadrasana-warrior-pose', kind: 'reference' },
+  biyome: { label: 'BioMedical Institute of Yoga & Meditation: Virabhadrasana II', url: 'https://biyome.com.au/yoga/asana-manual/virabhadrasana-ii/', kind: 'reference' },
+  warriorWiki: { label: 'Wikipedia: Virabhadrasana', url: 'https://en.wikipedia.org/wiki/Virabhadrasana', kind: 'reference' },
+  yjWarrior: { label: 'Yoga Journal: Warrior 2 Pose (Virabhadrasana II)', url: 'https://www.yogajournal.com/poses/warrior-ii-pose/', kind: 'reference' },
+  aolTrik: { label: 'The Art of Living (Hindi): त्रिकोणासन', url: 'https://www.artofliving.org/in-hi/yoga/yoga-poses/trikonasana-triangle-pose', kind: 'reference' },
+  trikWiki: { label: 'Wikipedia: Trikonasana', url: 'https://en.wikipedia.org/wiki/Trikonasana', kind: 'reference' },
+  mkA: { label: 'Makkō-hō Association (公益社団法人真向法協会): the four exercises', url: 'https://makkoho.or.jp/shiru__about3', kind: 'official' },
+  mkCautions: { label: 'Makkō-hō Association: four cautions (四つの注意点)', url: 'https://makkoho.or.jp/shiru__about2', kind: 'official' },
+  mkHistory: { label: 'Makkō-hō Association: origin (真向法の由来)', url: 'https://makkoho.or.jp/shiru__history', kind: 'official' },
+  ssf: { label: 'Sasakawa Sports Foundation, sports dictionary: 真向法', url: 'https://www.ssf.or.jp/knowledge/dictionary/makkoho.html', kind: 'reference' },
+  kotobank: { label: 'Kotobank: 真向法 (Kyodo News; Britannica)', url: 'https://kotobank.jp/word/%E7%9C%9F%E5%90%91%E6%B3%95-163241', kind: 'reference' },
+  lungUK: { label: 'Asthma + Lung UK: techniques to help you manage your breathing (paced breathing)', url: 'https://www.asthmaandlung.org.uk/living-with/keeping-active/keep-active-programme/managing-breathlessness', kind: 'reference' },
+  uhpNhs: { label: 'University Hospitals Plymouth NHS Trust: managing breathlessness (patient leaflet)', url: 'https://www.plymouthhospitals.nhs.uk/display-pil/pil-managing-breathlessness-6934', kind: 'official' },
+  alaBreath: { label: 'American Lung Association: breathing exercises', url: 'https://www.lung.org/lung-health-diseases/wellness/breathing-exercises', kind: 'reference' },
 };
 const RT = { tradition: 'radio_taiso', origin: { region: 'East Asia', countries: ['JP'] }, attribution: RADIO_TAISO_ATTRIBUTION, cultural: 'attributed',
   evidence: 'B', sources: [SRC.rtA, SRC.nhk, SRC.rtC], verified: { date: '2026-09-28', notes: 'Order and reps checked against Kampo guide and NHK sheet; cues corrected per NHK (deep breath, arm circles, reps 4); card hedged to grade B (Osuka 2024, with nutrition co-intervention); no native name; heel raise disclosed as Kitaeru adaptation; music never used.' } };
@@ -91,6 +124,10 @@ const PW = { tradition: 'pehlwani', origin: { region: 'South Asia', countries: [
   evidence: 'C', sources: [SRC.alter, SRC.pwWiki], verified: { date: '2026-09-28', notes: 'दंड/दण्ड daṇḍ and बैठक baiṭhak checked against Wikipedia, Alter 1992 and Yog Sandesh; Urdu corrected to پہلوانی; no rep counts; Gama “undefeated” per Wikipedia and NWHOF; evidence claim limited to the push-up (Kotarsky 2018).' } };
 // v1.3a promoted Morning Taisō singles: grade C for a single move (the flow and the card keep B); each carries its own fact-check note
 const RT1 = { evidence: 'C' };
+// v1.3b Makkō-hō steps (card: TRADITIONS.makko_ho): one fact-check note covers the flow and its four steps
+const MK = { tradition: 'makko_ho', origin: { region: 'East Asia', countries: ['JP'] }, attribution: 'Makkō-hō, created by Nagai Wataru (1933); taught by the Makkō-hō Association',
+  cultural: 'attributed', evidence: 'D', sources: [SRC.mkA, SRC.mkCautions, SRC.ssf, SRC.kotobank],
+  verified: { date: '2026-09-29', notes: '真向法 makkōhō, 長井津 (わたる) and 1933 checked against Makkō-hō Association, Sasakawa Sports Foundation and Kotobank; four steps, 10 reps, ~1 min step 4, ~3 min total and out-breath on the fold per the association and SSF; step-4 back-pain caution per the association, recline-to-elbows and skip-for-knee/ankle disclosed as Kitaeru’s; no life dates, no aikidō claim, no association health claims; own text and figures; grade D.' } };
 const ja = (text, romanised) => ({ text, romanised, lang: 'ja' });
 const zh = (text, romanised, hant) => ({ text, romanised, lang: 'zh-Hans', ...(hant ? { alt: [{ text: hant, lang: 'zh-Hant' }] } : {}) });
 const BASE = { unilateral: false, equipment: [], space: 'small', impact: 'low', stress: [] };
@@ -446,6 +483,160 @@ const V12 = [
     breath: { pattern: 'slow' }, stanceLevels: ['high', 'medium', 'low'], sources: [SRC.horseWiki, SRC.horseGzgs, SRC.karateWiki, SRC.wushuWiki],
     cues: ['Feet parallel, about two shoulder-widths (three foot-lengths) apart', 'Sink as if sitting on a horse; knees over your toes', 'Trunk upright, fists at your waist, breathe slowly'],
     description: 'A still, wide squat hold. Start high and go lower over weeks, never holding your breath.' },
+
+  // =============================================================================================================
+  // v1.3b "Flow and breath" (docs/flow-and-breath.md §4-6; fact-check docs/flow-and-breath-factcheck.md §2-3).
+  // `verified` holds the independent fact-check's note where it passed (PASS WITH CORRECTIONS, corrections applied).
+  // Warrior II (re-based on the sources the checker read) and the yoga card (योग) are NOT verified here: an independent
+  // fact-check must set them. The breath-paced walk is generic (no tradition), so it is not gated.
+  // ---- Standing post (card: TRADITIONS.zhan_zhuang). Toes turned slightly in, as the three-circle stance (三圆式) has it.
+  { ...BASE, id: 'zhan_zhuang', tradition: 'zhan_zhuang', origin: { region: 'East Asia', countries: ['CN'] }, cultural: 'attributed', evidence: 'C',
+    attribution: 'Standing practice of Chinese internal arts and Qigong, popularised by Wang Xiangzhai (Yiquan)', name: 'Standing post', nativeName: zh('站桩', 'zhàn zhuāng', '站樁'),
+    aka: ['Standing like a tree', 'Hugging a tree', 'Standing meditation', 'Zhan zhuang'], family: 'stance', level: 0.5, category: 'breath', mode: 'hold', posture: 'standing',
+    muscles: { primary: ['quads'], secondary: ['glutes', 'front_delts', 'side_delts', 'calves'] }, stress: ['knee', 'shoulder'], difficulty: 2, planes: ['sagittal'],
+    breath: { pattern: 'slow' }, stanceLevels: ['high', 'medium', 'low'], dose: { holdSec: [30, 60] }, sources: [SRC.cmqg, SRC.lyu, SRC.zzWiki, SRC.edwards],
+    cues: ['Feet about shoulder-width apart, toes turned slightly in, knees softly bent', 'Arms rounded at chest height, palms facing you, as if hugging a tree', 'Shoulders down; relaxed, not slack', 'Breathe slowly; never hold your breath'],
+    description: 'Stand with the feet about shoulder-width apart, the toes turned slightly in and the knees softly bent. Raise the arms in front of the chest into a rounded shape, as if hugging a large tree, palms facing you and fingers gently apart. Stay still and relaxed and breathe slowly. In Chinese tradition it is also a standing meditation. It trains patient legs, relaxed shoulders and slow breathing. Start high and short (30–60 s); sit down if you feel dizzy.',
+    verified: { date: '2026-09-29', notes: '站桩 zhàn zhuāng checked against China Medical Qigong Society and Wikipedia; three-circle form per CMQG and Lyu 2021 Table 1 (toes slightly in; ball vs tree differ by arm bend); Kitaeru dose [practice]; Wang Xiangzhai 1885–1963 per Wikipedia/Baike; Lyu 2021 is a protocol, so grade C indirect (Edwards 2023); qi framed as the tradition’s; breath-hold caution present.' } },
+  // ---- Bow stance (card: TRADITIONS.horse_stance, widened to "Martial-arts stances"). Form per the Zhengzhou standard and the
+  // Guangzhou course; the high stance, upright trunk and fists at the waist are Kitaeru's presentation (no weight split is stated).
+  { ...BASE, id: 'bow_stance', tradition: 'horse_stance', origin: { region: 'East Asia', countries: ['CN'] }, cultural: 'attributed', evidence: 'C',
+    attribution: 'Bow stance (gōngbù), one of the basic stances of Chinese martial arts', name: 'Bow stance', nativeName: zh('弓步', 'gōngbù'), aka: ['Forward stance', 'Gongbu'],
+    family: 'stance', level: 0.8, category: 'strength', mode: 'hold', unilateral: true, posture: 'standing', space: 'medium',
+    muscles: { primary: ['quads', 'glutes'], secondary: ['hip_flexors', 'adductors', 'calves'] }, stress: ['knee', 'ankle'], difficulty: 3, planes: ['sagittal'],
+    breath: { pattern: 'slow' }, stanceLevels: ['high', 'medium', 'low'], sources: [SRC.zhengzhou, SRC.bowGzgs, SRC.wushuWiki, SRC.edwards],
+    cues: ['A long step forward, front toes turned slightly in, back toes angled forward; both heels down', 'Bend the front knee over the ankle and foot; push the back leg straight', 'Trunk upright, hips and chest to the front, fists at your waist', 'Breathe slowly; never hold your breath'],
+    description: 'Step one foot a long way forward and bend that knee to a half squat, the knee over the foot and the toes turned slightly in. The back leg pushes straight, its toes angled forward, and both heels stay on the floor. Kitaeru starts with a high bow stance (a shorter step, the front thigh well above level), trunk upright and fists at the waist, and lowers it over weeks. It builds strong legs and a steady base.',
+    verified: { date: '2026-09-29', notes: '弓步 gōngbù checked against Guangzhou College of Technology and Business wushu course and Zhengzhou standard DB4101/T 73—2023 §5.3.1; form matches (front knee over toes, back leg straight, both feet flat); high stance disclosed as Kitaeru’s depth; grade C indirect (Edwards 2023).' } },
+
+  // ---- Yoga (card: TRADITIONS.yoga, not yet verified: every yoga item stays hidden until the card is). No chanting, no mantras, no breath holds.
+  // Surya Namaskar: the Sivananda 12 positions (Sivananda; Kerala Tourism independently), one round = the right leg leading, then the left.
+  // The steps below are Kitaeru's own step ids with no native names (the sources give none per position): data plumbing for the
+  // flow player, generic and flow-only, never shown or planned on their own.
+  { ...BASE, id: 'sn_prayer', flowOnly: true, posture: 'standing', name: 'Standing, palms together', family: 'flow_sequence', level: 4.01, category: 'flow', mode: 'reps', muscles: { primary: [], secondary: ['chest'] }, difficulty: 1, tempo: { secPerRep: 5 },
+    cues: ['Stand tall, feet together, palms together at the chest'], description: 'Position 1 (and the start of each half-round).' },
+  { ...BASE, id: 'sn_raised_arms', flowOnly: true, posture: 'standing', name: 'Arms up and back', family: 'flow_sequence', level: 4.02, category: 'flow', mode: 'reps', muscles: { primary: ['front_delts', 'upper_back'], secondary: ['abs', 'lower_back'] }, stress: ['lower_back', 'shoulder'], difficulty: 1, tempo: { secPerRep: 5 },
+    cues: ['Arms stretch up and back; a small, comfortable arch'], description: 'Positions 2 and 11.' },
+  { ...BASE, id: 'sn_forward_fold', flowOnly: true, posture: 'standing', name: 'Forward fold', family: 'flow_sequence', level: 4.03, category: 'flow', mode: 'reps', muscles: { primary: ['hamstrings'], secondary: ['lower_back', 'calves'] }, stress: ['lower_back', 'wrist'], difficulty: 2, tempo: { secPerRep: 5 },
+    cues: ['Fold forward, palms beside the feet; bend the knees as much as you need'], description: 'Positions 3 and 10.' },
+  { ...BASE, id: 'sn_lunge_r', flowOnly: true, posture: 'kneeling', name: 'Low lunge, right leg back', family: 'flow_sequence', level: 4.04, category: 'flow', mode: 'reps', muscles: { primary: ['hip_flexors', 'quads'], secondary: ['glutes'] }, stress: ['wrist', 'neck'], difficulty: 2, tempo: { secPerRep: 5 },
+    cues: ['Right leg back, knee down; lift the chest and look up gently'], description: 'Position 4 of the first half, position 9 of the second.' },
+  { ...BASE, id: 'sn_lunge_l', flowOnly: true, posture: 'kneeling', name: 'Low lunge, left leg back', family: 'flow_sequence', level: 4.05, category: 'flow', mode: 'reps', muscles: { primary: ['hip_flexors', 'quads'], secondary: ['glutes'] }, stress: ['wrist', 'neck'], difficulty: 2, tempo: { secPerRep: 5 },
+    cues: ['Left leg back, knee down; lift the chest and look up gently'], description: 'Position 9 of the first half, position 4 of the second.' },
+  { ...BASE, id: 'sn_plank', flowOnly: true, posture: 'floor', adaptation: true, name: 'Plank (keep breathing)', family: 'flow_sequence', level: 4.06, category: 'flow', mode: 'reps', muscles: { primary: ['abs', 'front_delts'], secondary: ['triceps', 'chest', 'quads'] }, stress: ['wrist', 'shoulder'], difficulty: 3, tempo: { secPerRep: 5 },
+    cues: ['Body in one line on hands and toes; breathe normally'], description: 'Position 5. The plank is the tradition’s; breathing normally here, instead of holding the breath, is Kitaeru’s change.' },
+  { ...BASE, id: 'sn_knees_chest', flowOnly: true, posture: 'floor', name: 'Knees, chest and forehead', family: 'flow_sequence', level: 4.07, category: 'flow', mode: 'reps', muscles: { primary: ['triceps', 'chest'], secondary: ['front_delts'] }, stress: ['wrist', 'shoulder'], difficulty: 2, tempo: { secPerRep: 5 },
+    cues: ['Lower the knees, then the chest and forehead; hips stay up'], description: 'Position 6.' },
+  { ...BASE, id: 'sn_cobra', flowOnly: true, posture: 'floor', name: 'Cobra', family: 'flow_sequence', level: 4.08, category: 'flow', mode: 'reps', muscles: { primary: ['lower_back'], secondary: ['abs', 'hip_flexors'] }, stress: ['lower_back', 'wrist'], difficulty: 2, tempo: { secPerRep: 5 },
+    cues: ['Hips down, toes pointed; lift the chest into a low cobra, elbows bent'], description: 'Position 7.' },
+  { ...BASE, id: 'sn_dog', flowOnly: true, posture: 'floor', name: 'Inverted V', family: 'flow_sequence', level: 4.09, category: 'flow', mode: 'reps', muscles: { primary: ['hamstrings', 'calves'], secondary: ['front_delts', 'upper_back'] }, stress: ['wrist', 'shoulder'], difficulty: 2, tempo: { secPerRep: 5 },
+    cues: ['Toes curl under; lift the hips into an inverted V; heels needn’t touch'], description: 'Position 8.' },
+  { ...BASE, id: 'sn_stand', flowOnly: true, posture: 'standing', name: 'Standing, arms down', family: 'flow_sequence', level: 4.1, category: 'flow', mode: 'reps', muscles: { primary: [], secondary: ['side_delts'] }, difficulty: 1, tempo: { secPerRep: 5 },
+    cues: ['Stand tall; arms down by your sides'], description: 'Position 12.' },
+  (() => {
+    // `clip`: the step's own animation, i.e. how this position is reached from the one before (js/anim/v2/clips/yoga.js)
+    const half = (lead, other) => [
+      { move: 'sn_prayer', clip: 'sn_prayer', reps: 1, sec: 5, cue: 'Palms together at your chest', breath: 'out' },
+      { move: 'sn_raised_arms', clip: 'sn_raised_arms', reps: 1, sec: 5, cue: 'Arms up and back; a small arch', breath: 'in' },
+      { move: 'sn_forward_fold', clip: 'sn_forward_fold', reps: 1, sec: 5, cue: 'Fold; palms beside your feet, knees bent as needed', breath: 'out' },
+      { move: `sn_lunge_${lead}`, clip: `sn_lunge_${lead}`, reps: 1, sec: 5, cue: `${lead === 'r' ? 'Right' : 'Left'} leg back, knee down; look up`, breath: 'in' },
+      { move: 'sn_plank', clip: lead === 'r' ? 'sn_plank' : 'sn_plank_l', reps: 1, sec: 5, cue: 'The other leg back to a plank; breathe normally', breath: 'natural' },
+      { move: 'sn_knees_chest', clip: 'sn_knees_chest', reps: 1, sec: 5, cue: 'Knees, chest and forehead down; hips up', breath: 'out' },
+      { move: 'sn_cobra', clip: 'sn_cobra', reps: 1, sec: 5, cue: 'Hips down; lift into a low cobra', breath: 'in' },
+      { move: 'sn_dog', clip: 'sn_dog', reps: 1, sec: 5, cue: 'Hips up into an inverted V', breath: 'out' },
+      { move: `sn_lunge_${other}`, clip: `sn_lunge_in_${lead}`, reps: 1, sec: 5, cue: `${lead === 'r' ? 'Right' : 'Left'} foot forward between the hands; look up`, breath: 'in' },
+      { move: 'sn_forward_fold', clip: `sn_fold_in_${other}`, reps: 1, sec: 5, cue: 'Back foot forward; fold', breath: 'out' },
+      { move: 'sn_raised_arms', clip: 'sn_rise', reps: 1, sec: 5, cue: 'Rise with the arms forward, up and back', breath: 'in' },
+      { move: 'sn_stand', clip: 'sn_stand', reps: 1, sec: 5, cue: 'Stand; arms by your sides', breath: 'out' },
+    ];
+    return { ...BASE, id: 'surya_namaskar', tradition: 'yoga', origin: { region: 'South Asia', countries: ['IN'] }, cultural: 'attributed', evidence: 'C',
+      attribution: 'Sun Salutation in the Sivananda tradition (Swami Vishnudevananda); popularised by the Rajah of Aundh in the 1920s–30s',
+      name: 'Surya Namaskar', nativeName: { text: 'सूर्य नमस्कार', romanised: 'sūrya namaskāra', lang: 'sa', alt: [{ text: 'सूर्यनमस्कार', lang: 'sa' }] }, aka: ['Sun Salutation', 'Surya namaskara'],
+      family: 'flow_sequence', level: 4, category: 'flow', mode: 'flow', posture: 'floor', space: 'small', difficulty: 4, anim: 'surya_namaskar',
+      planes: ['sagittal'], breath: { in: 'opening and rising positions', out: 'folding and lowering positions' },
+      // no sourced chair version, so no adaptation for these (flow-and-breath.md §8.4.3): the flow is left out, with the reason shown
+      injuryExclude: ['wrist', 'lower_back'],
+      sources: [SRC.sivananda, SRC.keralaSurya, SRC.aolSurya, SRC.suryaWiki, SRC.choudhary],
+      cues: ['One breath for each position', 'Hands stay where they land until you stand', 'Bend your knees in the folds and lunges as much as you need', 'Keep every backbend small and comfortable'],
+      description: 'Twelve positions linked by the breath, from standing to the floor and back: one round steps the right leg back first, then the left. Some traditions hold the breath in the plank; Kitaeru keeps breathing there. Many people practise it as a salutation to the sun; Kitaeru teaches the movements only. A flowing sequence that moves your whole body with your breath.',
+      sequence: [...half('r', 'l'), ...half('l', 'r')], progression: null,
+      verified: { date: '2026-09-29', notes: '12 positions and per-position breath checked against Sivananda Yoga Vedanta Centres and Kerala Tourism (independent); position 6 knees–chest–forehead; position-5 breath retention replaced by normal breathing and disclosed; सूर्यनमस्कार / सूर्य नमस्कार per Wikipedia and Art of Living; Aundh 1928 (Surya Namaskars) vs 1938 (Ten-Point Way) resolved; no mantras; grade C (Choudhary 2026).' } };
+  })(),
+  { ...BASE, id: 'vrikshasana', tradition: 'yoga', origin: { region: 'South Asia', countries: ['IN'] }, cultural: 'attributed', evidence: 'C',
+    attribution: 'Tree pose, from yoga āsana; one of the few standing poses recorded in medieval hatha yoga', name: 'Tree pose',
+    nativeName: { text: 'वृक्षासन', romanised: 'vṛkṣāsana', lang: 'sa' }, aka: ['Vrikshasana', 'Tree'],
+    family: 'balance_hold', level: 1, category: 'balance', mode: 'hold', unilateral: true, posture: 'standing',
+    muscles: { primary: ['glutes', 'calves'], secondary: ['adductors', 'abs', 'quads'] }, stress: ['ankle', 'knee', 'hip'], difficulty: 3, planes: ['frontal'],
+    breath: { pattern: 'natural' }, dose: { holdSec: [15, 30] }, sources: [SRC.cyp, SRC.keralaTree, SRC.aolTree, SRC.treeWiki, SRC.youkhana],
+    cues: ['Stand near a wall or chair and fix your gaze on one still point', 'Rest one foot on the inside of the standing leg: toes down by the ankle, sole on the calf, or sole high on the thigh; never on the knee', 'Press the foot and the leg into each other; stand tall', 'Palms together at your chest, or overhead if you’re steady; breathe normally'],
+    description: 'A one-leg balance. Bend one knee out to the side and rest that foot against the inside of the standing leg, then join the palms at the chest; if you are steady, raise them overhead. Breathe normally, then change legs. The three foot heights are Kitaeru’s way in: toes on the floor first, building to the sole on the inner thigh, the full pose. The Common Yoga Protocol advises against it with arthritis or vertigo; skip it if you feel dizzy. It trains one-leg balance and steady ankles.',
+    verified: { date: '2026-09-29', notes: 'वृक्षासन vṛkṣāsana checked against Common Yoga Protocol 2019, Wikipedia and Art of Living; foot on inner thigh, 10–30 s, arthritis/vertigo caution per CYP; palms-at-chest level per Kerala Tourism; foot levels disclosed as Kitaeru’s; “not on the knee” [practice]; grade C (Youkhana 2016 indirect).' } },
+  // Warrior II: re-based on the sources the fact-checker read (Art of Living, BIYOME; Wikipedia for name and history), not on
+  // Light on Yoga; no Iyengar-only numbers. The 20–30 s hold is Kitaeru's own choice. Independently checked 2026-09-30 (factcheck §9).
+  { ...BASE, id: 'virabhadrasana_2', tradition: 'yoga', origin: { region: 'South Asia', countries: ['IN'] }, cultural: 'attributed', evidence: 'C',
+    attribution: 'Warrior II, a standing pose of modern yoga āsana', name: 'Warrior II',
+    nativeName: { text: 'वीरभद्रासन', romanised: 'vīrabhadrāsana', lang: 'sa' }, aka: ['Virabhadrasana II', 'Warrior 2'],
+    family: 'stance', level: 1.5, category: 'strength', mode: 'hold', unilateral: true, posture: 'standing', space: 'medium',
+    muscles: { primary: ['quads', 'glutes'], secondary: ['adductors', 'side_delts', 'hip_flexors'] }, stress: ['knee', 'hip', 'shoulder'], difficulty: 3, planes: ['frontal'],
+    breath: { pattern: 'natural' }, dose: { holdSec: [20, 30] }, sources: [SRC.aolWarrior, SRC.yjWarrior, SRC.biyome, SRC.warriorWiki],
+    cues: ['Feet wide apart; the front foot turns out 90°, the back foot turns in a little', 'Bend the front knee over the ankle, never past it; the back leg stays straight, back heel down', 'Arms long at shoulder height; look over your front hand'],
+    description: 'Step the feet wide apart, turn the front foot out and the back foot in a little, and bend the front knee over the ankle while the back leg stays straight. Stretch the arms out at shoulder height and look over the front hand. Kitaeru steps into it (no jump), keeps the front thigh above level, and holds for 20–30 s per side: that hold is Kitaeru’s own choice. Leave it out if you have high blood pressure. The name recalls Vīrabhadra of Hindu myth; the pose is not recorded in hatha yoga before the 20th century. It resembles poses in Niels Bukh’s gymnastics, and it has been suggested that it came into yoga from the physical culture of that time.',
+    verified: { date: '2026-09-30', notes: 'Independent check (not the author). वीरभद्रासन vīrabhadrāsana per Wikipedia and Art of Living (Hindi); form (front foot 90°, back foot slightly in, front knee over the ankle and not past it, back leg straight with the heel down, arms at shoulder height, gaze over the front hand) per Art of Living, Yoga Journal (added as the independent second form source) and BIYOME; palm direction differs between sources and is not stated; no Iyengar-only numbers, 20–30 s labelled Kitaeru’s; high-blood-pressure caution per Art of Living and BIYOME; history re-worded to Wikipedia (not recorded in hatha yoga before the 20th century; Bukh resemblance stated, adoption from physical culture “has been suggested”); no official source exists (not in the Common Yoga Protocol 2019); grade C.' } },
+  { ...BASE, id: 'trikonasana', tradition: 'yoga', origin: { region: 'South Asia', countries: ['IN'] }, cultural: 'attributed', evidence: 'C',
+    attribution: 'Triangle pose, from yoga āsana', name: 'Triangle pose',
+    nativeName: { text: 'त्रिकोणासन', romanised: 'trikoṇāsana', lang: 'sa', alt: [{ text: 'उत्थित त्रिकोणासन', romanised: 'utthita trikoṇāsana', lang: 'sa' }] },
+    aka: ['Trikonasana', 'Extended triangle', 'Utthita trikonasana'], family: 'mobility', level: 17, category: 'mobility', mode: 'hold', unilateral: true, posture: 'standing', space: 'medium',
+    muscles: { primary: ['obliques', 'hamstrings'], secondary: ['adductors', 'side_delts', 'glutes'] }, stress: ['lower_back', 'neck', 'hip'], difficulty: 2, planes: ['frontal'],
+    breath: { out: 'as you tilt', in: 'to come up' }, sources: [SRC.cyp, SRC.aolTrik, SRC.trikWiki],
+    cues: ['Feet wide, arms out at shoulder height; turn the front foot out', 'Tilt sideways from the hip; lower hand on your shin', 'Top arm reaches up in line; chest faces forward', 'Both legs long, knees soft, never locked'],
+    description: 'Stand with the feet wide and the arms out at shoulder height, and turn the front foot out. Breathe out and tilt sideways over the front leg, the lower hand reaching down the shin as far as is comfortable and the top arm reaching up in line with it. Look up at the top hand, or ahead if your neck prefers; breathe in to come up. The hand on the shin is Kitaeru’s starting height (a hand on the knee is easier). Avoid it with a slipped disc or sciatica, or after abdominal surgery, and don’t overdo the side stretch.',
+    verified: { date: '2026-09-29', notes: 'त्रिकोणासन trikoṇāsana checked against Common Yoga Protocol 2019, Wikipedia and Art of Living; CYP form, 10–30 s and cautions (slipped disc, sciatica, abdominal surgery) confirmed; hand on the shin disclosed as Kitaeru’s; Iyengar differences unconfirmed and unused; grade C.' } },
+
+  // ---- Makkō-hō (card: TRADITIONS.makko_ho): one flow of four steps, Kitaeru's own wording and figures (the association asks that
+  // its text and illustrations are not reused). Step 4 leans back onto the hands (or elbows), not all the way down, and is
+  // skipped for knee or ankle flags (flow-and-breath.md §6.1, §8.4.4).
+  { ...BASE, ...MK, id: 'makko_1', flowOnly: true, name: 'First stretch: soles together', nativeName: ja('第一体操', 'dai-ichi taisō'), family: 'flow_sequence', level: 5.1, category: 'mobility', mode: 'reps',
+    posture: 'floor', space: 'medium', muscles: { primary: ['adductors', 'lower_back'], secondary: ['glutes', 'hamstrings'] }, stress: ['hip', 'lower_back'], difficulty: 2, planes: ['sagittal', 'frontal'],
+    breath: { out: 'fold', in: 'rise' }, tempo: { secPerRep: 4 },
+    cues: ['Sit with the soles of your feet together, knees out to the sides', 'Breathe out as you fold forward from the hips, back long', 'Breathe in as you come all the way back up'],
+    description: 'Sitting with the soles together and the knees out to the sides, fold forward from the hips on a slow out-breath and come back up on the in-breath. Only as far as is comfortable: no bouncing.' },
+  { ...BASE, ...MK, id: 'makko_2', flowOnly: true, name: 'Second stretch: legs together', nativeName: ja('第二体操', 'dai-ni taisō'), family: 'flow_sequence', level: 5.2, category: 'mobility', mode: 'reps',
+    posture: 'floor', space: 'medium', muscles: { primary: ['hamstrings', 'lower_back'], secondary: ['calves'] }, stress: ['lower_back'], difficulty: 2, planes: ['sagittal'],
+    breath: { out: 'fold', in: 'rise' }, tempo: { secPerRep: 4 },
+    cues: ['Sit with your legs straight out together, toes pointing up', 'Breathe out as you fold forward over your legs, back long', 'Breathe in as you come back up'],
+    description: 'Sitting with the legs straight and together and the ankles flexed so the toes point up, fold forward on the out-breath and come back up on the in-breath. Bend the knees a little if you need to.' },
+  { ...BASE, ...MK, id: 'makko_3', flowOnly: true, name: 'Third stretch: legs wide', nativeName: ja('第三体操', 'dai-san taisō'), family: 'flow_sequence', level: 5.3, category: 'mobility', mode: 'reps',
+    posture: 'floor', space: 'medium', muscles: { primary: ['adductors', 'hamstrings'], secondary: ['lower_back'] }, stress: ['hip', 'lower_back'], difficulty: 3, planes: ['sagittal', 'frontal'],
+    breath: { out: 'fold', in: 'rise' }, tempo: { secPerRep: 4 },
+    cues: ['Sit with your legs wide apart, toes up, heels pressing away', 'Lengthen your lower back and fold forward on the out-breath', 'Come back up on the in-breath; a smaller straddle is fine'],
+    description: 'Sitting with the legs wide apart, toes up and heels pressing away, lengthen the lower back and fold forward on a slow out-breath, then come back up. Open the legs only as wide as is comfortable.' },
+  { ...BASE, ...MK, id: 'makko_4', flowOnly: true, name: 'Fourth stretch: kneeling lean back', nativeName: ja('第四体操', 'dai-yon taisō'), family: 'flow_sequence', level: 5.4, category: 'mobility', mode: 'hold',
+    posture: 'kneeling', space: 'medium', muscles: { primary: ['quads', 'hip_flexors'], secondary: ['abs'] }, stress: ['knee', 'ankle', 'lower_back'], difficulty: 3, planes: ['sagittal'],
+    breath: { pattern: 'slow' },
+    cues: ['Kneel and sit between your heels, feet hip-width, tops of the feet flat', 'Lean back onto your hands, or your elbows, as far as is comfortable', 'Breathe slowly and deeply; come back up gently'],
+    description: 'Kneeling with the feet a little apart and the seat between the heels, lean back slowly and breathe deeply for about a minute. The association warns against forcing it with back pain; Kitaeru leans back onto the hands or elbows rather than all the way down, and leaves this stretch out if your knees or ankles complain.' },
+  { ...MK, id: 'makko_ho', name: 'Makkō-hō', nativeName: ja('真向法', 'makkōhō'), aka: ['Makko-ho', 'Makkoho', 'Makkō-hō stretches'], family: 'flow_sequence', level: 5, category: 'flow', mode: 'flow',
+    unilateral: false, equipment: [], posture: 'floor', space: 'medium', difficulty: 2, anim: 'makko_1', planes: ['sagittal', 'frontal'], breath: { out: 'as you fold', in: 'as you rise' },
+    sources: [SRC.mkA, SRC.mkCautions, SRC.mkHistory, SRC.ssf, SRC.kotobank],
+    cues: ['Breathe out as you fold, in as you come up', 'Fold from your hips with a long back; no bouncing', 'Only as far as is comfortable: never force it', 'Come all the way back up each time'],
+    description: 'Four seated stretches for the hips, legs and back, done in order with a slow out-breath on every fold: soles together, legs together, legs wide, then kneeling between the heels. About three minutes in all.',
+    sequence: [
+      { move: 'makko_1', reps: 10, cue: 'Soles together; fold forward on the out-breath', breath: 'out' },
+      { move: 'makko_2', reps: 10, cue: 'Legs together, toes up; fold forward', breath: 'out' },
+      { move: 'makko_3', reps: 10, cue: 'Legs wide; lengthen the back and fold', breath: 'out' },
+      { move: 'makko_4', sec: 60, cue: 'Kneel between your heels; lean back onto your hands and breathe slowly', breath: 'natural' },
+    ],
+    progression: null },
+
+  // ---- Breath-paced walk: a GENERIC drill (no tradition, no Systema framing; fact-check §2 item 22). Step-paced breathing per
+  // Asthma + Lung UK and the University Hospitals Plymouth NHS leaflet; nose in, mouth out per the American Lung Association.
+  // The 1 -> 4 -> 1 ladder is Kitaeru's practice. Grade D for the drill: no outcome claim.
+  { ...BASE, id: 'breath_paced_walk', name: 'Breath-paced walk', family: 'breath', level: 3, category: 'breath', mode: 'hold', posture: 'standing',
+    muscles: { primary: [], secondary: ['hip_flexors', 'calves'] }, difficulty: 1, planes: ['sagittal'], evidence: 'D',
+    breath: { in: 'over a count of steps', out: 'over the same count, or one more' }, dose: { holdSec: [90, 150] }, aka: ['Step breathing', 'Paced breathing walk'],
+    sources: [SRC.lungUK, SRC.uhpNhs, SRC.alaBreath, SRC.zaccaro],
+    cues: ['Walk on the spot, or slowly in a circle, tall and loose', 'Breathe in through your nose for one step and out through your mouth for one or two', 'Build up a step at a time to about four steps each way, then back down to one', 'Never hold your breath; drop a count if you feel short of air or dizzy'],
+    description: 'Walking with your breath paced to your steps: in over a count of steps, out over the same count or one more. Kitaeru climbs from one step each way to about four and back down, a few breaths at each count; that ladder is Kitaeru’s own. It trains you to keep your breath calm and even while you move. No breath holds.' },
 ];
 
 

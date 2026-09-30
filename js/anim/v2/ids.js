@@ -35,6 +35,13 @@ export const V2_GROUPS = {
   // Baduanjin: the eight pieces plus the ready and closing stances of baduanjin_sequence (step anims)
   baduanjin: ['baduanjin_ready', 'baduanjin_hold_up_sky', 'baduanjin_draw_bow', 'baduanjin_separate_heaven_earth', 'baduanjin_look_back',
     'baduanjin_sway_head_tail', 'baduanjin_touch_toes', 'baduanjin_clench_fists', 'baduanjin_heel_bounce', 'baduanjin_close'],
+  // v1.3b "Flow and breath": standing post, bow stance and the breath-paced walk
+  stances: ['zhan_zhuang', 'bow_stance', 'breath_paced_walk'],
+  // yoga: the Surya Namaskar positions (sn_*: each reached by its own arrival, one shared frame) and the whole round; tree, Warrior II, triangle
+  yoga: ['surya_namaskar', 'sn_prayer', 'sn_raised_arms', 'sn_forward_fold', 'sn_lunge_r', 'sn_lunge_l', 'sn_plank', 'sn_plank_l', 'sn_knees_chest',
+    'sn_cobra', 'sn_dog', 'sn_lunge_in_r', 'sn_lunge_in_l', 'sn_fold_in_l', 'sn_fold_in_r', 'sn_rise', 'sn_stand', 'vrikshasana', 'virabhadrasana_2', 'trikonasana'],
+  // Makkō-hō: the four seated stretches (one shared frame)
+  makko: ['makko_1', 'makko_2', 'makko_3', 'makko_4'],
 };
 // clips that exist (compare page) but are not yet cue-checked for the app: kept out of the animation gate
 export const V2_DRAFT = new Set([]);
