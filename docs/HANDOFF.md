@@ -83,6 +83,17 @@ This is the current state for a new Claude session picking up the project. Claud
   - New page `taiso-check.html` for checking the steps one by one against a video.
   - `sw.js` no longer serves the app shell for other `.html` pages.
 
+## Shipped 2026-09-30
+- **v1.3b (08:20):** 8 Flow and breath moves plus the yoga, Makkō-hō and standing-post cards. Warrior II and योग were verified by a separate check (flow-and-breath-factcheck.md §9).
+- **Taisō pace (09:12):** timed from Kampo's official video, 180 s in total; the deep breath uses the official pace (founder); no muscle highlight (`showMuscles: false`).
+- **Terms gate and human body (this deploy):**
+  - `#/terms` must be accepted (`settings.terms.v === TERMS_VERSION` in store.js) before anything past Welcome. The terms name **Levin Chakravorty** (founder's decision; change it when a company exists and bump TERMS_VERSION).
+  - UK law can't exclude liability for death or personal injury caused by negligence, so the terms say so. The founder has been advised to get a solicitor's review before promoting the app.
+  - **Anim v3:** an everyday MakeHuman CC0 body (female and male) driven live from the v2 motion (`js/anim/v3/retarget.js`). The Taisō uses the solid look (`bodyLook: 'solid'`); everything else is see-through with muscles. The Me → Animation setting can switch back to the classic skeleton.
+  - three.js and the bodies sit in a long-lived `kitaeru-assets-<hash>` cache; `deploy.py` writes the hash.
+  - Pilot-only files (Quaternius bodies, CMU clip, the pilot player) are kept out of git via `.git/info/exclude`.
+- **Next for animation:** real motion without a performer (CMU, Mixamo via the founder's own account, and so on). The founder has no performer and said the Taisō could be dropped if it costs too much.
+
 ## Flow and breath (v1.3b), decided 2026-09-29 ("go with recommendations")
 - **Next build:** the 9 new moves, about 31 clips.
   - Standing post (toes slightly in) and bow stance.

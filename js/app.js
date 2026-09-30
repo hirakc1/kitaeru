@@ -1,5 +1,5 @@
 // Kitaeru app shell: theme, hash router, tab bar, service worker.
-import { getState, subscribe, getActiveWorkout } from './store.js';
+import { getState, subscribe, getActiveWorkout, TERMS_VERSION } from './store.js';
 import { icon, seal, wordmark, $, $$, closeAllSheets, reducedMotion, toast } from './ui/base.js';
 import { VERSION, versionLabel } from './version.js';
 
@@ -15,6 +15,7 @@ const ROUTES = {
   me: () => import('./ui/me.js'),
   workout: () => import('./ui/workout.js'),
   quick: () => import('./ui/quick.js'),
+  terms: () => import('./ui/terms.js'),
 };
 const TABS = new Set(['today', 'plan', 'progress', 'library', 'me']);
 const view = $('#view');
@@ -49,10 +50,16 @@ function guard(r) {
   const s = getState();
   // Quick-only users (no profile yet) get the app too; they just don't have a plan.
   const hasProfile = !!s.profile || !!s.settings.quickUser || s.logs.length > 0;
-  if (!hasProfile && !['welcome', 'onboarding', 'quick', 'workout'].includes(r.name)) return '#/welcome';
+  if (!hasProfile && !['welcome', 'onboarding', 'quick', 'workout', 'terms'].includes(r.name)) return '#/welcome';
   if (hasProfile && (r.name === '' || r.name === 'welcome')) return '#/today';
   if (r.name === 'workout' && !getActiveWorkout()) return '#/today';
   if (r.name && !ROUTES[r.name]) return hasProfile ? '#/today' : '#/welcome';
+  // Nothing past the Welcome screen until the current terms of use and safety are accepted (an interrupted workout
+  // may still be finished). Afterwards the user lands where they were heading.
+  const termsOk = s.settings.terms && s.settings.terms.v === TERMS_VERSION;
+  if (!termsOk && !['welcome', 'terms'].includes(r.name) && !(r.name === 'workout' && getActiveWorkout())) {
+    return `#/terms?next=${encodeURIComponent((location.hash.replace(/^#/, '') || '/today').split('?next=')[0])}`;
+  }
   return null;
 }
 

@@ -2,7 +2,7 @@
 // v1.2: flow items (mode 'flow') play step by step with Kitaeru's own visual count. No music, ever.
 // v1.3: moves that are not ladders (warm-up, mobility, cardio) get one "Swap" (same region and purpose) instead of
 // Easier / Harder; the animation extras (Me → Animation extras) apply in the player too.
-import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, showsMuscles, applySessionLog, MORNING_TAISO_SESSION_ID, MOMENTS, RECOVERY_MOMENTS, isShortMomentLog,
+import { EXERCISES, byId, ALL_BY_ID, flowSteps, createSkeletonPlayer, renderBodyMap, showsMuscles, bodyLook, applySessionLog, MORNING_TAISO_SESSION_ID, MOMENTS, RECOVERY_MOMENTS, isShortMomentLog,
   swapAlternatives } from './deps.js';
 import { getState, update, getActiveWorkout, saveActiveWorkout, clearActiveWorkout } from '../store.js';
 import { esc, icon, seal, fmtTarget, exName, muscleName, familyName, neighbour, varietySwaps, stepper, handleStepper, ring, setRing, mountAnims,
@@ -117,11 +117,12 @@ function setStage(exId, step = null, { lead = false } = {}) {
   if (player && stageId === key) return;
   const mus = e?.muscles || { primary: [], secondary: [] };
   const muscles = musOn(exId, step);   // (the Morning Taisō: no muscle highlight; breath ring and trail unchanged)
+  const look = lookFor(exId, step);    // human body: the solid figure for the Morning Taisō, else see-through
   const { breath, trail } = extras(e, step);
   try {
-    const opts = step ? { flow: true, blend: !lead, muscles } : { muscles };   // flow steps: no fades at the ends; blend from the last pose
+    const opts = step ? { flow: true, blend: !lead, muscles, look } : { muscles, look };   // flow steps: no fades at the ends; blend from the last pose
     if (player && player.setAnim) { player.setPace?.(pace, fit); player.setAnim(animId, mus.primary, mus.secondary, opts); player.setBreath?.(breath); player.setTrail?.(trail); }
-    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath, trail, pace, fit, flow: !!step, muscles }); }
+    else { player && player.destroy(); player = createSkeletonPlayer(stageEl, animId, { primary: mus.primary, secondary: mus.secondary, size, playing: !reducedMotion(), breath, trail, pace, fit, flow: !!step, muscles, look }); }
   } catch (err) { console.warn('skeleton failed', err); }
   stageEl.setAttribute('aria-label', `${e?.name || (step ? step.name : '')} demonstration`);
   stageId = key;
@@ -132,6 +133,14 @@ function setStage(exId, step = null, { lead = false } = {}) {
  * Morning Taisō: a loosening-up routine, no muscle effort to show). Off for the item hides the figure's highlight, the
  * muscle chips and the "Muscles worked" panel.
  */
+/**
+ * The human body's look for the item (and flow step) on stage: 'solid' when its tradition card sets bodyLook: 'solid'
+ * (the Morning Taisō and its rt_* steps), else 'xray'. One look for a whole flow: solid if the item or the step says so.
+ */
+function lookFor(exId, step = null) {
+  const item = byId[exId] || ALL_BY_ID[exId];
+  return bodyLook(item) === 'solid' || (step && step.exercise && bodyLook(step.exercise) === 'solid') ? 'solid' : 'xray';
+}
 function musOn(exId, step = null) {
   if (!showsMuscles(byId[exId] || ALL_BY_ID[exId])) return false;
   return !step || !step.exercise || showsMuscles(step.exercise);

@@ -1,5 +1,5 @@
 // Library tab: searchable, filterable exercise grid with a detail sheet (#/library/:id).
-import { EXERCISES, FAMILIES, MUSCLES, byId, EQUIPMENT, TRADITIONS, flowSteps, createSkeletonPlayer, renderBodyMap, swapAlternatives, unavailableReason, showsMuscles } from './deps.js';
+import { EXERCISES, FAMILIES, MUSCLES, byId, EQUIPMENT, TRADITIONS, flowSteps, createSkeletonPlayer, renderBodyMap, swapAlternatives, unavailableReason, showsMuscles, bodyLook } from './deps.js';
 import { getState } from '../store.js';
 import { esc, icon, openSheet, mountAnims, muscleName, familyName, ladder, isAvailable, isProgression, reducedMotion, nativeNameHTML, fmtDur, stepName, stepCount } from './components.js';
 import { cardFor, cardChipHTML, visibleCards, openCultureCard, traditionName } from './culture.js';
@@ -195,7 +195,7 @@ function openDetail(id) {
       let p = null;
       const st = getState().settings;   // animation extras: trail always here, breath guide on holds
       try { p = createSkeletonPlayer(el.querySelector('[data-stage]'), e.anim || e.id, { primary: e.muscles.primary, secondary: e.muscles.secondary, size: Math.min(260, window.innerWidth - 80), playing: !reducedMotion(),
-        trail: st.animTrail !== false, breath: e.mode === 'hold' && st.animBreath !== false, muscles: showsMuscles(e) }); } catch (err) { console.warn(err); }
+        trail: st.animTrail !== false, breath: e.mode === 'hold' && st.animBreath !== false, muscles: showsMuscles(e), look: bodyLook(e) }); } catch (err) { console.warn(err); }
       const bm = el.querySelector('[data-bodymap]');   // (none when the tradition hides muscles: the Morning Taisō)
       if (bm) try { renderBodyMap(bm, { primary: e.muscles.primary, secondary: e.muscles.secondary, size: 140 }); } catch (err) { console.warn(err); }
       return () => { try { p && p.destroy(); } catch { /* ignore */ } };

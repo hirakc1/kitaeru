@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kitaeru · human body review</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  body { padding: 12px 16px 40px; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.15rem; margin: 4px 0 2px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  .bar select, .bar button, .bar label { font: inherit; font-size: .9rem; }
+  .bar select { max-width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }
+  .bar button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer; }
+  .bar button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 760px) { .grid.cmp { grid-template-columns: 1fr 1fr; } }
+  .cell { background: var(--surface-2); border: 1px solid var(--line); border-radius: 16px; padding: 8px; min-width: 0; }
+  .cell h2 { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 2px 6px 6px; }
+  .stage .kt-v3, .stage svg { height: clamp(300px, 52vh, 560px) !important; width: 100% !important; max-width: none !important; }
+  .stats { font: 12px/1.4 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; margin-top: 6px; }
+  .note { font-size: .85rem; color: var(--muted); }
+  input[type=range] { width: 220px; max-width: 100%; }
+  body.solo { padding: 0; max-width: none; } body.solo h1, body.solo p.note, body.solo .bar, body.solo .cell h2, body.solo .stats { display: none; }
+  body.solo .cell { border: 0; border-radius: 0; padding: 0; background: none; } body.solo .grid { gap: 0; }
+  body.solo .stage .kt-v3, body.solo .stage svg { height: 100vh !important; }
+</style>
+</head>
+<body>
+<h1>Human body review <span class="note">(anim v3 bridge: every v2 clip on the MakeHuman body)</span></h1>
+<p class="note">The motion is v2's (the same keyed clips), retargeted live onto the human body. Drag sideways on the figure to look around. <code>?id=push_up&amp;body=m&amp;look=solid&amp;v2</code></p>
+<div class="bar">
+  <select id="clip" aria-label="Clip"></select>
+  <button id="prev" aria-label="Previous clip">‹</button><button id="next" aria-label="Next clip">›</button>
+  <select id="body" aria-label="Body"><option value="f">Female</option><option value="m">Male</option></select>
+  <select id="look" aria-label="Look"><option value="auto">Look: from the data</option><option value="xray">See-through + muscles</option><option value="solid">Solid (Taisō)</option></select>
+  <label><input type="checkbox" id="skel"> Skeleton</label>
+  <label><input type="checkbox" id="v2"> Compare with v2</label>
+  <button id="play" aria-pressed="true">Pause</button>
+  <input type="range" id="t" min="0" max="1000" value="0" aria-label="Scrub">
+  <button id="bench">Benchmark 5 s</button>
+</div>
+<div class="grid" id="grid">
+  <div class="cell"><h2>Human body (v3)</h2><div class="stage" id="s3"></div><div class="stats" id="st3"></div></div>
+  <div class="cell" id="c2" hidden><h2>v2 plate</h2><div class="stage" id="s2"></div><div class="stats" id="st2"></div></div>
+</div>
+<script type="module">
+  import { CLIPS, CLIP_IDS } from './js/anim/v2/clips.js';
+  import { createPlatePlayer } from './js/anim/v2/plate.js';
+  import { createBodyPlayer, ensureBody } from './js/anim/v3/body-player.js';
+  import { EXERCISES, ALL_EXERCISES } from './js/data/exercises.js';
+  import { bodyLook, showsMuscles } from './js/data/traditions.js';
+  const $ = s => document.querySelector(s);
+  const q = new URLSearchParams(location.search);
+  const ALL = typeof ALL_EXERCISES !== 'undefined' && ALL_EXERCISES ? ALL_EXERCISES : EXERCISES;
+  const exOf = id => ALL.find(e => (e.anim || e.id) === id) || ALL.find(e => e.id === id);
+  if (q.has('solo')) document.body.classList.add('solo');
+  const sel = $('#clip');
+  for (const id of CLIP_IDS) { const o = document.createElement('option'); o.value = id; o.textContent = `${id} · ${CLIPS[id].name || ''}`; sel.appendChild(o); }
+  sel.value = q.get('id') || 'push_up';
+  $('#body').value = q.get('body') || 'f'; $('#look').value = q.get('look') || 'auto'; $('#v2').checked = q.has('v2'); $('#skel').checked = q.has('skel');
+  let p3 = null, p2 = null, playing = true;
+  async function show() {
+    const id = sel.value, ex = exOf(id), m = ex?.muscles || CLIPS[id].muscles || { primary: [], secondary: [] };
+    const look = $('#look').value === 'auto' ? bodyLook(ex) : $('#look').value, mus = showsMuscles(ex);
+    const sex = $('#body').value;
+    await ensureBody(sex);
+    p3 && p3.destroy(); p2 && p2.destroy(); p2 = null;
+    p3 = createBodyPlayer($('#s3'), id, { primary: m.primary, secondary: m.secondary, size: 900, look, muscles: mus, sex, skeleton: $('#skel').checked, trail: true, breath: true, playing });
+    $('#c2').hidden = !$('#v2').checked; $('#grid').classList.toggle('cmp', $('#v2').checked);
+    if ($('#v2').checked) p2 = createPlatePlayer($('#s2'), id, { primary: m.primary, secondary: m.secondary, size: 900, trail: true, breath: true, playing, muscles: mus });
+    const u = new URL(location); u.searchParams.set('id', id); u.searchParams.set('body', sex); u.searchParams.set('look', $('#look').value);
+    $('#v2').checked ? u.searchParams.set('v2', '') : u.searchParams.delete('v2'); $('#skel').checked ? u.searchParams.set('skel', '') : u.searchParams.delete('skel');
+    history.replaceState(null, '', u);
+    window.p3 = p3; window.p2 = p2;
+  }
+  for (const e of ['#clip', '#body', '#look', '#v2', '#skel']) $(e).addEventListener('change', show);
+  $('#prev').onclick = () => { sel.selectedIndex = Math.max(0, sel.selectedIndex - 1); show(); };
+  $('#next').onclick = () => { sel.selectedIndex = Math.min(sel.options.length - 1, sel.selectedIndex + 1); show(); };
+  $('#play').onclick = () => { playing = !playing; $('#play').textContent = playing ? 'Pause' : 'Play'; $('#play').setAttribute('aria-pressed', playing);
+    for (const p of [p3, p2]) if (p) playing ? p.play() : p.pause(); };
+  $('#t').oninput = e => { const t = e.target.value / 1000; for (const p of [p3, p2]) if (p) p.seek(t); };
+  $('#bench').onclick = async () => {
+    for (const p of [p3, p2]) if (p) { p.resetStats?.(); p.play(); }
+    await new Promise(r => setTimeout(r, 5000));
+    const f = s => s ? `median ${s.median.toFixed(2)} ms, p95 ${s.p95.toFixed(2)} ms (n ${s.n})${s.calls != null ? `, ${s.calls} draw calls, ${s.tris} tris` : ''}` : '';
+    $('#st3').textContent = 'v3: ' + f(p3?.stats()); $('#st2').textContent = p2 ? 'v2: ' + f(p2.stats()) : '';
+  };
+  // contact sheet: ?sheet=id,id,... (&t=0.5 &look=solid|xray &body=m): stills from the shared thumbnail renderer
+  if (q.has('sheet')) {
+    document.body.classList.add('solo');
+    const ids = q.get('sheet') ? q.get('sheet').split(',') : CLIP_IDS, t = +(q.get('t') || .5), sex = q.get('body') || 'f';
+    await ensureBody(sex);
+    const g = $('#grid'); g.innerHTML = ''; g.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px';
+    for (const id of ids) {
+      const c = document.createElement('div'); c.style.cssText = 'height:150px;display:grid;place-items:center;position:relative;border:1px solid var(--line)';
+      c.innerHTML = `<span style="position:absolute;left:4px;top:2px;font:10px system-ui;color:var(--muted)">${id}</span>`;
+      g.appendChild(c);
+      const ex = exOf(id), look = q.get('look') || bodyLook(ex);
+      const p = createBodyPlayer(c, id, { size: 150, look, sex, playing: false, primary: ex?.muscles?.primary, secondary: ex?.muscles?.secondary, muscles: showsMuscles(ex) });
+      p.seek(t);
+    }
+  } else show();
+</script>
+</body>
+</html>

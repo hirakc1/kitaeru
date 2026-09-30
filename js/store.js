@@ -5,6 +5,8 @@ export const KEY = 'kitaeru.v1';
 const WORKOUT_KEY = 'kitaeru.v1.workout';
 const DRAFT_KEY = 'kitaeru.v1.draft';
 export const VERSION = 1;
+// Terms of use and safety (js/ui/terms.js): bump when the terms change in substance, so everyone accepts again.
+export const TERMS_VERSION = 1;
 const DAY = 864e5;
 
 const memory = new Map(); // fallback when localStorage is unavailable (private mode, blocked storage)
@@ -15,7 +17,7 @@ function rawDel(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } 
 export function defaultState() {
   return {
     version: VERSION, profile: null, levels: {}, plan: null, logs: [], bodyweights: [],
-    settings: { units: 'metric', sound: true, theme: 'auto', animBreath: true, animTrail: true },   // anim*: v2 animation extras
+    settings: { units: 'metric', sound: true, theme: 'auto', animBreath: true, animTrail: true, animFigure: 'human', animSkeleton: false },   // anim*: animation extras; animFigure 'human' | 'classic', animBody 'f' | 'm' (unset: from the profile's sex), animSkeleton (see-through body)
   };
 }
 

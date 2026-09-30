@@ -7,6 +7,16 @@ import { VERSION, versionLabel } from '../version.js';
 import { inviteHTML } from './plan.js';
 
 const EXP = { new: 'New to this', some: 'Some experience', regular: 'Trains regularly', advanced: 'Advanced' };
+// Me -> Animation: the figure (human body, default; or the classic skeleton plate), which body, and the skeleton inside
+// the see-through body. The body defaults to the profile's sex (female when unspecified) until chosen here.
+const animSeg = (key, label, val, opts) => `<div class="seg seg-sm" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button type="button" class="chip" data-set="${key}" data-val="${v}" aria-pressed="${val === v}">${l}</button>`).join('')}</div>`;
+function animFigureHTML(st, p) {
+  const human = st.animFigure !== 'classic';
+  const body = st.animBody === 'm' || st.animBody === 'f' ? st.animBody : p?.sex === 'male' ? 'm' : 'f';
+  return `<div class="set-row"><span>Figure<br><span class="small muted">${human ? 'A 3D body in sportswear. Devices that can’t show 3D get the classic figure.' : 'The anatomical drawing of bones and muscles'}</span></span>${animSeg('animFigure', 'Figure', human ? 'human' : 'classic', [['human', 'Human body'], ['classic', 'Classic skeleton']])}</div>
+        ${human ? `<div class="set-row"><span>Body</span>${animSeg('animBody', 'Body', body, [['f', 'Female'], ['m', 'Male']])}</div>
+        <label class="set-row"><span>Skeleton inside<br><span class="small muted">Show the bones inside the see-through body</span></span><input type="checkbox" class="switch" data-anim-set="animSkeleton" ${st.animSkeleton === true ? 'checked' : ''}></label>` : ''}`;
+}
 const seg = (key, val, opts) => `<div class="seg seg-sm" role="group" aria-label="${esc(key)}">${opts.map(([v, l]) => `<button type="button" class="chip" data-set="${key}" data-val="${v}" aria-pressed="${val === v}">${l}</button>`).join('')}</div>`;
 
 export function render(root, ctx) {
@@ -31,6 +41,8 @@ export function render(root, ctx) {
         <div class="set-row"><span>Theme</span>${seg('theme', st.theme, [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}</div>
         <label class="set-row"><span>Sound & vibration<br><span class="small muted">Rest-timer beeps and haptics</span></span><input type="checkbox" class="switch" data-sound ${st.sound ? 'checked' : ''}></label>
         ${morningTaisoAvailable() ? `<label class="set-row"><span>Morning Taisō<br><span class="small muted">A 3-minute routine on Today. Keeps your day streak going; doesn’t count towards your weekly sessions.</span></span><input type="checkbox" class="switch" data-taiso ${st.morningTaiso ? 'checked' : ''}></label>` : ''}
+        <div class="set-row"><span class="small muted">Animation</span></div>
+        ${animFigureHTML(st, p)}
         <div class="set-row"><span class="small muted">Animation extras</span></div>
         <label class="set-row"><span>Breath guide<br><span class="small muted">Breathing ring on holds, breathing and flows</span></span><input type="checkbox" class="switch" data-anim-set="animBreath" ${st.animBreath !== false ? 'checked' : ''}></label>
         <label class="set-row"><span>Motion trail<br><span class="small muted">Movement path in the library and workouts</span></span><input type="checkbox" class="switch" data-anim-set="animTrail" ${st.animTrail !== false ? 'checked' : ''}></label>
@@ -50,6 +62,7 @@ export function render(root, ctx) {
         <p>Movement disciplines from around the world, brought together to strengthen body and mind.</p>
         <p><strong>Kitaeru is free forever.</strong> No account, no ads, no tracking. Your data never leaves your phone.</p>
         <details class="disclaimer"><summary>Health disclaimer</summary><p class="small">${esc(DISCLAIMER)}</p></details>
+        <p><a class="btn btn-quiet" href="#/terms">Terms of use and safety</a></p>
         <p class="small muted">Programming follows published evidence on progressive calisthenics, deloads and habit formation.</p>
         <div class="version-row"><p class="small">Version <strong>${esc(versionLabel())}</strong> <span class="muted">(${esc(VERSION)})</span></p>
           <button class="btn btn-quiet" data-update-check>Check for updates</button></div>

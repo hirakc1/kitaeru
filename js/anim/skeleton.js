@@ -14,6 +14,7 @@
 // Absolute angle convention: direction(a) = (sin a, cos a) in SVG space, so 0 = down, 90 = +x, 180 = up.
 import { ANIMS } from './poses.js';
 import { V2_IDS, V2_GROUP_OF } from './v2/ids.js';
+import { getState } from '../store.js';
 
 export const ANIM_IDS = Object.keys(ANIMS);
 
@@ -759,20 +760,50 @@ export function createV1Player(container, animId, { primary = [], secondary = []
   return api;
 }
 
-// ---------- public player: v2 anatomical plate (Direction A) where a clip exists, v1 otherwise ----------
-// Same contract as before. setAnim() swaps renderer in place when crossing v1 <-> v2. ?anim=v1 forces v1 (A/B review).
-// v2 is lazy: the renderer and the exercise's clip group are imported the first time a v2 exercise is shown (a blank
-// placeholder holds the space meanwhile, usually a few ms from the service-worker cache). If the import fails, v1.
-const FORCE_V1 = typeof location !== 'undefined' && /[?&]anim=v1(&|$)/.test(location.search);
+// ---------- public player: the human body (v3) or the v2 anatomical plate where a clip exists, v1 otherwise ----------
+// Same contract as before. setAnim() swaps renderer in place when crossing kinds. ?anim=v1 forces v1, ?anim=v2 the v2
+// plate (classic skeleton), ?anim=v3 the human body (A/B review).
+// Me -> Animation chooses the figure: 'human' (default: the v3 human body, driven live by the v2 motion) or 'classic'
+// (the v2 plate). v3 needs WebGL2; without it, or if it fails to load or loses its context, the v2 plate takes over for
+// the rest of the session. Both are lazy: the renderer, the body (0.5 MB, once) and the exercise's clip group are
+// imported the first time an animated exercise is shown (a blank placeholder holds the space meanwhile).
+const FORCE = typeof location !== 'undefined' ? (/[?&]anim=(v1|v2|v3)(&|$)/.exec(location.search) || [])[1] : null;
+const FORCE_V1 = FORCE === 'v1';
 export const isV2 = id => !FORCE_V1 && V2_IDS.has(id);
-let plateMod = null;
+/**
+ * The figure the player draws, from Me -> Animation: figure 'human' | 'classic', sex 'f' | 'm' (default: the profile's
+ * sex, female when unspecified), skeleton: the skeleton inside the see-through body (default off).
+ */
+export function figurePrefs(state) {
+  let st = state;
+  if (!st) { try { st = getState(); } catch { st = null; } }
+  const s = st?.settings || {}, p = st?.profile;
+  const figure = FORCE === 'v3' ? 'human' : FORCE === 'v2' ? 'classic' : s.animFigure === 'classic' ? 'classic' : 'human';
+  const sex = s.animBody === 'm' || s.animBody === 'f' ? s.animBody : p?.sex === 'male' ? 'm' : 'f';
+  return { figure, sex, skeleton: s.animSkeleton === true };
+}
+let plateMod = null, v3Mod = null, v3Broken = false;
 const groups = new Map(), loaded = new Set();   // clip group -> import promise; groups ready
-export function loadV2(id) {
+function loadGroup(id) {
   const g = V2_GROUP_OF[id];
   if (!groups.has(g)) groups.set(g, import(`./v2/clips/${g}.js`).then(() => loaded.add(g), e => { groups.delete(g); throw e; }));
-  return Promise.all([import('./v2/plate.js'), groups.get(g)]).then(([m]) => { plateMod = m; });
+  return groups.get(g);
+}
+export function loadV2(id) {
+  return Promise.all([import('./v2/plate.js'), loadGroup(id)]).then(([m]) => { plateMod = m; });
+}
+// v3: the body player, the clip group and the chosen body; rejects without WebGL2 (the caller falls back to v2)
+export function loadV3(id, sex) {
+  return Promise.all([import('./v3/body-player.js'), loadGroup(id)]).then(async ([m]) => {
+    if (!m.hasWebGL()) throw new Error('WebGL2 unavailable');
+    await m.ensureBody(sex);
+    v3Mod = m;
+  });
 }
 const v2Ready = id => !!plateMod && loaded.has(V2_GROUP_OF[id]);
+const v3Ready = (id, sex) => !!v3Mod && loaded.has(V2_GROUP_OF[id]) && v3Mod.bodyReady(sex);
+/** v3 failed on this device (no WebGL2, load error, lost context): the v2 plate for the rest of the session. */
+export const v3Failed = () => v3Broken;
 function placeholder(container, size) {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 4 3'); svg.setAttribute('class', 'kt-ph'); svg.setAttribute('aria-hidden', 'true');
@@ -784,31 +815,56 @@ function placeholder(container, size) {
 // opts.breath / opts.trail (default off): v2 breath ring and motion trail; v1 ignores both
 // opts.muscles (default true): false draws the figure with no muscle highlight (v1 and v2), e.g. for a tradition whose
 // card sets showMuscles: false (the Morning Taisō); setAnim's opts.muscles changes it for the next clip
+// opts.look (human body only): 'xray' (default: see-through body, muscles, optional skeleton) or 'solid' (the solid
+// figure in sportswear: a tradition card's bodyLook, the Morning Taisō); setAnim's opts.look changes it.
+// opts.figure / opts.sex / opts.skeleton override Me -> Animation (review pages, tests).
 export function createSkeletonPlayer(container, animId, opts = {}) {
-  const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, pace: null, fit: null, muscles: true, ...opts };
+  const pref = figurePrefs();
+  const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, pace: null, fit: null, muscles: true, look: 'xray',
+    figure: pref.figure, sex: pref.sex, skeleton: pref.skeleton, ...opts };
   const mus = () => (o.muscles === false ? { primary: [], secondary: [] } : { primary: o.primary, secondary: o.secondary });
   let p = null, kind = null, cur = null, gen = 0, dead = false, fixedT = null;
+  const wantV3 = id => o.figure === 'human' && !v3Broken && isV2(id);
+  function fail(e) {
+    console.warn('anim v3 unavailable, using v2', e);
+    v3Broken = true;
+    if (dead) return;
+    const my = ++gen;
+    if (v2Ready(cur)) show(cur, { flow: o.flow });
+    else loadV2(cur).then(() => { if (!dead && my === gen) show(cur, { flow: o.flow }); }, () => { if (!dead && my === gen) mount('v1'); });
+  }
   function mount(k) {
     const old = p;
-    p = k === 'v2' ? plateMod.createPlatePlayer(container, cur, { ...o, ...mus() }) : k === 'v1' ? createV1Player(container, cur, { ...o, ...mus() }) : placeholder(container, o.size);
+    if (k === 'v3') {
+      try { p = v3Mod.createBodyPlayer(container, cur, { ...o, ...mus(), onLost: e => fail(e) }); } catch (e) { p = old; fail(e); return; }
+    } else p = k === 'v2' ? plateMod.createPlatePlayer(container, cur, { ...o, ...mus() }) : k === 'v1' ? createV1Player(container, cur, { ...o, ...mus() }) : placeholder(container, o.size);
     kind = k;
     if (old) { if (old.svg.parentNode === container) container.insertBefore(p.svg, old.svg); old.destroy(); }
     if (fixedT != null) p.seek(fixedT);
   }
   function show(id, opts) {
-    const k = isV2(id) ? 'v2' : 'v1';
-    if (p && kind === k) { const m = mus(); p.setAnim(id, m.primary, m.secondary, { ...opts, muscles: o.muscles !== false }); } else mount(k);
+    const k = wantV3(id) ? 'v3' : isV2(id) ? 'v2' : 'v1';
+    if (p && kind === k) { const m = mus(); p.setAnim(id, m.primary, m.secondary, { ...opts, muscles: o.muscles !== false, look: o.look }); } else mount(k);
   }
-  // opts (v2): { flow, blend } for flow steps: no fades at the step's ends, and a pose blend from the previous step
+  // opts (v2 / v3): { flow, blend } for flow steps: no fades at the step's ends, and a pose blend from the previous step
   function load(id, prim, sec, opts = {}) {
     cur = id; if (prim) o.primary = prim; if (sec) o.secondary = sec; o.flow = !!opts.flow; if ('muscles' in opts) o.muscles = opts.muscles !== false;
+    if (opts.look) o.look = opts.look;
     const my = ++gen;
+    if (wantV3(id)) {
+      if (v3Ready(id, o.sex)) { show(id, opts); return; }
+      if (kind !== 'ph' && kind !== 'v3') mount('ph');
+      // (if v3 failed meanwhile for another player, load() takes the v2 route for this one)
+      loadV3(id, o.sex).then(() => { if (!dead && my === gen) { if (wantV3(id)) show(id, opts); else load(id, null, null, opts); } },
+        e => { if (!dead && my === gen) fail(e); else v3Broken = true; });
+      return;
+    }
     if (!isV2(id) || v2Ready(id)) { show(id, opts); return; }
     if (kind !== 'ph') mount('ph');
     loadV2(id).then(() => { if (!dead && my === gen) show(id, opts); },
       e => { console.warn('anim v2 unavailable, using v1', e); if (!dead && my === gen) mount('v1'); });
   }
-  load(animId);
+  load(animId, null, null, { flow: o.flow, look: o.look });
   return {
     play() { o.playing = true; fixedT = null; p.play(); },
     pause() { o.playing = false; p.pause(); },
@@ -821,7 +877,9 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
     // seconds (a whole number of cycles in them); null = natural tempo
     setPace(sec, fit) { o.pace = sec > 0 ? sec : null; o.fit = fit > 0 ? fit : null; p.setPace?.(o.pace, o.fit); },
     get svg() { return p.svg; },
-    get renderer() { return kind; },   // 'v2' | 'v1' | 'ph' (v2 still loading)
+    get renderer() { return kind; },   // 'v3' | 'v2' | 'v1' | 'ph' (still loading)
     get ready() { return kind !== 'ph'; },
+    get look() { return o.look; },
+    stats() { return p.stats ? p.stats() : null; },   // frame cost of the renderer inside (v2 plate / v3 body); review and bench pages
   };
 }

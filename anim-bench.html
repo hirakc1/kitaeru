@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kitaeru · animation bench</title>
+<link rel="stylesheet" href="css/app.css">
+<style>
+  body { padding: 8px 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .grid .lib-thumb { margin: 0; }
+  .plan { display: grid; gap: 8px; }
+  pre { font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<!-- Dev page (not part of the app). ?mode=player|list|plan &fig=human|classic &id=clip &n=24 &look=xray|solid
+     window.bench(ms) -> { frame: player draw-time stats, raf: frame-gap stats, mount } -->
+<div id="root"></div>
+<pre id="out"></pre>
+<script type="module">
+  import { createSkeletonPlayer, loadV2, loadV3 } from './js/anim/skeleton.js';
+  import { V2_IDS } from './js/anim/v2/ids.js';
+  const q = new URLSearchParams(location.search);
+  const mode = q.get('mode') || 'player', figure = q.get('fig') || 'human', n = +(q.get('n') || 24), look = q.get('look') || 'xray';
+  const root = document.getElementById('root');
+  const ids = [...V2_IDS].filter(id => !id.startsWith('sn_') && !id.startsWith('rt_'));
+  const players = [];
+  // modules, clip groups and the body are loaded first (as they would be after the first animation of the session), so
+  // 'mount' is the cost of creating and painting the players (v3: including the first shader compile)
+  const want = mode === 'player' ? [q.get('id') || 'jumping_jack'] : ids.slice(0, n);
+  const tl = performance.now();
+  await Promise.all(want.map(id => (figure === 'human' ? loadV3(id, 'f') : loadV2(id))));
+  window.loadMs = performance.now() - tl;
+  const t0 = performance.now();
+  if (mode === 'player') {
+    root.className = 'pl-stage';
+    players.push(createSkeletonPlayer(root, q.get('id') || 'jumping_jack', { size: 1200, figure, look, trail: true, breath: true }));
+  } else {
+    root.className = mode === 'plan' ? 'plan' : 'grid';
+    for (let i = 0; i < n; i++) {
+      const el = document.createElement('div');
+      el.className = mode === 'plan' ? 'pv-anim' : 'lib-thumb';
+      root.appendChild(el);
+      players.push(createSkeletonPlayer(el, ids[i % ids.length], { size: mode === 'plan' ? 64 : 104, figure, look, playing: mode === 'plan' }));
+    }
+  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const pct = (a, p) => { a = a.slice().sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(a.length * p))] : 0; };
+  window.ready = async () => { while (players.some(p => !p.ready)) await sleep(20); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); return performance.now() - t0; };
+  window.bench = async (ms = 5000) => {
+    const mount = await window.ready();
+    await sleep(800);
+    for (const p of players) { try { p.stats && p.stats() && (p._reset = true); } catch { /* */ } }
+    const gaps = [], longs = []; let last = 0;
+    const tStart = performance.now();
+    await new Promise(res => { const f = ts => { if (last) gaps.push(ts - last); last = ts; if (performance.now() - tStart < ms) requestAnimationFrame(f); else res(); }; requestAnimationFrame(f); });
+    const st = players.map(p => p.stats && p.stats()).filter(Boolean);
+    const med = st.length ? st.map(s => s.median) : [];
+    return { mode, figure, n: players.length, renderer: players[0]?.renderer, mount: Math.round(mount), load: Math.round(window.loadMs),
+      frame: st.length ? { median: pct(med, .5), p95: pct(st.map(s => s.p95), .5), sumMedian: med.reduce((a, b) => a + b, 0) } : null,
+      raf: { median: pct(gaps, .5), p95: pct(gaps, .95), fps: 1000 / (pct(gaps, .5) || 16.7), over33: gaps.filter(g => g > 34).length, frames: gaps.length } };
+  };
+</script>
+</body>
+</html>

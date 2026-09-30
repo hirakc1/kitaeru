@@ -21,7 +21,7 @@
 <details><summary>Sample weeks</summary><pre id="sample"></pre></details>
 <script type="module">
 import { EXERCISES, ALL_EXERCISES, ALL_BY_ID, ALL_FAMILIES, FAMILIES, byId as visibleById, flowSeconds, flowSteps, familyLadder, varietyFor, isVisible } from '../js/data/exercises.js';
-import { TRADITIONS, EXCLUDED_TRADITIONS, RADIO_TAISO_ATTRIBUTION, setTraditionPreview, traditionPreview, traditionVisible, contentVisible, showsMuscles } from '../js/data/traditions.js';
+import { TRADITIONS, EXCLUDED_TRADITIONS, RADIO_TAISO_ATTRIBUTION, setTraditionPreview, traditionPreview, traditionVisible, contentVisible, showsMuscles, bodyLook } from '../js/data/traditions.js';
 import { MUSCLE_IDS } from '../js/data/muscles.js';
 import { hasAnimation, exerciseAnimated, registerAnimationIds, clearRegisteredAnimationIds, animationGateVersion } from '../js/data/animated.js';
 import { ANIMS } from '../js/anim/poses.js';
@@ -572,6 +572,16 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     ok(!showsMuscles(ALL_BY_ID.taichi_cloud_hands) && showsMuscles(ALL_BY_ID.push_up), 'showsMuscles follows the card flag (data-driven)');
     if (saved === undefined) delete TRADITIONS.tai_chi.showMuscles; else TRADITIONS.tai_chi.showMuscles = saved;
   }
+  // anim v3 (2026-09-30): the human body's look is a tradition-level flag too: the Taisō is the solid figure
+  ok(TRADITIONS.radio_taiso.bodyLook === 'solid' && TRAD_IDS.filter(id => TRADITIONS[id].bodyLook === 'solid').join() === 'radio_taiso', 'only the radio_taiso card sets bodyLook: solid');
+  ok(TRAD_IDS.every(id => [undefined, 'solid', 'xray'].includes(TRADITIONS[id].bodyLook)), 'bodyLook is solid, xray or unset on every card');
+  ok(ALL_EXERCISES.filter(e => e.tradition === 'radio_taiso').every(e => bodyLook(e) === 'solid') && bodyLook(ALL_BY_ID.radio_taiso_1) === 'solid' && bodyLook(ALL_BY_ID.rt_heel_raise) === 'solid', 'bodyLook: solid for the Morning Taisō, every rt_* move and the heel-raise swap');
+  ok(ALL_EXERCISES.filter(e => e.tradition !== 'radio_taiso').every(e => bodyLook(e) === 'xray') && bodyLook(null) === 'xray' && bodyLook(ALL_BY_ID.taichi_cloud_hands) === 'xray', 'bodyLook: xray (see-through) for every other exercise');
+  {
+    const saved = TRADITIONS.tai_chi.bodyLook; TRADITIONS.tai_chi.bodyLook = 'solid';
+    ok(bodyLook(ALL_BY_ID.taichi_cloud_hands) === 'solid' && bodyLook(ALL_BY_ID.push_up) === 'xray', 'bodyLook follows the card flag (data-driven)');
+    if (saved === undefined) delete TRADITIONS.tai_chi.bodyLook; else TRADITIONS.tai_chi.bodyLook = saved;
+  }
 
   // ---- accuracy gate (preview off)
   ok(EXERCISES.every(e => contentVisible(e) && !e.flowOnly), 'EXERCISES hides unverified tradition items and flow-only steps');
@@ -886,11 +896,98 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
     const off = n(); pl.setAnim('rt_arm_circles', ca.primary, ca.secondary, { muscles: true }); const on = n(); pl.destroy();
     ok(off === 0 && on > 0, `plate player: muscles: false draws none, setAnim({ muscles: true }) draws them (${off}, ${on})`);
     await loadV2('push_up');
-    pl = createSkeletonPlayer(box, 'push_up', { primary: pu.primary, secondary: pu.secondary, size: 300, playing: false, muscles: false });
+    pl = createSkeletonPlayer(box, 'push_up', { primary: pu.primary, secondary: pu.secondary, size: 300, playing: false, muscles: false, figure: 'classic' });
     const off2 = n(), kind = pl.renderer; pl.setAnim('push_up', pu.primary, pu.secondary, { muscles: true }); const on2 = n(); pl.destroy();
     ok(kind === 'v2' && off2 === 0 && on2 > 0, `skeleton player: muscles: false draws none, setAnim({ muscles: true }) draws them (${kind}, ${off2}, ${on2})`);
     pl = createV1Player(box, 'push_up', { primary: [], secondary: [], size: 300, playing: false }); const v1off = n(); pl.setAnim('push_up', pu.primary, pu.secondary); const v1on = n(); pl.destroy(); box.remove();
     ok(v1off === 0 && v1on > 0, `v1 player: empty muscle lists (what muscles: false passes) draw none (${v1off}, ${v1on})`);
+  }
+  { // anim v3 (2026-09-30): the human body behind createSkeletonPlayer. Me -> Animation prefs, first-load and offline
+    // rules, the bridge (every v2 clip on both bodies), looks, flows, thumbnails, and the v2 fallback
+    const SK = await import('../js/anim/skeleton.js');
+    const fp = (settings, profile) => SK.figurePrefs({ settings, profile });
+    ok(fp({}, null).figure === 'human' && fp({}, null).sex === 'f' && fp({}, null).skeleton === false, 'figure prefs default: human body, female, no skeleton');
+    ok(fp({}, { sex: 'male' }).sex === 'm' && fp({}, { sex: 'female' }).sex === 'f' && fp({}, { sex: 'unspecified' }).sex === 'f', 'the body defaults to the profile sex (female when unspecified)');
+    ok(fp({ animBody: 'm' }, { sex: 'female' }).sex === 'm' && fp({ animBody: 'f' }, { sex: 'male' }).sex === 'f', 'Me -> Body overrides the profile');
+    ok(fp({ animFigure: 'classic' }).figure === 'classic' && fp({ animFigure: 'human' }).figure === 'human' && fp({ animFigure: 'x' }).figure === 'human', 'Me -> Figure: classic skeleton or human body (default)');
+    ok(fp({ animSkeleton: true }).skeleton === true && fp({ animSkeleton: 'yes' }).skeleton === false, 'Me -> Skeleton inside: only true turns it on');
+    const src = async f => (await fetch(f, { cache: 'no-store' })).text();
+    const [storeSrc, meSrc, swSrc, appSrc, baseSrc, skelSrc] = await Promise.all(['../js/store.js', '../js/ui/me.js', '../sw.js', '../js/app.js', '../js/ui/base.js', '../js/anim/skeleton.js'].map(src));
+    ok(/animFigure: 'human'/.test(storeSrc) && /animSkeleton: false/.test(storeSrc), 'store defaults: animFigure human, animSkeleton false (animBody unset: from the profile)');
+    ok(/animSeg\('animFigure', 'Figure'/.test(meSrc) && /\['human', 'Human body'\], \['classic', 'Classic skeleton'\]/.test(meSrc) && /animSeg\('animBody', 'Body'/.test(meSrc)
+      && /\['f', 'Female'\], \['m', 'Male'\]/.test(meSrc) && /data-anim-set="animSkeleton"/.test(meSrc), 'Me -> Animation: Figure (Human body / Classic skeleton), Body (Female / Male), Skeleton inside');
+    // first load: nothing of three.js or v3 is imported statically by app.js, base.js or skeleton.js
+    const statics = t => [...t.matchAll(/^\s*import\s[^;]*?from\s+'([^']+)'/gm)].map(m => m[1]);
+    ok(![...statics(appSrc), ...statics(baseSrc), ...statics(skelSrc)].some(p => /v3\/|three/.test(p)), 'first load: app.js, base.js and skeleton.js import no three.js / v3 module statically');
+    ok(/import\('\.\/v3\/body-player\.js'\)/.test(skelSrc), 'skeleton.js imports the v3 player on demand');
+    // offline: every module the v3 player needs (its whole static import graph) and both bodies are in SHELL_FILES
+    const shell = new Set([...swSrc.matchAll(/'\.\/([^']+)'/g)].map(m => m[1]));
+    const need = new Set(), queue = ['js/anim/v3/body-player.js'];
+    while (queue.length) {
+      const f = queue.shift(); if (need.has(f)) continue; need.add(f);
+      for (const p of statics(await src('../' + f))) { const u = new URL(p, 'http://x/' + f).pathname.slice(1); if (!need.has(u)) queue.push(u); }
+    }
+    const missing = [...need, 'assets/v3/human_f.glb', 'assets/v3/human_m.glb'].filter(f => !shell.has(f));
+    ok(missing.length === 0 && need.size >= 8, `sw.js SHELL_FILES has every v3 module and both bodies (${need.size} modules; missing: ${missing.join() || 'none'})`);
+    ok(/const VERSION = 'v\d{4}\.\d\d\.\d\d-\d{4}'/.test(swSrc), 'sw.js VERSION still in its format');
+    const hasGL = (() => { try { const c = document.createElement('canvas'), g = c.getContext('webgl2'); g && g.getExtension('WEBGL_lose_context')?.loseContext(); return !!g; } catch { return false; } })();
+    if (!hasGL) ok(true, 'anim v3: no WebGL2 here, player tests skipped (the v2 plate is the fallback)');
+    else {
+      const V3 = await import('../js/anim/v3/body-player.js');
+      const { qaBody } = await import('../js/anim/v3/qa.js');
+      const { CLIPS: ALLC, CLIP_IDS } = await import('../js/anim/v2/clips.js');
+      // the bodies: our CC0 MakeHuman GLBs, <= ~500 KB, rigged for the bridge, with the app's muscle ids as regions
+      for (const sex of ['f', 'm']) {
+        const b = await V3.ensureBody(sex);
+        ok(b.tpl.bytes <= 512 * 1024 && b.tpl.names.length === 53 && ['pelvis', 'spine_03', 'head', 'hand_l', 'foot_r', 'index_03_r'].every(n => b.tpl.names.includes(n)), `body ${sex}: ${Math.round(b.tpl.bytes / 1024)} KB, the 53-bone game-engine rig`);
+        ok(JSON.stringify(b.tpl.extras.kitaeruMuscles.slice(1).sort()) === JSON.stringify(MUSCLE_IDS.slice().sort()), `body ${sex}: muscle regions are exactly the app's muscle ids`);
+        const reg = b.tpl.geo.attributes._region, seen = new Set();
+        for (let i = 0; i < reg.count; i++) { if (reg.getY(i) > 60) seen.add(reg.getX(i)); if (reg.getW(i) > 60) seen.add(reg.getZ(i)); }
+        ok(seen.size >= 19, `body ${sex}: every muscle id is painted on the body (${seen.size - (seen.has(0) ? 1 : 0)} of 19)`);
+        const cl = b.tpl.geo.attributes._cloth; let top = 0, bot = 0, hair = 0;
+        for (let i = 0; i < cl.count; i++) { top += cl.getX(i) > .5; bot += cl.getY(i) > .5; hair += cl.getZ(i) > .5; }
+        ok(top > 1000 && bot > 600 && hair > 150, `body ${sex}: dressed (top ${top}, bottoms ${bot}, hair ${hair} vertices)`);
+        // the bridge: every v2 clip on this body, sampled over its cycle
+        const qa = qaBody(b), rows = CLIP_IDS.map(id => [id, qa(ALLC[id], 8)]);
+        const floorPoses = new Set(['makko_1', 'makko_3', 'makko_4', 'pancake_stretch']);   // seated: feet on their sides, hands reaching (not planted flat)
+        ok(rows.every(([, r]) => !r.nan), `bridge ${sex}: finite bone rotations for all ${rows.length} clips`);
+        const sole = rows.filter(([id, r]) => !floorPoses.has(id) && Math.abs(r.sole) > 1.2);
+        ok(sole.length === 0, `bridge ${sex}: planted flat feet on the floor within 1.2 cm (${sole.map(([id, r]) => `${id} ${r.sole.toFixed(1)}`).join(', ') || 'all'})`);
+        const palm = rows.filter(([id, r]) => !floorPoses.has(id) && Math.abs(r.palm) > 1.5);
+        ok(palm.length === 0, `bridge ${sex}: planted palms on the floor within 1.5 cm (${palm.map(([id, r]) => `${id} ${r.palm.toFixed(1)}`).join(', ') || 'all'})`);
+        const deep = rows.filter(([, r]) => r.floor < -4.5);
+        ok(deep.length === 0, `bridge ${sex}: no skin more than 4.5 cm below the floor (kneeling knees and prone toes rest on it) (${deep.map(([id, r]) => `${id} ${r.floor.toFixed(1)} ${r.floorBone}`).join(', ') || 'none'})`);
+        const ms = rows.reduce((a, [, r]) => a + r.ms, 0) / rows.length;
+        ok(ms < 1.5, `bridge ${sex}: retarget ${ms.toFixed(3)} ms per pose`);
+      }
+      // the player: looks per data flag, flows (pace, blend), muscles, destroy
+      await SK.loadV3('push_up', 'f'); await SK.loadV3('rt_arm_circles', 'f'); await SK.loadV3('rt_side_bend', 'f');
+      const box = document.createElement('div'); box.style.cssText = 'position:absolute;left:-9999px;top:0;width:300px'; document.body.appendChild(box);
+      const pu = ALL_BY_ID.push_up.muscles, ca = ALL_BY_ID.rt_arm_circles.muscles;
+      let pl = SK.createSkeletonPlayer(box, 'push_up', { primary: pu.primary, secondary: pu.secondary, size: 300, playing: false, figure: 'human', sex: 'f', look: bodyLook(ALL_BY_ID.push_up) });
+      const inner = () => box.querySelector('.kt-v3')?.ktPlayer;
+      ok(pl.renderer === 'v3' && pl.look === 'xray' && inner()?.look === 'xray', `human body player: push-up is see-through (${pl.renderer}, ${pl.look})`);
+      pl.setAnim('rt_arm_circles', ca.primary, ca.secondary, { muscles: showsMuscles(ALL_BY_ID.rt_arm_circles), look: bodyLook(ALL_BY_ID.rt_arm_circles) });
+      ok(pl.renderer === 'v3' && inner()?.look === 'solid', 'human body player: the Taisō arm circles switch to the solid look (data flag)');
+      let threw = null;
+      try { pl.setPace(1.2, null); pl.setAnim('rt_side_bend', null, null, { flow: true, blend: true, muscles: false, look: 'solid' }); pl.seek(.5); pl.setTrail(true); pl.setBreath(true); pl.seek(.2); } catch (e) { threw = e; }
+      ok(!threw && inner()?._st?.id === 'rt_side_bend' && inner()._st.flow === true && Math.abs(inner()._st.rate - 1) > 1e-6, `human body player: flow step with pace, blend, trail and breath (${threw || inner()?._st?.rate})`);
+      pl.destroy();
+      ok(!box.querySelector('.kt-v3'), 'human body player: destroy removes it');
+      // thumbnails: many at once share one renderer (2D canvases, no WebGL context each)
+      const ths = [];
+      for (let i = 0; i < 12; i++) { const el = document.createElement('div'); el.style.cssText = 'width:96px;height:96px'; box.appendChild(el); ths.push(SK.createSkeletonPlayer(el, i % 2 ? 'push_up' : 'rt_arm_circles', { size: 96, playing: false, figure: 'human', sex: 'f', look: i % 2 ? 'xray' : 'solid' })); }
+      const cvs = [...box.querySelectorAll('canvas.kt-v3.lod')];
+      ok(ths.every(p => p.renderer === 'v3') && cvs.length === 12 && cvs.every(c => c.getContext('2d')), `thumbnails: 12 human-body thumbnails are 2D canvases fed by one shared renderer (${cvs.length})`);
+      ths.forEach(p => p.destroy());
+      // fallback: a lost WebGL context swaps in the v2 plate (for the rest of the session: keep this test last)
+      await SK.loadV2('push_up');
+      pl = SK.createSkeletonPlayer(box, 'push_up', { primary: pu.primary, secondary: pu.secondary, size: 300, playing: false, figure: 'human', sex: 'f' });
+      const was = pl.renderer; inner()?._lost();
+      await new Promise(r => setTimeout(r, 50));
+      ok(was === 'v3' && pl.renderer === 'v2' && SK.v3Failed() && box.querySelectorAll('.kt-pl').length === 1 && !box.querySelector('.kt-v3'), `fallback: a lost WebGL context swaps the human body for the v2 plate (${was} -> ${pl.renderer})`);
+      pl.destroy(); box.remove();
+    }
   }
   const tw = ALL_BY_ID.radio_taiso_1.sequence.find(x => x.move === 'rt_trunk_twist');
   ok(tw.side === 'alternate' && tw.reps === 8, 'Morning Taisō trunk twist alternates every count (its clip goes one way, then the other)');

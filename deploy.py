@@ -34,6 +34,15 @@ def main():
     new_src, n = re.subn(r"const VERSION = '[^']*';", f"const VERSION = '{version}';", src, count=1)
     if n != 1:
         sys.exit("Could not find `const VERSION = '...'` in sw.js")
+    # The long-lived asset cache is named by a hash of those files, so phones re-download them only when they change.
+    import hashlib
+    files = re.search(r"const ASSET_FILES = \[([^\]]*)\]", new_src).group(1)
+    h = hashlib.sha1()
+    for rel in re.findall(r"'\./([^']+)'", files):
+        h.update((ROOT / rel).read_bytes())
+    new_src, n = re.subn(r"const ASSETS_ID = '[^']*';", f"const ASSETS_ID = '{h.hexdigest()[:10]}';", new_src, count=1)
+    if n != 1:
+        sys.exit("Could not find `const ASSETS_ID = '...'` in sw.js")
     SW.write_text(new_src, encoding="utf-8")
     # The app shows the same version on Me -> About (js/version.js).
     app_src = APP_VERSION.read_text(encoding="utf-8")

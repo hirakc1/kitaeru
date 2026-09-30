@@ -52,6 +52,9 @@ export const TRADITIONS = {
     // A brisk loosening-up routine: no muscle is worked hard (founder, 2026-09-30), so the player and the Library draw the
     // figure without muscle highlight and hide the muscle chips and body map for its items (see showsMuscles).
     showMuscles: false,
+    // The human-body figure (anim v3) draws its items as the solid figure in sportswear: no see-through body, no skeleton,
+    // no muscles (founder, 2026-09-30). Every other tradition and generic exercise: the see-through body (see bodyLook).
+    bodyLook: 'solid',
   },
   tai_chi: {
     name: 'Tai Chi',
@@ -291,6 +294,12 @@ export const TRADITION_IDS = Object.keys(TRADITIONS);
  * card sets `showMuscles: false` (the Morning Taisō). Generic exercises and every other tradition: true.
  */
 export const showsMuscles = ex => !(ex && ex.tradition && TRADITIONS[ex.tradition]?.showMuscles === false);
+
+/**
+ * The human-body figure's look for this exercise: 'solid' (the solid figure in sportswear) when its tradition card sets
+ * `bodyLook: 'solid'` (the Morning Taisō), else 'xray' (the see-through body with muscle highlight; skeleton optional).
+ */
+export const bodyLook = ex => (ex && ex.tradition && TRADITIONS[ex.tradition]?.bodyLook === 'solid' ? 'solid' : 'xray');
 
 /**
  * Practices Kitaeru never packages as exercise (world-movement.md §5.3), not even with ?preview=traditions:
