@@ -1,5 +1,5 @@
 // Kitaeru service worker: cache-first app shell, versioned caches, runtime caching for fonts.
-const VERSION = 'v2026.10.01-1154';
+const VERSION = 'v2026.10.01-1156';
 const SHELL = `kitaeru-shell-${VERSION}`;
 const RUNTIME = `kitaeru-runtime-${VERSION}`;
 // Large files that rarely change (three.js and the two v3 bodies, ~1.7 MB) live in their own cache, named by a hash
@@ -77,8 +77,16 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Everything else same-origin: cache-first, then network (and cache it).
+  // Everything else same-origin: cache-first, then network (and cache it). Except for the review pages: their scripts
+  // must match the page (always deployed fresh), so they go to the network (revalidated), never to this app version's cache.
   event.respondWith((async () => {
+    const client = event.clientId ? await self.clients.get(event.clientId) : null;
+    if (client) {
+      const p = new URL(client.url).pathname;
+      if (/\.html$/.test(p) && !/\/index\.html$/.test(p)) {
+        try { return await fetch(req, { cache: 'no-cache' }); } catch { /* offline: fall through to the cache */ }
+      }
+    }
     const hit = await caches.match(req, { ignoreSearch: true });
     if (hit) return hit;
     try {
