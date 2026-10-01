@@ -39,6 +39,8 @@
   .stage { position: relative; aspect-ratio: 4 / 3; margin: 8px 0; }
   .stage > svg { position: absolute; inset: 0; width: 100% !important; height: 100% !important; max-width: none !important; }
   .stage.human { aspect-ratio: auto; }
+  .stage.human:has(> svg) { aspect-ratio: 4 / 3; }   /* the skeleton (or the loading placeholder) when the 3D body isn't available */
+  .v3warn { margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 13px; }
   .stages { display: grid; gap: 8px; margin: 8px 0; }
   .stages.both { grid-template-columns: 1fr 1fr; align-items: end; }
   .stages .stage { margin: 0; }
@@ -65,6 +67,22 @@
     padding: 10px 16px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.on { opacity: 1; }
   .hint { color: var(--ink-muted); font-size: 13px; margin: 6px 0 0; }
+  /* real-motion pilot */
+  .stages .lbl.pilot { color: var(--accent); font-weight: 600; }
+  .pilotbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0 0; font-size: 13px; color: var(--ink-muted); }
+  .pilotbar button { min-height: 32px; padding: 2px 10px; font-size: 13px; border-radius: 999px; border-color: var(--accent); }
+  .pilotbar button.cur { background: var(--accent); color: #fff; }
+  .pnote { font-size: 13px; color: var(--ink-muted); margin: 6px 0; }
+  .pnote b { color: var(--ink); font-weight: 600; }
+  .steps { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+  .steps button { min-height: 30px; padding: 2px 8px; font-size: 12px; border-radius: 8px; }
+  .steps button.has { border-color: var(--ok); }
+  .steps button.close { border-color: var(--accent-2); }
+  .steps button.none { opacity: .55; }
+  .pverdict { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+  .pverdict button { min-height: 44px; font-size: 13px; }
+  .pverdict button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chips button.pilot::after { content: ' ●'; color: var(--accent); font-size: 10px; }
 </style>
 </head>
 <body>
@@ -73,9 +91,9 @@
   <span class="prog" id="prog"></span>
   <span class="bar"><i id="bar"></i></span>
   <select id="filter" aria-label="Show">
-    <option value="all">All</option><option value="todo">Not reviewed</option><option value="fix">Needs work</option><option value="good">Good</option>
+    <option value="all">All</option><option value="todo">Not reviewed</option><option value="fix">Needs work</option><option value="good">Good</option><option value="pilot">Real-motion pilot clips</option>
   </select>
-  <select id="figure" aria-label="Figure"><option value="human">Human body</option><option value="classic">Skeleton</option><option value="both">Both</option></select>
+  <select id="figure" aria-label="Figure"><option value="human">Human body</option><option value="classic">Skeleton</option><option value="both">Both</option><option value="pilot">Real motion vs current (pilot)</option></select>
   <select id="sex" aria-label="Body"><option value="f">Female</option><option value="m">Male</option></select>
   <button id="theme">Theme</button>
   <button id="export">Export notes</button>
@@ -84,17 +102,19 @@
 <main>
   <section class="card" id="card"></section>
   <p class="hint">Use the Figure menu to review the human body, the skeleton, or both side by side; say which one a comment is about. Notes save automatically on this device. When you're done (or partway), press <strong>Export notes</strong> and send the file or paste the copied text to Claude.</p>
+  <p class="hint">Real-motion pilot (Figure: <em>Real motion vs current</em>): motion capture from the CMU Graphics Lab Motion Capture Database (mocap.cs.cmu.edu; created with funding from NSF EIA-0196217) and, for the squat and the jumping jack, HDM05 (Müller et al., Universität Bonn; those two clips are CC BY-SA 3.0). Details: <code>assets/v3/LICENSES.md</code>.</p>
   <section class="list" id="list"></section>
 </main>
 <div class="toast" id="toast" role="status"></div>
 <input type="file" id="file" accept=".json,application/json" hidden>
 <script type="module">
   // Founder review of every v2 animation: one clip at a time, Good / Needs work + comment, saved locally, exported as a file.
-  import { createSkeletonPlayer } from './js/anim/skeleton.js';
+  import { createSkeletonPlayer, v3Failed, v3FailReason } from './js/anim/skeleton.js';
   import { showsMuscles, bodyLook } from './js/data/traditions.js';
   import { CLIPS, CLIP_IDS } from './js/anim/v2/clips.js';
   import { V2_GROUP_OF } from './js/anim/v2/ids.js';
   import { ALL_BY_ID } from './js/data/exercises.js';
+  import * as K from './js/anim/v2/core.js';
 
   const KEY = 'kitaeru.animReview.v1';
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -109,9 +129,75 @@
   let idx = 0, player = null, paused = false;
   const VIEW = 'kitaeru.animReview.view';
   try { const v = JSON.parse(localStorage.getItem(VIEW)) || {}; if (v.figure) $('#figure').value = v.figure; if (v.sex) $('#sex').value = v.sex; } catch { /* ignore */ }
+
+  // ---- real-motion pilot: mocap clips (assets/v3/mocap, made by assets/v3/pipeline/mocap_pilot.py), loaded only when asked for
+  const PILOT_MAIN = ['bodyweight_squat', 'split_squat', 'jumping_jack', 'vrikshasana', 'surya_namaskar'];
+  let pilot = null, pilotMod = null;                         // { clips, missing, credit } once loaded
+  const pilotIds = () => (pilot ? ids.filter(id => pilot.clips[id]) : PILOT_MAIN);
+  async function loadPilot() {
+    if (pilot) return pilot;
+    pilotMod = pilotMod || await import('./js/anim/v3/mocap-player.js');
+    pilot = await pilotMod.loadMocapIndex();
+    return pilot;
+  }
+  const fmtQa = q => q ? Object.entries({ 'foot slide p95': [q.foot_slide_p95_cm_s, 'cm/s'], 'lowest sole': [q.sole_min_cm, 'cm'], 'lowest flesh': [q.flesh_min_cm, 'cm'],
+    'loop seam': [q.seam_rot_deg, '°'], 'palms moved': [q.palm_moved_cm, 'cm'] }).filter(([, [v]]) => v != null).map(([k, [v, u]]) => `${k} ${v} ${u}`).join(' · ') : '';
+  // Real motion (left) and the current animation (right), both driven by one page clock: play / pause / scrub move both together
+  function makePilotPair(wrap, id, ex, m, sex) {
+    const info = pilot.clips[id], c = CLIPS[id], cells = [], ps = [];
+    wrap.className = 'stages both';
+    for (const [k, lbl] of [['mocap', 'Real motion (pilot)'], ['current', 'Current']]) {
+      const cell = document.createElement('div');
+      cell.innerHTML = `<div class="stage human"></div><div class="lbl${k === 'mocap' ? ' pilot' : ''}">${lbl}</div>`;
+      wrap.appendChild(cell); cells.push(cell.firstChild);
+    }
+    const mus = showsMuscles(ex), look = bodyLook(ex);
+    const mo = pilotMod.createMocapPlayer(cells[0], id, { sex, size: 360, cam: c?.cam, floor: !!c?.floor, primary: m.primary, secondary: m.secondary, muscles: mus, look, playing: false });
+    const cu = createSkeletonPlayer(cells[1], id, { primary: m.primary, secondary: m.secondary, size: 360, figure: 'human', sex, muscles: mus, look, playing: false });
+    ps.push(mo, cu);
+    const Tc = Math.max(.1, K.period(c)), Tm = () => mo.period || Tc;
+    const clk = { el: 0, last: 0, raf: 0, playing: !paused, dead: false };
+    const draw = () => { mo.seek((clk.el / Tm()) % 1); cu.seek((clk.el / Tc) % 1); };
+    const tick = ts => { clk.raf = 0; if (clk.dead || !clk.playing) return; if (clk.last) clk.el += Math.min(.1, (ts - clk.last) / 1000); clk.last = ts; draw(); clk.raf = requestAnimationFrame(tick); };
+    const run = () => { if (!clk.raf && clk.playing) { clk.last = 0; clk.raf = requestAnimationFrame(tick); } };
+    mo.ready.then(() => { clk.el = 0; draw(); run(); }, () => { cells[0].innerHTML = '<p class="pnote">The real-motion clip did not load.</p>'; });
+    draw(); run();
+    return {
+      play() { clk.playing = true; run(); }, pause() { clk.playing = false; },
+      seek(t) { clk.el = t * Tc; draw(); },
+      setTrail: on => cu.setTrail(on), setBreath: on => cu.setBreath(on),
+      destroy() { clk.dead = true; if (clk.raf) cancelAnimationFrame(clk.raf); ps.forEach(p => p.destroy()); },
+      info,
+    };
+  }
+  function pilotBlock(id, info) {
+    const avail = PILOT_MAIN.filter(x => pilot.clips[x]).map(x => `<button data-goto="${x}"${x === id ? ' class="cur"' : ''}>${esc(nameOf(x))}</button>`).join('');
+    let h = '';
+    if (info) {
+      h += `<p class="pnote"><b>Real motion:</b> ${esc(info.source)}. ${esc(info.note || '')}</p>`;
+      const q = info.qa?.[$('#sex').value] || info.qa?.f;
+      if (q) h += `<p class="pnote">Clean-up check: ${esc(fmtQa(q))}. Licence: ${info.licence.startsWith('CC') ? 'CC BY-SA 3.0 (HDM05)' : 'CMU, free for all uses'}.</p>`;
+    } else {
+      const why = pilot.missing?.[id];
+      h += `<p class="pnote"><b>No real-motion take for this clip</b>${why ? `: ${esc(why.replace(/\.$/, ""))}` : ' in the pilot'}. Showing the current animation.</p>`;
+    }
+    // Surya Namaskar: the round's positions (right leg first), each linked to its step card
+    const seq = id === 'surya_namaskar' || /^sn_/.test(id) ? (ALL_BY_ID.surya_namaskar?.sequence || []) : [];
+    if (seq.length) {
+      const first = seq.slice(0, 12), more = seq.slice(12).filter(s => !first.some(t => t.clip === s.clip));
+      const btn = (s, lbl) => { const has = pilot.clips[s.clip], cl = has ? (s.clip === 'sn_cobra' ? 'close' : 'has') : 'none';
+        return `<button class="${cl}${s.clip === id ? ' cur' : ''}" data-goto="${s.clip}" title="${esc(s.cue)}">${lbl} ${esc(nameOf(s.clip))}</button>`; };
+      h += `<p class="pnote"><b>Surya Namaskar step by step</b> (green: real motion; amber: close; faded: no take). The app's flow plays one step clip per breath; the whole round above is a different, jump-back variant.</p>
+        <div class="steps">${first.map((s, i) => btn(s, i + 1)).join('')}</div><div class="steps">${more.map(s => btn(s, 'L:')).join('')}</div>`;
+    }
+    h += `<div class="pilotbar">Pilot: ${avail}</div>`;
+    return h;
+  }
   // one or two players (human body, skeleton or both side by side) behind the single-player calls the page makes
   function makePlayers(id, ex, m) {
-    const fig = $('#figure').value, sex = $('#sex').value, figs = fig === 'both' ? ['human', 'classic'] : [fig];
+    const fig = $('#figure').value, sex = $('#sex').value;
+    if (fig === 'pilot' && pilot && pilot.clips[id]) return makePilotPair($('#stages'), id, ex, m, sex);
+    const figs = fig === 'both' ? ['human', 'classic'] : fig === 'pilot' ? ['human'] : [fig];
     const wrap = $('#stages'); wrap.className = 'stages' + (figs.length > 1 ? ' both' : '');
     const ps = figs.map(f => {
       const cell = document.createElement('div');
@@ -126,6 +212,7 @@
 
   function visible() {
     const f = $('#filter').value;
+    if (f === 'pilot') { const p = new Set(pilotIds()); return ids.filter(id => p.has(id)); }
     return ids.filter(id => f === 'all' || (f === 'todo' ? !notes[id]?.verdict : notes[id]?.verdict === f));
   }
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2200); }
@@ -138,17 +225,26 @@
 
   function show(i) {
     idx = (i + ids.length) % ids.length;
+    if (!pilot && ($('#figure').value === 'pilot' || $('#filter').value === 'pilot')) {
+      loadPilot().then(() => { show(idx); list(); }, e => { console.warn(e); toast('The real-motion pilot files did not load'); });
+    }
     const id = ids[idx], ex = ALL_BY_ID[id], c = CLIPS[id], n = notes[id] || {};
+    const pil = $('#figure').value === 'pilot' && pilot, pinfo = pil && pilot.clips[id];
     const m = ex ? ex.muscles : (c.muscles || { primary: [], secondary: [] });
     $('#card').innerHTML = `
       <div class="top"><h2>${esc(nameOf(id))}</h2><span class="meta">${idx + 1} / ${ids.length} · ${esc(groupOf(id))} · <code>${esc(id)}</code></span></div>
       <div class="stages" id="stages"></div>
+      ${pil ? pilotBlock(id, pinfo) : ''}
       <div class="controls">
         <button id="pp" aria-label="Pause or play">${paused ? 'Play' : 'Pause'}</button>
         <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" aria-label="Scrub through the movement">
         <button id="trail" aria-pressed="false">Trail</button><button id="breath" aria-pressed="false">Breath</button>
       </div>
       ${ex ? `<details><summary>What it should show (cues)</summary><ul>${(ex.cues || []).map(q => `<li>${esc(q)}</li>`).join('')}</ul>${ex.description ? `<p class="meta">${esc(ex.description)}</p>` : ''}</details>` : ''}
+      ${pinfo ? `<div class="pverdict" role="group" aria-label="Real motion or current">
+        <button data-p="real" aria-pressed="${n.pilot === 'real'}">Real motion looks better</button>
+        <button data-p="same" aria-pressed="${n.pilot === 'same'}">About the same</button>
+        <button data-p="current" aria-pressed="${n.pilot === 'current'}">Current looks better</button></div>` : ''}
       <div class="verdict" role="group" aria-label="Verdict">
         <button data-v="good" aria-pressed="${n.verdict === 'good'}">✓ Good</button>
         <button data-v="fix" aria-pressed="${n.verdict === 'fix'}">✗ Needs work</button>
@@ -158,6 +254,17 @@
       <div class="nav"><button id="prev">← Previous</button><button id="next">Next →</button></div>`;
     try { player && player.destroy(); } catch { /* ignore */ }
     player = makePlayers(id, ex, m);
+    // the 3D body could not start in this browser: say so (the skeleton is shown instead) rather than leave a blank box
+    clearTimeout(show.warn);
+    show.warn = setTimeout(() => {
+      if (!v3Failed() || $('#figure').value === 'classic' || document.querySelector('.v3warn')) return;
+      const w = document.createElement('p'); w.className = 'v3warn';
+      const r = v3FailReason();
+      w.innerHTML = `<b>The 3D human body can't run in this browser</b>, so the skeleton is shown instead. ` +
+        (/webgl/i.test(r) ? 'Chrome needs hardware acceleration: Settings → System → "Use graphics acceleration when available" (then restart Chrome).' : '') +
+        ` <span class="meta">(${esc(r)})</span>`;
+      $('#stages')?.before(w);
+    }, 2500);
     if (paused) player.pause();
     $('#pp').onclick = () => { paused = !paused; paused ? player.pause() : player.play(); $('#pp').textContent = paused ? 'Play' : 'Pause'; };
     $('#scrub').oninput = e => { paused = true; $('#pp').textContent = 'Play'; player.pause(); player.seek(+e.target.value); };
@@ -169,6 +276,11 @@
       const v = b.dataset.v; notes[id] = { ...notes[id], verdict: notes[id]?.verdict === v ? null : v, at: new Date().toISOString() };
       save(); show(idx); list(); progress();
     });
+    $('#card').querySelectorAll('.pverdict button').forEach(b => b.onclick = () => {
+      const v = b.dataset.p; notes[id] = { ...notes[id], pilot: notes[id]?.pilot === v ? null : v, at: new Date().toISOString() };
+      save(); $('#card').querySelectorAll('.pverdict button').forEach(x => x.setAttribute('aria-pressed', notes[id].pilot === x.dataset.p));
+    });
+    $('#card').querySelectorAll('[data-goto]').forEach(b => b.onclick = () => { show(ids.indexOf(b.dataset.goto)); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     $('#note').oninput = e => { notes[id] = { ...notes[id], note: e.target.value, at: new Date().toISOString() }; save(); };
     $('#prev').onclick = () => step(-1);
     $('#next').onclick = () => step(1);
@@ -182,11 +294,13 @@
   }
 
   function list() {
-    const vis = new Set(visible()), groups = {};
+    const vis = new Set(visible()), groups = {}, pset = new Set(pilotIds());
     for (const id of ids) if (vis.has(id)) (groups[groupOf(id)] ||= []).push(id);
-    $('#list').innerHTML = Object.entries(groups).map(([g, gids]) => `<h3>${esc(g)} (${gids.length})</h3><div class="chips">${gids.map(id =>
-      `<button data-id="${id}" class="${notes[id]?.verdict || ''}${id === ids[idx] ? ' cur' : ''}">${esc(nameOf(id))}</button>`).join('')}</div>`).join('')
-      || '<p class="meta">Nothing in this view.</p>';
+    const chip = id => `<button data-id="${id}" class="${notes[id]?.verdict || ''}${id === ids[idx] ? ' cur' : ''}${pset.has(id) ? ' pilot' : ''}">${esc(nameOf(id))}</button>`;
+    // the pilot's own row: jump straight to the clips that have real motion (a red dot marks them in the lists below too)
+    const prow = `<h3>Real-motion pilot (${pset.size})</h3><div class="chips">${PILOT_MAIN.concat(pilotIds().filter(x => !PILOT_MAIN.includes(x))).filter(x => pset.has(x)).map(chip).join('')}</div>`;
+    $('#list').innerHTML = prow + (Object.entries(groups).map(([g, gids]) => `<h3>${esc(g)} (${gids.length})</h3><div class="chips">${gids.map(chip).join('')}</div>`).join('')
+      || '<p class="meta">Nothing in this view.</p>');
     $('#list').querySelectorAll('[data-id]').forEach(b => b.onclick = () => { show(ids.indexOf(b.dataset.id)); window.scrollTo({ top: 0, behavior: 'smooth' }); });
   }
 
@@ -199,6 +313,8 @@
       for (const id of set) lines.push(`- ${nameOf(id)} (${id})${notes[id]?.note ? `: ${notes[id].note.replace(/\s+/g, ' ').trim()}` : ''}`);
       lines.push('');
     }
+    const pv = ids.filter(id => notes[id]?.pilot), PV = { real: 'real motion looks better', same: 'about the same', current: 'current looks better' };
+    if (pv.length) { lines.push('## Real-motion pilot'); for (const id of pv) lines.push(`- ${nameOf(id)} (${id}): ${PV[notes[id].pilot]}`); lines.push(''); }
     const text = lines.join('\n');
     try { navigator.clipboard?.writeText(text); } catch { /* ignore */ }
     const blob = new Blob([JSON.stringify({ version: 1, exported: new Date().toISOString(), notes }, null, 2)], { type: 'application/json' });
@@ -213,7 +329,15 @@
     catch { toast('That file is not a review export'); }
     e.target.value = '';
   };
-  $('#filter').onchange = () => { list(); };
+  $('#filter').onchange = () => {
+    if ($('#filter').value === 'pilot') {
+      // jump to the first pilot clip, shown side by side with the current animation
+      const go = () => { const v = visible(); if (v.length && !v.includes(ids[idx])) show(ids.indexOf(v[0])); else show(idx); };
+      if ($('#figure').value !== 'pilot') { $('#figure').value = 'pilot'; try { localStorage.setItem(VIEW, JSON.stringify({ figure: 'pilot', sex: $('#sex').value })); } catch { /* ignore */ } }
+      loadPilot().then(go, () => toast('The real-motion pilot files did not load'));
+    }
+    list();
+  };
   for (const k of ['figure', 'sex']) $('#' + k).onchange = () => { try { localStorage.setItem(VIEW, JSON.stringify({ figure: $('#figure').value, sex: $('#sex').value })); } catch { /* ignore */ } show(idx); };
   $('#theme').onclick = () => {
     const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;

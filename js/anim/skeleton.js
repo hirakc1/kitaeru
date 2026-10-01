@@ -821,6 +821,9 @@ const v2Ready = id => !!plateMod && loaded.has(V2_GROUP_OF[id]);
 const v3Ready = (id, sex) => !!v3Mod && loaded.has(V2_GROUP_OF[id]) && v3Mod.bodyReady(sex);
 /** v3 failed on this device (no WebGL2, load error, lost context): the v2 plate for the rest of the session. */
 export const v3Failed = () => v3Broken;
+let v3Reason = '';
+/** why v3 gave up this session ('' while it works): review pages show it */
+export const v3FailReason = () => v3Reason;
 function placeholder(container, size) {
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 4 3'); svg.setAttribute('class', 'kt-ph'); svg.setAttribute('aria-hidden', 'true');
@@ -849,7 +852,7 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
       return;
     }
     console.warn('anim v3 unavailable, using v2', e);
-    v3Broken = true;
+    v3Broken = true; v3Reason = String(e && e.message || e || 'unknown');
     if (dead) return;
     const my = ++gen;
     if (v2Ready(cur)) show(cur, { flow: o.flow });
@@ -878,7 +881,7 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
       if (kind !== 'ph' && kind !== 'v3') mount('ph');
       // (if v3 failed meanwhile for another player, load() takes the v2 route for this one)
       loadV3(id, o.sex).then(() => { if (!dead && my === gen) { if (wantV3(id)) show(id, opts); else load(id, null, null, opts); } },
-        e => { if (!dead && my === gen) fail(e); else v3Broken = true; });
+        e => { if (!dead && my === gen) fail(e); else { v3Broken = true; v3Reason = String(e && e.message || e); } });
       return;
     }
     if (!isV2(id) || v2Ready(id)) { show(id, opts); return; }

@@ -1,5 +1,5 @@
 // Kitaeru service worker: cache-first app shell, versioned caches, runtime caching for fonts.
-const VERSION = 'v2026.10.01-0939';
+const VERSION = 'v2026.10.01-1154';
 const SHELL = `kitaeru-shell-${VERSION}`;
 const RUNTIME = `kitaeru-runtime-${VERSION}`;
 // Large files that rarely change (three.js and the two v3 bodies, ~1.7 MB) live in their own cache, named by a hash
