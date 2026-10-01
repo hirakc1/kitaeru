@@ -86,6 +86,34 @@
     const f = s => s ? `median ${s.median.toFixed(2)} ms, p95 ${s.p95.toFixed(2)} ms (n ${s.n})${s.calls != null ? `, ${s.calls} draw calls, ${s.tris} tris` : ''}` : '';
     $('#st3').textContent = 'v3: ' + f(p3?.stats()); $('#st2').textContent = p2 ? 'v2: ' + f(p2.stats()) : '';
   };
+  // phase sheet: ?phases=id,id,... (&n=8 &body=m &look= &mocap=0 &size=300): each clip's own camera, n points of its cycle
+  // (real motion where the clip has it, unless mocap=0), captured from a full-size player; for checking clips by eye
+  if (q.has('phases')) {
+    document.body.classList.add('solo');
+    const { ensureMotion } = await import('./js/anim/v3/body-player.js');
+    const ids = q.get('phases').split(','), n = +(q.get('n') || 8), sex = q.get('body') || 'f', size = +(q.get('size') || 300), useMo = q.get('mocap') !== '0';
+    await ensureBody(sex);
+    const g = $('#grid'); g.innerHTML = ''; g.style.cssText = 'display:block';
+    const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    for (const id of ids) {
+      if (useMo) await ensureMotion(id, sex);
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;flex-wrap:wrap;gap:2px;margin:0 0 6px';
+      const hold = document.createElement('div'); hold.style.cssText = `width:${size}px;position:fixed;left:-5000px;top:0`;
+      document.body.appendChild(hold);
+      const ex = exOf(id), look = q.get('look') || bodyLook(ex);
+      const p = createBodyPlayer(hold, id, { size, look, sex, playing: false, mocap: useMo, primary: ex?.muscles?.primary, secondary: ex?.muscles?.secondary, muscles: showsMuscles(ex) });
+      await frame();
+      const cv = hold.querySelector('canvas');
+      for (let i = 0; i < n; i++) {
+        const t = i / n; p.seek(t);
+        const c = document.createElement('figure'); c.style.cssText = 'margin:0;position:relative;border:1px solid var(--line)';
+        c.innerHTML = `<img src="${cv.toDataURL()}" style="display:block;width:${size}px"><figcaption style="position:absolute;left:4px;top:2px;font:11px system-ui;color:var(--muted)">${id} ${p.motion} t=${t.toFixed(2)}</figcaption>`;
+        row.appendChild(c);
+      }
+      p.destroy(); hold.remove(); g.appendChild(row);
+    }
+    window.sheetDone = true;
+  } else
   // contact sheet: ?sheet=id,id,... (&t=0.5 &look=solid|xray &body=m): stills from the shared thumbnail renderer
   if (q.has('sheet')) {
     document.body.classList.add('solo');

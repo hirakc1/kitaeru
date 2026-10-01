@@ -992,6 +992,106 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
       const lods = [...box.querySelectorAll('canvas.kt-v3.lod')];
       ok(th.every(p => p.renderer === 'v3') && lods.length === 3 && lods.every(c => c.ktPlayer._ts !== ts0 && !c.ktPlayer._ts.lost) && !SK.v3Failed(), `recovery: thumbnails move to a fresh shared renderer after it is lost (${lods.length})`);
       th.forEach(p => p.destroy());
+      // real motion (2026-10-01): motion-capture clips play on the human body where an id has one (js/anim/v3/mocap*.js)
+      {
+        const MO = await import('../js/anim/v3/mocap.js');
+        const K = await import('../js/anim/v2/core.js');
+        const ids = Object.keys(MO.MOCAP_CLIPS);
+        ok(ids.length >= 10 && ids.every(id => V2_IDS.has(id)), `real motion: ${ids.length} clips, every one an app clip id`);
+        ok(!ids.includes('surya_namaskar') && !ids.includes('sn_cobra') && !ids.some(id => /^rt_|^baduanjin/.test(id)), 'real motion: not the jump-back round, not the upward-dog "cobra", no Taisō or Baduanjin');
+        ok(ids.every(id => ['cmu', 'hdm05'].includes(MO.MOCAP_CLIPS[id].licence)), 'real motion: every clip names its data licence (cmu / hdm05)');
+        ok(![...swSrc.matchAll(/'\.\/([^']+)'/g)].some(m => /mocap\/.*kclip/.test(m[1])) && /kitaeru-mocap-\$\{MOCAP_ID\}/.test(swSrc) && /kclip\\\.json\$\//.test(swSrc),
+          'sw.js: real-motion clips are not precached; they go to their own long-lived cache (MOCAP_ID) when first shown');
+        ok(!/mocap/.test(statics(skelSrc).join(' ')), 'first load: skeleton.js imports nothing of the real-motion code statically');
+        // every clip loads and decodes on both bodies; its cycle is the app clip's (pace and fit work the same)
+        let bad = [];
+        for (const sex of ['f', 'm']) {
+          const b = await V3.ensureBody(sex);
+          for (const id of ids) {
+            const j = await (await fetch(MO.mocapUrl(id, sex))).json();
+            let D = null; try { D = MO.decode(j, b.tpl); } catch (e) { bad.push(`${id}.${sex} ${e.message}`); continue; }
+            const T = K.period(ALLC[id]), finite = D.Q.every(Number.isFinite) && D.T.every(Number.isFinite);
+            if (!finite || Math.abs(D.period - T) / T > .12 || D.fps < 20 || D.fps > 30) bad.push(`${id}.${sex} period ${D.period.toFixed(2)} v2 ${T.toFixed(2)} fps ${D.fps}${finite ? '' : ' NaN'}`);
+            const at = MO.sampler(D, b.tpl), o = at(D.period * .37);
+            if (!o.P.every(p => p.every(Number.isFinite))) bad.push(`${id}.${sex} pose NaN`);
+          }
+        }
+        ok(bad.length === 0, `real motion: every clip decodes on both bodies, finite, 20-30 fps, cycle within 12% of the app clip's (${bad.join('; ') || 'all'})`);
+        const vis = document.createElement('div'); vis.style.cssText = 'position:fixed;left:0;top:0;width:320px;z-index:-1'; document.body.appendChild(vis);
+        const innerV = () => vis.querySelector('.kt-v3')?.ktPlayer;
+        const sn = ALL_BY_ID.sn_dog.muscles;
+        await SK.loadV3('sn_dog', 'f'); await SK.loadV3('sn_raised_arms', 'f'); await SK.loadV3('sn_forward_fold', 'f'); await SK.loadV3('sn_lunge_r', 'f');
+        // chosen when available; mocap: false keeps the v2 motion (the review page's "current")
+        let mp = SK.createSkeletonPlayer(vis, 'sn_dog', { primary: sn.primary, secondary: sn.secondary, size: 300, playing: false, figure: 'human', sex: 'f' });
+        ok(mp.renderer === 'v3' && mp.motion === 'mocap' && /real motion/.test(innerV()?.svg.getAttribute('aria-label')), `real motion chosen when the clip has it (${mp.renderer}, ${mp.motion})`);
+        mp.destroy();
+        mp = SK.createSkeletonPlayer(vis, 'sn_dog', { size: 300, playing: false, figure: 'human', sex: 'f', mocap: false });
+        ok(mp.renderer === 'v3' && mp.motion === 'bridge', `mocap: false plays the v2 motion on the body (${mp.motion})`);
+        mp.destroy();
+        mp = SK.createSkeletonPlayer(vis, 'push_up', { size: 300, playing: false, figure: 'human', sex: 'f' });
+        ok(mp.renderer === 'v3' && mp.motion === 'bridge', `no real-motion clip: the v2 motion on the body (${mp.motion})`);
+        mp.destroy();
+        // a flow: real -> real -> v2 -> v2 -> real steps, each blending from the last pose (no NaN, no jump)
+        mp = SK.createSkeletonPlayer(vis, 'sn_raised_arms', { primary: sn.primary, secondary: sn.secondary, size: 300, playing: true, figure: 'human', sex: 'f', flow: true, breath: true, trail: true });
+        const st = () => innerV()?._st;
+        // the shown pose's acceleration (cm per frame^2; trunk, head, arms, legs) against the clip's own: a blend that pops
+        // shows as acceleration the clip does not have
+        const watch = ms => new Promise(res => {
+          let nan = false, blended = false; const t0 = performance.now(), H = [], R = [];
+          const f = () => {
+            const s = st(), L = s?.lastPose;
+            if (L) {
+              if (!L.P.every(p => !p || p.every(Number.isFinite)) || !Array.from(L.q).every(Number.isFinite)) nan = true;
+              H.push(L.P.slice(1, 23).map(p => p.slice())); R.push(s.rawP.slice(1, 23).map(p => p.slice()));
+            }
+            if (s?.rblend) blended = true;
+            if (performance.now() - t0 < ms) requestAnimationFrame(f);
+            else {
+              const acc = A => { let m = 0; for (let k = 1; k + 1 < A.length; k++) for (let i = 0; i < A[k].length; i++) m = Math.max(m, Math.hypot(...[0, 1, 2].map(c => A[k + 1][i][c] - 2 * A[k][i][c] + A[k - 1][i][c]))); return m; };
+              res({ shown: acc(H), clip: acc(R), nan, blended });
+            }
+          };
+          requestAnimationFrame(f);
+        });
+        await watch(5100);                                         // (a flow changes step after the step's breath: 5 s)
+        const steps = [['sn_forward_fold', 'mocap'], ['sn_lunge_r', 'bridge'], ['sn_plank', 'bridge'], ['sn_dog', 'mocap']];
+        await SK.loadV3('sn_plank', 'f');
+        const res = [];
+        for (const [id, kind] of steps) {
+          mp.setPace(5, null); mp.setAnim(id, ALL_BY_ID[id]?.muscles?.primary || [], [], { flow: true, blend: true, muscles: true, look: 'xray' });
+          const r = await watch(1700);
+          await new Promise(res => setTimeout(res, 3400));
+          res.push(`${id} ${mp.motion}: acceleration shown ${(r.shown * 100).toFixed(1)}, clip ${(r.clip * 100).toFixed(1)} cm/frame²${r.nan ? ' NaN' : ''}${r.blended ? ', blended' : ''}`);
+          ok(mp.motion === kind && !r.nan && (r.blended || kind === 'bridge' && id === 'sn_plank') && r.shown <= r.clip * 1.5 + .015, `flow step into ${id} (${kind}) blends without a pop: ${res[res.length - 1]}`);
+        }
+        ok(st()?.flow === true && Math.abs(st()?.rate - 1) < 1e-6, `real-motion flow step keeps the step's count (rate ${st()?.rate})`);
+        mp.setTrail(true); mp.setBreath(true); await watch(100);
+        ok(st()?.trailOn === true && vis.querySelector('.kt-v3-breath')?.style.display === 'grid', 'real motion: motion trail and breath ring (the v2 clip\'s phase)');
+        // a timed hold (fit): whole cycles of the real clip in the step's seconds
+        await SK.loadV3('vrikshasana', 'f');
+        mp.setPace(null, 30); mp.setAnim('vrikshasana', ALL_BY_ID.vrikshasana.muscles.primary, [], { look: 'xray' });
+        const Tm = st()?.mo?.period || 0, want = Tm * Math.max(1, Math.round(30 / Tm)) / 30;
+        ok(mp.motion === 'mocap' && Math.abs(st()?.rate - want) < 1e-6, `real motion: a 30 s timed hold plays whole cycles (period ${Tm.toFixed(2)} s, rate ${st()?.rate?.toFixed(3)})`);
+        mp.setAnim('vrikshasana', null, null, { look: 'solid', muscles: false });
+        ok(innerV()?.look === 'solid', 'real motion: the solid look (data flag) applies');
+        mp.destroy();
+        ok(!vis.querySelector('.kt-v3'), 'real motion: destroy removes the player');
+        // thumbnails share the renderer
+        const tl = [];
+        for (const id of ['sn_dog', 'bodyweight_squat', 'jumping_jack', 'push_up']) { await SK.loadV3(id, 'f'); const el = document.createElement('div'); vis.appendChild(el); tl.push(SK.createSkeletonPlayer(el, id, { size: 96, playing: false, figure: 'human', sex: 'f' })); }
+        const lc = [...vis.querySelectorAll('canvas.kt-v3.lod')];
+        ok(lc.length === 4 && tl.slice(0, 3).every(p => p.motion === 'mocap') && tl[3].motion === 'bridge' && lc.every(c => c.getContext('2d')), `thumbnails: real-motion and v2 thumbnails share one renderer (${tl.map(p => p.motion)})`);
+        tl.forEach(p => p.destroy());
+        ok(!vis.querySelector('canvas'), 'thumbnails: destroy removes them');
+        // a clip whose file does not load: the v2 motion, silently (no error, no blank)
+        MO._mocapTest({ fetch: () => Promise.resolve(new Response('nope', { status: 404 })), reset: true });
+        await SK.loadV3('bodyweight_squat', 'm');
+        mp = SK.createSkeletonPlayer(vis, 'bodyweight_squat', { size: 300, playing: false, figure: 'human', sex: 'm' });
+        ok(mp.renderer === 'v3' && mp.motion === 'bridge' && !SK.v3Failed() && vis.querySelectorAll('.kt-v3').length === 1, `a real-motion file that fails to load: the v2 motion plays instead (${mp.renderer}, ${mp.motion})`);
+        mp.destroy();
+        MO._mocapTest({ fetch: u => fetch(u), reset: true });
+        vis.remove();
+      }
       // fallback: repeated losses swap in the v2 plate for the rest of the session (keep this test last)
       await SK.loadV2('push_up');
       first = inner(); first?._lost();

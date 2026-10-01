@@ -767,6 +767,9 @@ export function createV1Player(container, animId, { primary = [], secondary = []
 // (the v2 plate). v3 needs WebGL2; without it, or if it fails to load or loses its context, the v2 plate takes over for
 // the rest of the session. Both are lazy: the renderer, the body (0.5 MB, once) and the exercise's clip group are
 // imported the first time an animated exercise is shown (a blank placeholder holds the space meanwhile).
+// Real motion: with the human body, a clip that has a motion-capture take (js/anim/v3/mocap-index.js) plays it; its file
+// (~10-40 KB) is fetched the first time that clip is shown, before the player shows it. If it does not load, the v2 motion
+// plays on the body instead, silently. opts.mocap: false always plays the v2 motion (review pages: "current").
 const FORCE = typeof location !== 'undefined' ? (/[?&]anim=(v1|v2|v3)(&|$)/.exec(location.search) || [])[1] : null;
 const FORCE_V1 = FORCE === 'v1';
 export const isV2 = id => !FORCE_V1 && V2_IDS.has(id);
@@ -809,16 +812,18 @@ function loadGroup(id) {
 export function loadV2(id) {
   return Promise.all([import('./v2/plate.js'), loadGroup(id)]).then(([m]) => { plateMod = m; });
 }
-// v3: the body player, the clip group and the chosen body; rejects without WebGL2 (the caller falls back to v2)
-export function loadV3(id, sex) {
+// v3: the body player, the clip group, the chosen body and the clip's real motion (if it has one: fetched once; a failure
+// only means the v2 motion plays); rejects without WebGL2 (the caller falls back to v2)
+export function loadV3(id, sex, mocap = true) {
   return Promise.all([import('./v3/body-player.js'), loadGroup(id)]).then(async ([m]) => {
     if (!m.hasWebGL()) throw new Error('WebGL2 unavailable');
     await m.ensureBody(sex);
+    if (mocap) await m.ensureMotion(id, sex);
     v3Mod = m;
   });
 }
 const v2Ready = id => !!plateMod && loaded.has(V2_GROUP_OF[id]);
-const v3Ready = (id, sex) => !!v3Mod && loaded.has(V2_GROUP_OF[id]) && v3Mod.bodyReady(sex);
+const v3Ready = (id, sex, mocap = true) => !!v3Mod && loaded.has(V2_GROUP_OF[id]) && v3Mod.bodyReady(sex) && (!mocap || v3Mod.motionSettled(id, sex));
 /** v3 failed on this device (no WebGL2, load error, lost context): the v2 plate for the rest of the session. */
 export const v3Failed = () => v3Broken;
 let v3Reason = '';
@@ -841,7 +846,7 @@ function placeholder(container, size) {
 export function createSkeletonPlayer(container, animId, opts = {}) {
   const pref = figurePrefs();
   const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, pace: null, fit: null, muscles: true, look: 'xray',
-    figure: pref.figure, sex: pref.sex, skeleton: pref.skeleton, ...opts };
+    figure: pref.figure, sex: pref.sex, skeleton: pref.skeleton, mocap: true, ...opts };
   const mus = () => (o.muscles === false ? { primary: [], secondary: [] } : { primary: o.primary, secondary: o.secondary });
   let p = null, kind = null, cur = null, gen = 0, dead = false, fixedT = null, stale = false;   // stale: its WebGL context is gone
   const wantV3 = id => o.figure === 'human' && !v3Broken && isV2(id);
@@ -877,10 +882,10 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
     if (opts.look) o.look = opts.look;
     const my = ++gen;
     if (wantV3(id)) {
-      if (v3Ready(id, o.sex)) { show(id, opts); return; }
+      if (v3Ready(id, o.sex, o.mocap !== false)) { show(id, opts); return; }
       if (kind !== 'ph' && kind !== 'v3') mount('ph');
       // (if v3 failed meanwhile for another player, load() takes the v2 route for this one)
-      loadV3(id, o.sex).then(() => { if (!dead && my === gen) { if (wantV3(id)) show(id, opts); else load(id, null, null, opts); } },
+      loadV3(id, o.sex, o.mocap !== false).then(() => { if (!dead && my === gen) { if (wantV3(id)) show(id, opts); else load(id, null, null, opts); } },
         e => { if (!dead && my === gen) fail(e); else { v3Broken = true; v3Reason = String(e && e.message || e); } });
       return;
     }
@@ -903,6 +908,7 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
     setPace(sec, fit) { o.pace = sec > 0 ? sec : null; o.fit = fit > 0 ? fit : null; p.setPace?.(o.pace, o.fit); },
     get svg() { return p.svg; },
     get renderer() { return kind; },   // 'v3' | 'v2' | 'v1' | 'ph' (still loading)
+    get motion() { return kind === 'v3' ? p.motion : kind === 'ph' ? null : 'keyed'; },   // human body: 'mocap' (real motion) | 'bridge' (v2 motion)
     get ready() { return kind !== 'ph'; },
     get look() { return o.look; },
     stats() { return p.stats ? p.stats() : null; },   // frame cost of the renderer inside (v2 plate / v3 body); review and bench pages

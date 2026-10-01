@@ -43,6 +43,14 @@ def main():
     new_src, n = re.subn(r"const ASSETS_ID = '[^']*';", f"const ASSETS_ID = '{h.hexdigest()[:10]}';", new_src, count=1)
     if n != 1:
         sys.exit("Could not find `const ASSETS_ID = '...'` in sw.js")
+    # The real-motion clips' cache is named by a hash of every clip (names and bytes): unchanged clips stay cached.
+    hm = hashlib.sha1()
+    for f in sorted((ROOT / "assets" / "v3" / "mocap").glob("*.kclip.json")):
+        hm.update(f.name.encode())
+        hm.update(f.read_bytes())
+    new_src, n = re.subn(r"const MOCAP_ID = '[^']*';", f"const MOCAP_ID = '{hm.hexdigest()[:10]}';", new_src, count=1)
+    if n != 1:
+        sys.exit("Could not find `const MOCAP_ID = '...'` in sw.js")
     SW.write_text(new_src, encoding="utf-8")
     # The app shows the same version on Me -> About (js/version.js).
     app_src = APP_VERSION.read_text(encoding="utf-8")

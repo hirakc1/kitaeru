@@ -209,7 +209,7 @@ export function createStage(tpl, rt, opt = {}) {
     shadow.position.set((x0 + x1) / 2, .001, (z0 + z1) / 2);
     shadow.scale.set(Math.max(.45, x1 - x0 + .3), Math.max(.4, z1 - z0 + .3), 1);
     // bands follow the body (v2 points, mapped)
-    const bl = st.second && st.bandsM ? st.bandsM : st.bands;
+    const bl = !S ? [] : st.second && st.bandsM ? st.bandsM : st.bands;   // (no v2 skeleton: a real-motion clip has no bands)
     band.visible = bl.length > 0;
     if (bl.length) {
       const p = bl[0].p, at = v => (typeof v === 'function' ? v(S) : v);

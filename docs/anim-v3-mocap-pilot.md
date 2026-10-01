@@ -1,5 +1,7 @@
 # Animation v3: real-motion pilot (5 clips)
 
+> **Superseded (2026-10-01, later the same day):** real motion is now in the app; see `docs/anim-v3-mocap.md`. The pilot's builder is now `assets/v3/pipeline/mocap_clips.py`, its review player `mocap-player.js` is removed, and the pilot clips `surya_namaskar`, `sn_cobra` and `split_squat` are dropped. The rest of this page is the pilot as it was.
+
 Date: 2026-10-01. Status: built, **not deployed**, review page only. Nothing in the app, `sw.js` or the planner changed.
 
 ## How to view

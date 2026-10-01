@@ -4,63 +4,46 @@
    "name": "Bodyweight squat",
    "period": 3.8,
    "loop": true,
-   "source": "HDM05 squat3Reps, actor tr, take 012 2.05-3.97 s",
+   "source": "HDM05 squat3Reps, actor tr, take 012 2.05-4.15 s",
    "licence": "CC BY-SA 3.0 (derived from HDM05, M. Müller, T. Röder, M. Clausen, B. Eberhardt, B. Krüger, A. Weber: Documentation Mocap Database HDM05, Universität Bonn, 2007)",
    "note": "",
    "swapAt": null,
    "steps": null,
    "qa": {
     "f": {
-     "foot_slide_p95_cm_s": 1.1,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 49.8,
-     "flesh_min_cm": 7.6,
-     "seam_rot_deg": 1.3,
-     "typical_step_p95_deg": 6.3,
-     "seam_pelvis_cm": 0.2,
-     "typical_pelvis_step_cm": 2.8
+     "foot_slide_p95_cm_s": 7.7,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 51.5,
+     "flesh_min_cm": 7.2,
+     "seam_rot_deg": 3.5,
+     "typical_step_p95_deg": 6.0,
+     "seam_pelvis_cm": 0.4,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.27
     },
     "m": {
-     "foot_slide_p95_cm_s": 9.7,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 54.4,
-     "flesh_min_cm": 8.0,
-     "seam_rot_deg": 1.3,
-     "typical_step_p95_deg": 7.8,
-     "seam_pelvis_cm": 0.2,
-     "typical_pelvis_step_cm": 3.2
+     "foot_slide_p95_cm_s": 8.0,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 55.6,
+     "flesh_min_cm": 6.7,
+     "seam_rot_deg": 3.5,
+     "typical_step_p95_deg": 5.7,
+     "seam_pelvis_cm": 0.4,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.21
     }
-   }
-  },
-  "split_squat": {
-   "name": "Split squat",
-   "period": 7.6,
-   "loop": true,
-   "source": "CMU 144_17 \"Lunges\" 6.58-7.56 s; CMU 144_17 \"Lunges\" 6.58-7.56 s (mirrored)",
-   "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
-   "note": "The in-place part of a forward lunge (both feet planted): a split-squat rep. The step forward and back is cut; the left side is the right side mirrored.",
-   "swapAt": 3.8,
-   "steps": null,
-   "qa": {
-    "f": {
-     "foot_slide_p95_cm_s": 2.3,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 37.2,
-     "flesh_min_cm": 4.6
-    },
-    "m": {
-     "foot_slide_p95_cm_s": 2.6,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 37.6,
-     "flesh_min_cm": 4.1
-    }
-   }
+   },
+   "fps": 30,
+   "frames": 114,
+   "takes": [
+    "HDM05_cut_amc/squat3Reps/HDM_tr_squat3Reps_012_120.amc"
+   ]
   },
   "jumping_jack": {
    "name": "Jumping jack",
    "period": 1.167,
    "loop": true,
-   "source": "HDM05 jumpingJack3Reps, actor tr, take 012 1.45-2.61 s",
+   "source": "HDM05 jumpingJack3Reps, actor tr, take 012 1.73-2.90 s",
    "licence": "CC BY-SA 3.0 (derived from HDM05, M. Müller, T. Röder, M. Clausen, B. Eberhardt, B. Krüger, A. Weber: Documentation Mocap Database HDM05, Universität Bonn, 2007)",
    "note": "",
    "swapAt": null,
@@ -68,23 +51,107 @@
    "qa": {
     "f": {
      "foot_slide_p95_cm_s": null,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 69.4,
-     "flesh_min_cm": 10.4,
-     "seam_rot_deg": 2.9,
-     "typical_step_p95_deg": 20.7,
-     "seam_pelvis_cm": 0.3,
-     "typical_pelvis_step_cm": 4.8
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 69.7,
+     "flesh_min_cm": 11.1,
+     "seam_rot_deg": 15.0,
+     "typical_step_p95_deg": 17.0,
+     "seam_pelvis_cm": 1.2,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.49
     },
     "m": {
-     "foot_slide_p95_cm_s": 22.6,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 73.2,
-     "flesh_min_cm": 11.2,
-     "seam_rot_deg": 2.9,
-     "typical_step_p95_deg": 20.7,
-     "seam_pelvis_cm": 0.4,
-     "typical_pelvis_step_cm": 5.4
+     "foot_slide_p95_cm_s": null,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 74.4,
+     "flesh_min_cm": 12.2,
+     "seam_rot_deg": 15.0,
+     "typical_step_p95_deg": 16.6,
+     "seam_pelvis_cm": 1.6,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.85
+    }
+   },
+   "fps": 30,
+   "frames": 35,
+   "takes": [
+    "HDM05_cut_amc/jumpingJack3Reps/HDM_tr_jumpingJack3Reps_012_120.amc"
+   ]
+  },
+  "marching_in_place": {
+   "name": "Marching in place",
+   "period": 1.267,
+   "loop": true,
+   "fps": 30,
+   "frames": 38,
+   "source": "HDM05 walkOnPlace4StepsRStart, actor bd, take 002 0.83-2.29 s; HDM05 walkOnPlace4StepsRStart, actor mm, take 011 0.71-1.98 s (arms)",
+   "licence": "CC BY-SA 3.0 (derived from HDM05, M. Müller, T. Röder, M. Clausen, B. Eberhardt, B. Krüger, A. Weber: Documentation Mocap Database HDM05, Universität Bonn, 2007)",
+   "note": "Legs, trunk and head from HDM05 actor bd (knees to hip height); arms from HDM05 actor mm (a full swing), time-matched step for step: that performer kept the arms almost still.",
+   "swapAt": null,
+   "takes": [
+    "HDM05_cut_amc/walkOnPlace4StepsRStart/HDM_bd_walkOnPlace4StepsRStart_002_120.amc",
+    "HDM05_cut_amc/walkOnPlace4StepsRStart/HDM_mm_walkOnPlace4StepsRStart_011_120.amc"
+   ],
+   "qa": {
+    "f": {
+     "foot_slide_p95_cm_s": 27.1,
+     "sole_min_cm": 0.3,
+     "palm_min_cm": 77.2,
+     "flesh_min_cm": 8.3,
+     "seam_rot_deg": 20.1,
+     "typical_step_p95_deg": 18.2,
+     "seam_pelvis_cm": 0.8,
+     "jerk_spikes": 2,
+     "jerk_pop_max_cm": 0.92
+    },
+    "m": {
+     "foot_slide_p95_cm_s": 29.6,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 81.0,
+     "flesh_min_cm": 8.4,
+     "seam_rot_deg": 17.8,
+     "typical_step_p95_deg": 16.9,
+     "seam_pelvis_cm": 0.9,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.75
+    }
+   }
+  },
+  "breath_paced_walk": {
+   "name": "Breath-paced walk",
+   "period": 2.733,
+   "loop": true,
+   "fps": 30,
+   "frames": 82,
+   "source": "HDM05 walkOnPlace4StepsRStart, actor mm, take 011 0.71-1.98 s",
+   "licence": "CC BY-SA 3.0 (derived from HDM05, M. Müller, T. Röder, M. Clausen, B. Eberhardt, B. Krüger, A. Weber: Documentation Mocap Database HDM05, Universität Bonn, 2007)",
+   "note": "An easy walk on the spot: two steps from the middle of the take (left, right), played twice per breath (four steps), at the pace of the app clip (1.34 s per two steps).",
+   "swapAt": null,
+   "takes": [
+    "HDM05_cut_amc/walkOnPlace4StepsRStart/HDM_mm_walkOnPlace4StepsRStart_011_120.amc"
+   ],
+   "qa": {
+    "f": {
+     "foot_slide_p95_cm_s": 20.2,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 74.0,
+     "flesh_min_cm": 8.2,
+     "seam_rot_deg": 13.4,
+     "typical_step_p95_deg": 15.3,
+     "seam_pelvis_cm": 0.6,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.38
+    },
+    "m": {
+     "foot_slide_p95_cm_s": 26.5,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 77.3,
+     "flesh_min_cm": 8.0,
+     "seam_rot_deg": 13.4,
+     "typical_step_p95_deg": 15.3,
+     "seam_pelvis_cm": 0.7,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.39
     }
    }
   },
@@ -92,63 +159,41 @@
    "name": "Tree pose",
    "period": 21.8,
    "loop": true,
-   "source": "CMU 113_29 \"Yoga\" 0.30-18.30 s; CMU 144_30 \"sun salutation\" 3.90-3.90 s",
+   "source": "CMU 113_29 \"Yoga\" 0.30-18.30 s; CMU 144_30 \"sun salutation\" 3.90-3.90 s (arms)",
    "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
    "note": "Legs, trunk and head from 113_29 (right side, then left). That take holds the arms out to the sides; the palms-together arms in the hold are from 144_30 (another performer), so the clip matches the app's cue.",
    "swapAt": null,
    "steps": null,
    "qa": {
     "f": {
-     "foot_slide_p95_cm_s": 3.2,
+     "foot_slide_p95_cm_s": 8.8,
      "sole_min_cm": 0.2,
-     "palm_min_cm": 57.0,
-     "flesh_min_cm": 10.9,
-     "seam_rot_deg": 0.5,
-     "typical_step_p95_deg": 16.3,
-     "seam_pelvis_cm": 0.0,
-     "typical_pelvis_step_cm": 0.7
-    },
-    "m": {
-     "foot_slide_p95_cm_s": 3.9,
-     "sole_min_cm": 0.2,
-     "palm_min_cm": 58.9,
-     "flesh_min_cm": 11.3,
-     "seam_rot_deg": 0.5,
-     "typical_step_p95_deg": 16.3,
+     "palm_min_cm": 59.2,
+     "flesh_min_cm": 7.8,
+     "seam_rot_deg": 2.5,
+     "typical_step_p95_deg": 11.4,
      "seam_pelvis_cm": 0.1,
-     "typical_pelvis_step_cm": 0.8
-    }
-   }
-  },
-  "surya_namaskar": {
-   "name": "Surya Namaskar (one round, jump-back variant)",
-   "period": 31.0,
-   "loop": false,
-   "source": "CMU 144_30 \"sun salutation\" 3.35-24.06 s",
-   "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
-   "note": "One round of an Ashtanga-style sun salutation (jumps back to plank and forward again; low push-up and upward dog). The app teaches the Sivananda round with lunges, so this shows the quality of real motion, not the same sequence.",
-   "swapAt": null,
-   "steps": null,
-   "qa": {
-    "f": {
-     "foot_slide_p95_cm_s": 6.5,
-     "sole_min_cm": 0.2,
-     "palm_min_cm": 0.6,
-     "flesh_min_cm": -1.2,
-     "palm_moved_cm": 16.0,
-     "palm_unreachable_cm": 1.7,
-     "body_moved_to_hands_cm": 7.6
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.43
     },
     "m": {
-     "foot_slide_p95_cm_s": 7.6,
+     "foot_slide_p95_cm_s": 9.3,
      "sole_min_cm": 0.2,
-     "palm_min_cm": 0.5,
-     "flesh_min_cm": -0.1,
-     "palm_moved_cm": 13.5,
-     "palm_unreachable_cm": 3.2,
-     "body_moved_to_hands_cm": 7.0
+     "palm_min_cm": 61.8,
+     "flesh_min_cm": 8.2,
+     "seam_rot_deg": 2.6,
+     "typical_step_p95_deg": 11.5,
+     "seam_pelvis_cm": 0.1,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.56
     }
-   }
+   },
+   "fps": 20,
+   "frames": 436,
+   "takes": [
+    "http://mocap.cs.cmu.edu/subjects/113/113_29.amc",
+    "http://mocap.cs.cmu.edu/subjects/144/144_30.amc"
+   ]
   },
   "sn_prayer": {
    "name": "Standing, palms together",
@@ -156,29 +201,38 @@
    "loop": false,
    "source": "CMU 144_30 \"sun salutation\" 3.30-4.01 s",
    "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
-   "note": "CMU 144_30 (sun salutation).",
+   "note": "CMU 144_30 (sun salutation). The performer stoops a little and looks down at her hands; that bend is eased (stand tall, the cue).",
    "swapAt": null,
    "steps": null,
    "qa": {
     "f": {
      "foot_slide_p95_cm_s": 0.0,
-     "sole_min_cm": 0.9,
-     "palm_min_cm": 75.0,
-     "flesh_min_cm": 8.8,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 75.6,
+     "flesh_min_cm": 8.1,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.2,
      "palm_moved_cm": 0.0,
      "palm_unreachable_cm": 0.0,
      "body_moved_to_hands_cm": 0.0
     },
     "m": {
      "foot_slide_p95_cm_s": 0.0,
-     "sole_min_cm": 0.9,
-     "palm_min_cm": 79.0,
-     "flesh_min_cm": 8.5,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 79.6,
+     "flesh_min_cm": 7.8,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.24,
      "palm_moved_cm": 0.0,
      "palm_unreachable_cm": 0.0,
      "body_moved_to_hands_cm": 0.0
     }
-   }
+   },
+   "fps": 20,
+   "frames": 100,
+   "takes": [
+    "http://mocap.cs.cmu.edu/subjects/144/144_30.amc"
+   ]
   },
   "sn_raised_arms": {
    "name": "Arms up and back",
@@ -191,24 +245,33 @@
    "steps": null,
    "qa": {
     "f": {
-     "foot_slide_p95_cm_s": 0.1,
-     "sole_min_cm": 0.7,
-     "palm_min_cm": 77.4,
-     "flesh_min_cm": 8.6,
+     "foot_slide_p95_cm_s": 0.3,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 76.9,
+     "flesh_min_cm": 8.0,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.41,
      "palm_moved_cm": 0.0,
      "palm_unreachable_cm": 0.0,
      "body_moved_to_hands_cm": 0.0
     },
     "m": {
-     "foot_slide_p95_cm_s": 0.1,
-     "sole_min_cm": 0.6,
-     "palm_min_cm": 81.7,
-     "flesh_min_cm": 8.4,
+     "foot_slide_p95_cm_s": 0.3,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 81.0,
+     "flesh_min_cm": 7.8,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.52,
      "palm_moved_cm": 0.0,
      "palm_unreachable_cm": 0.0,
      "body_moved_to_hands_cm": 0.0
     }
-   }
+   },
+   "fps": 20,
+   "frames": 100,
+   "takes": [
+    "http://mocap.cs.cmu.edu/subjects/144/144_30.amc"
+   ]
   },
   "sn_forward_fold": {
    "name": "Forward fold",
@@ -216,59 +279,38 @@
    "loop": false,
    "source": "CMU 144_30 \"sun salutation\" 5.52-8.00 s",
    "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
-   "note": "CMU 144_30 (sun salutation). The palms stay a little above the floor, by the shins (the app's cue: palms beside the feet).",
+   "note": "CMU 144_30 (sun salutation). The performer's palms stop about 10 cm short of the floor; here they go down to it beside the feet (the cue), the knees bending a little more to let them.",
    "swapAt": null,
    "steps": null,
    "qa": {
     "f": {
-     "foot_slide_p95_cm_s": 0.1,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 10.9,
-     "flesh_min_cm": 8.8,
-     "palm_moved_cm": 0.0,
-     "palm_unreachable_cm": 0.0,
-     "body_moved_to_hands_cm": 0.0
+     "foot_slide_p95_cm_s": 0.8,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 0.9,
+     "flesh_min_cm": 2.4,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.63,
+     "palm_moved_cm": 1.0,
+     "palm_unreachable_cm": 1.5,
+     "body_moved_to_hands_cm": 12.0
     },
     "m": {
-     "foot_slide_p95_cm_s": 0.1,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 10.0,
-     "flesh_min_cm": 8.9,
-     "palm_moved_cm": 0.0,
-     "palm_unreachable_cm": 0.0,
-     "body_moved_to_hands_cm": 0.0
+     "foot_slide_p95_cm_s": 2.0,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 1.1,
+     "flesh_min_cm": 2.8,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.74,
+     "palm_moved_cm": 1.5,
+     "palm_unreachable_cm": 1.4,
+     "body_moved_to_hands_cm": 12.0
     }
-   }
-  },
-  "sn_cobra": {
-   "name": "Cobra (upward dog)",
-   "period": 5.0,
-   "loop": false,
-   "source": "CMU 144_30 \"sun salutation\" 11.95-13.95 s",
-   "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
-   "note": "CMU 144_30 (sun salutation). Close, not exact: an upward dog (arms straight) from a low push-up, where the app has a low cobra from knees-chest-chin.",
-   "swapAt": null,
-   "steps": null,
-   "qa": {
-    "f": {
-     "foot_slide_p95_cm_s": 5.1,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 0.6,
-     "flesh_min_cm": -1.2,
-     "palm_moved_cm": 0.0,
-     "palm_unreachable_cm": 0.0,
-     "body_moved_to_hands_cm": 0.0
-    },
-    "m": {
-     "foot_slide_p95_cm_s": 6.0,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 0.6,
-     "flesh_min_cm": -0.2,
-     "palm_moved_cm": 0.0,
-     "palm_unreachable_cm": 0.0,
-     "body_moved_to_hands_cm": 0.0
-    }
-   }
+   },
+   "fps": 30,
+   "frames": 150,
+   "takes": [
+    "http://mocap.cs.cmu.edu/subjects/144/144_30.amc"
+   ]
   },
   "sn_dog": {
    "name": "Inverted V",
@@ -276,89 +318,116 @@
    "loop": false,
    "source": "CMU 144_30 \"sun salutation\" 13.95-16.05 s",
    "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
-   "note": "CMU 144_30 (sun salutation).",
+   "note": "CMU 144_30 (sun salutation). It starts from an upward dog (the take's previous position); in the flow the step blends in from the app's cobra.",
    "swapAt": null,
    "steps": null,
    "qa": {
     "f": {
-     "foot_slide_p95_cm_s": 10.5,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 0.6,
-     "flesh_min_cm": 1.6,
-     "palm_moved_cm": 16.5,
-     "palm_unreachable_cm": 1.8,
-     "body_moved_to_hands_cm": 7.2
-    },
-    "m": {
-     "foot_slide_p95_cm_s": 21.1,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 0.6,
-     "flesh_min_cm": 1.5,
-     "palm_moved_cm": 13.5,
+     "foot_slide_p95_cm_s": 21.0,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 0.9,
+     "flesh_min_cm": 1.9,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.34,
+     "palm_moved_cm": 11.0,
      "palm_unreachable_cm": 0.6,
      "body_moved_to_hands_cm": 5.7
+    },
+    "m": {
+     "foot_slide_p95_cm_s": 8.0,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 1.1,
+     "flesh_min_cm": 2.5,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.48,
+     "palm_moved_cm": 9.5,
+     "palm_unreachable_cm": 0.4,
+     "body_moved_to_hands_cm": 4.2
     }
-   }
+   },
+   "fps": 20,
+   "frames": 100,
+   "takes": [
+    "http://mocap.cs.cmu.edu/subjects/144/144_30.amc"
+   ]
   },
   "sn_lunge_in_r": {
    "name": "Low lunge, right foot forward",
    "period": 5.0,
    "loop": false,
-   "source": "CMU 113_28 \"Yoga\" 8.50-18.83 s",
+   "source": "CMU 113_28 \"Yoga\" 8.50-18.90 s",
    "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
-   "note": "CMU 113_28 (another performer). The back knee lowering is a blend between two frames of the take (the performer lowered it while folding forward).",
+   "note": "CMU 113_28 (another performer). The back knee lowering is a blend between two frames of the take (the performer lowered it while folding forward). The head, thrown back in the take, is brought to a gentle look up; the hands, on their fingertips in the take, rest flat beside the front foot (the cue).",
    "swapAt": null,
    "steps": null,
    "qa": {
     "f": {
-     "foot_slide_p95_cm_s": 48.8,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": -0.5,
-     "flesh_min_cm": 0.4,
-     "palm_moved_cm": 7.0,
-     "palm_unreachable_cm": 3.5,
-     "body_moved_to_hands_cm": 5.3
+     "foot_slide_p95_cm_s": null,
+     "sole_min_cm": 0.6,
+     "palm_min_cm": 0.9,
+     "flesh_min_cm": 0.2,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.45,
+     "palm_moved_cm": 18.0,
+     "palm_unreachable_cm": 1.7,
+     "body_moved_to_hands_cm": 6.8
     },
     "m": {
-     "foot_slide_p95_cm_s": 49.3,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": -0.4,
-     "flesh_min_cm": 0.6,
-     "palm_moved_cm": 6.5,
-     "palm_unreachable_cm": 3.1,
+     "foot_slide_p95_cm_s": 2.8,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 1.1,
+     "flesh_min_cm": 0.2,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.46,
+     "palm_moved_cm": 2.0,
+     "palm_unreachable_cm": 1.7,
      "body_moved_to_hands_cm": 4.3
     }
-   }
+   },
+   "fps": 20,
+   "frames": 100,
+   "takes": [
+    "http://mocap.cs.cmu.edu/subjects/113/113_28.amc"
+   ]
   },
   "sn_lunge_in_l": {
    "name": "Low lunge, left foot forward",
    "period": 5.0,
    "loop": false,
-   "source": "CMU 113_28 \"Yoga\" 25.00-33.58 s",
+   "source": "CMU 113_28 \"Yoga\" 25.00-33.65 s",
    "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
-   "note": "CMU 113_28 (another performer). The back knee lowering is a blend between two frames of the take.",
+   "note": "CMU 113_28 (another performer). The back knee lowering is a blend between two frames of the take, and the body sinks the last few cm so the knee rests on the floor (the cue). The head, thrown back in the take, is brought to a gentle look up; the hands, on their fingertips in the take, rest flat beside the front foot (the cue).",
    "swapAt": null,
    "steps": null,
    "qa": {
     "f": {
-     "foot_slide_p95_cm_s": 8.2,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 0.6,
-     "flesh_min_cm": 1.6,
-     "palm_moved_cm": 5.5,
-     "palm_unreachable_cm": 3.1,
-     "body_moved_to_hands_cm": 2.7
+     "foot_slide_p95_cm_s": 3.0,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 0.9,
+     "flesh_min_cm": -0.4,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.61,
+     "palm_moved_cm": 2.5,
+     "palm_unreachable_cm": 1.8,
+     "body_moved_to_hands_cm": 2.6
     },
     "m": {
-     "foot_slide_p95_cm_s": 9.8,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": -0.4,
-     "flesh_min_cm": 1.8,
-     "palm_moved_cm": 5.5,
-     "palm_unreachable_cm": 4.3,
-     "body_moved_to_hands_cm": 4.8
+     "foot_slide_p95_cm_s": 19.9,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 1.1,
+     "flesh_min_cm": -0.4,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.65,
+     "palm_moved_cm": 6.0,
+     "palm_unreachable_cm": 2.4,
+     "body_moved_to_hands_cm": 3.8
     }
-   }
+   },
+   "fps": 20,
+   "frames": 100,
+   "takes": [
+    "http://mocap.cs.cmu.edu/subjects/113/113_28.amc"
+   ]
   },
   "sn_rise": {
    "name": "Arms up and back (rise)",
@@ -366,29 +435,38 @@
    "loop": false,
    "source": "CMU 144_30 \"sun salutation\" 20.45-23.20 s",
    "licence": "CMU Graphics Lab Motion Capture Database: free for all uses (no reselling of the data itself)",
-   "note": "CMU 144_30 (sun salutation). The take bends into a chair pose here; that is cut and the rise blends into the take's standing arms-up frame.",
+   "note": "CMU 144_30 (sun salutation). From the fold the hands slide up to the knees (a short half lift, as in this performer's round) before the arms sweep forward and up. The take then bends into a chair pose; that is cut and the rise blends into the take's standing arms-up frame.",
    "swapAt": null,
    "steps": null,
    "qa": {
     "f": {
      "foot_slide_p95_cm_s": 0.2,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 12.5,
-     "flesh_min_cm": 8.6,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 12.4,
+     "flesh_min_cm": 8.1,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.28,
      "palm_moved_cm": 0.0,
      "palm_unreachable_cm": 0.0,
      "body_moved_to_hands_cm": 0.0
     },
     "m": {
      "foot_slide_p95_cm_s": 0.2,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 11.0,
-     "flesh_min_cm": 8.6,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 12.5,
+     "flesh_min_cm": 8.0,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.3,
      "palm_moved_cm": 0.0,
      "palm_unreachable_cm": 0.0,
      "body_moved_to_hands_cm": 0.0
     }
-   }
+   },
+   "fps": 20,
+   "frames": 100,
+   "takes": [
+    "http://mocap.cs.cmu.edu/subjects/144/144_30.amc"
+   ]
   },
   "sn_stand": {
    "name": "Standing, arms down",
@@ -401,24 +479,33 @@
    "steps": null,
    "qa": {
     "f": {
-     "foot_slide_p95_cm_s": 0.1,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 77.3,
-     "flesh_min_cm": 8.7,
+     "foot_slide_p95_cm_s": 0.2,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 76.4,
+     "flesh_min_cm": 8.3,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.53,
      "palm_moved_cm": 0.0,
      "palm_unreachable_cm": 0.0,
      "body_moved_to_hands_cm": 0.0
     },
     "m": {
      "foot_slide_p95_cm_s": 0.1,
-     "sole_min_cm": 0.4,
-     "palm_min_cm": 81.9,
-     "flesh_min_cm": 8.8,
+     "sole_min_cm": 0.2,
+     "palm_min_cm": 80.8,
+     "flesh_min_cm": 8.5,
+     "jerk_spikes": 0,
+     "jerk_pop_max_cm": 0.62,
      "palm_moved_cm": 0.0,
      "palm_unreachable_cm": 0.0,
      "body_moved_to_hands_cm": 0.0
     }
-   }
+   },
+   "fps": 20,
+   "frames": 100,
+   "takes": [
+    "http://mocap.cs.cmu.edu/subjects/144/144_30.amc"
+   ]
   }
  },
  "credit": {
@@ -426,6 +513,7 @@
   "hdm05": "CC BY-SA 3.0 (derived from HDM05, M. Müller, T. Röder, M. Clausen, B. Eberhardt, B. Krüger, A. Weber: Documentation Mocap Database HDM05, Universität Bonn, 2007)"
  },
  "missing": {
+  "sn_cobra": "144_30 has an upward dog (straight arms, thighs off the floor) from a low push-up, not the app's low cobra from knees-chest-chin (hips down, elbows bent).",
   "sn_lunge_r": "No take steps one leg back from the forward fold into a low lunge (144_30 jumps back; 113_28 walks into the dog).",
   "sn_lunge_l": "As sn_lunge_r.",
   "sn_plank": "Only a jump-back plank exists (144_30), not a step back from a lunge.",
@@ -433,5 +521,31 @@
   "sn_knees_chest": "144_30 lowers in one straight line (a low push-up), not knees, chest and forehead.",
   "sn_fold_in_l": "No take steps the back foot forward from a lunge into the fold (113_28 goes back to the dog; 144_30 jumps).",
   "sn_fold_in_r": "As sn_fold_in_l."
+ },
+ "excluded": {
+  "surya_namaskar": "The whole round: CMU 144_30 is the Ashtanga jump-back round (no lunges, no knees-chest-chin), not the app's Sivananda round. The app plays the flow step by step (the sn_* steps below, real motion where a step has it).",
+  "sn_cobra": "144_30 has an upward dog (straight arms, thighs off the floor) from a low push-up, not the app's low cobra from knees-chest-chin (hips down, elbows bent).",
+  "sn_lunge_r": "No take steps one leg back from the forward fold into a low lunge (144_30 jumps back; 113_28 walks into the dog).",
+  "sn_lunge_l": "As sn_lunge_r.",
+  "sn_plank": "Only a jump-back plank exists (144_30), not a step back from a lunge.",
+  "sn_plank_l": "As sn_plank.",
+  "sn_knees_chest": "144_30 lowers in one straight line (a low push-up), not knees, chest and forehead.",
+  "sn_fold_in_l": "No take steps the back foot forward from a lunge into the fold (113_28 goes back to the dog; 144_30 jumps).",
+  "sn_fold_in_r": "As sn_fold_in_l.",
+  "split_squat": "CMU 144_17 is forward lunges: its only split-squat part has the legs still bent and the trunk leaning at the top, a counter-balancing arm reach, and a 4x slowed descent. No real split-squat take (UI-PRMD m03 would be one).",
+  "reverse_lunge": "Only forward lunges (CMU 144_17): stepping forward is not the cue (step back).",
+  "arm_circles": "HDM05 rotateArms are big, fast windmills with a knee bounce; the cue is arms out to the sides, small circles growing bigger.",
+  "plank": "The app's plank is on the forearms (elbows under shoulders); 144_30 passes through a straight-arm plank.",
+  "cobra_stretch": "As sn_cobra: an upward dog, not a cobra with the hips down.",
+  "trikonasana": "CMU 113_29 goes to the full pose (lower hand at the ankle and floor, trunk tilted ~85 deg); the app teaches the hand on the shin.",
+  "virabhadrasana_2": "CMU 113_29 has only the wide-stance, arms-out preparation (front knee nearly straight, head forward), not Warrior II.",
+  "high_knees": "HDM05 has jogging on the spot (knees well below hip height), not a high-knee sprint.",
+  "standing_hamstring_stretch": "The cue puts the heel on a low step; the takes are standing forward bends.",
+  "hip_flexor_stretch": "The cue is a half-kneeling stretch with the trunk upright; 113_28's low lunge has the hands on the floor.",
+  "leg_swings": "HDM05 has kicks (fast, snapped), not relaxed swings while holding on.",
+  "squat_jump": "Not checked in enough takes; HDM05 hops are small, not squat jumps (squat to parallel, arms swinging).",
+  "box_squat": "HDM05 sitDownChair sits fully down on a chair; the cue is to just touch a box and stand.",
+  "taichi_commencement": "Built and checked (CMU 12_04, with an added sink and palms turned down), then left out: the performer draws the hands in to the chest with the elbows out before pressing down, a different shape from the cue (arms float up, sink and press the palms down). The builder stays in this file (clip_commencement) for a later look.",
+  "deep_squat_hold": "The cue has the elbows pushing the knees out; the squat takes hold the arms forward."
  }
 }

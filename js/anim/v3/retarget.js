@@ -261,8 +261,21 @@ export function createRetarget(tpl) {
       const rl = ik2(hip, A, l1, l2, Mv(sub(Kv, mul(add(Hv, Av), .5))));
       if (opts.legsPlanted && rl.miss > 1e-3 && Av[1] < 12) { miss.v = add(miss.v, mul(nrm(sub(A, hip)), rl.miss)); miss.n++; }
       const fe = S.F['femur' + v2s], ti = S.F['tibia' + v2s], ft = S.F['foot' + v2s];
-      setG('thigh_' + sd, mm(basis(sub(rl.mid, hip), Mv(fe.x)), tr(rest['thigh_' + sd]))); fk('calf_' + sd);
-      setG('calf_' + sd, mm(basis(sub(rl.end, rl.mid), Mv(ti.x)), tr(rest['calf_' + sd]))); fk('foot_' + sd);
+      // the kneecap's side: v2's femur / tibia frames, except where the knee is bent and they disagree with the bend
+      // itself (v2's femur frame turns half a turn when the hip flexes past 90 deg, e.g. the front leg of a low lunge,
+      // which twisted the thigh kneecap-down); a knee only bends one way, so its bend says where the front is
+      const thd = nrm(sub(rl.mid, hip)), shd = nrm(sub(rl.end, rl.mid));
+      let thF = Mv(fe.x), caF = Mv(ti.x);
+      const flex = Math.acos(clamp(dot(thd, shd), -1, 1));
+      if (flex > .26) {                                                // (> 15 deg)
+        const bendF = perp(mul(shd, -1), thd);                          // the shin folds back: the thigh's front is the other way
+        if (dot(bendF, thF) < 0) {
+          const lat = nrm(cross(thd, bendF));
+          thF = bendF; caF = nrm(cross(lat, shd));
+        }
+      }
+      setG('thigh_' + sd, mm(basis(sub(rl.mid, hip), thF), tr(rest['thigh_' + sd]))); fk('calf_' + sd);
+      setG('calf_' + sd, mm(basis(sub(rl.end, rl.mid), caF), tr(rest['calf_' + sd]))); fk('foot_' + sd);
       const Gf = mm(basis(Mv(ft.x), Mv(ft.y)), tr(rest['foot_' + sd]));
       setG('foot_' + sd, Gf); fk('ball_' + sd);
       if (ft.toeFlat) { const R = ft.toeFlat; setG('ball_' + sd, mm(basis(Mv([R[0], R[3], R[6]]), Mv([R[1], R[4], R[7]])), tr(rest['ball_' + sd]))); }

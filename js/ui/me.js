@@ -64,6 +64,10 @@ export function render(root, ctx) {
         <details class="disclaimer"><summary>Health disclaimer</summary><p class="small">${esc(DISCLAIMER)}</p></details>
         <p><a class="btn btn-quiet" href="#/terms">Terms of use and safety</a></p>
         <p class="small muted">Programming follows published evidence on progressive calisthenics, deloads and habit formation.</p>
+        <details class="disclaimer"><summary>Motion credits</summary><p class="small">Some human-body animations are real motion capture.
+          The Surya Namaskar positions and the tree pose use data obtained from mocap.cs.cmu.edu; the database was created with funding from NSF EIA-0196217.
+          The squat, jumping jack, marching and breath-paced walk use HDM05 (M. Müller, T. Röder, M. Clausen, B. Eberhardt, B. Krüger, A. Weber, Universität Bonn, 2007);
+          those four motion files are adapted by Kitaeru and shared under <a href="https://creativecommons.org/licenses/by-sa/3.0/" rel="noopener" target="_blank">CC BY-SA 3.0</a>.</p></details>
         <div class="version-row"><p class="small">Version <strong>${esc(versionLabel())}</strong> <span class="muted">(${esc(VERSION)})</span></p>
           <button class="btn btn-quiet" data-update-check>Check for updates</button></div>
         <p class="small muted" data-update-msg aria-live="polite"></p>

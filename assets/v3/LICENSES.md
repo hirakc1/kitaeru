@@ -65,39 +65,42 @@ Everything in this folder is either our own work or comes from the sources below
 
 **Taisō rule:** Taisō motion must come only from our own performer's footage. It must never come from NHK's or anyone else's video.
 
-## Real-motion pilot: `mocap/*.kclip.json` (review page only; not in the app or `sw.js`)
+## Real motion: `mocap/*.kclip.json` (played by the app with the human body; also on `anim-review.html`)
 
-Made by `pipeline/mocap_pilot.py` (with `pipeline/mocap.py`). Every clip's own `source`, `licence` and `credit` fields repeat what is below.
+Made by `pipeline/mocap_clips.py` (with `pipeline/mocap.py`). Every clip's own `source`, `licence` and `credit` fields repeat what is below, and `mocap/index.json` lists each clip's takes and time windows. The app's list of clips is `js/anim/v3/mocap-index.js` (it names each clip's data licence).
 
-### CMU Graphics Lab Motion Capture Database (all pilot clips except the squat and the jumping jack)
+### CMU Graphics Lab Motion Capture Database (the Surya Namaskar steps and the tree pose)
 
 | Take | File | Used for |
 |---|---|---|
-| 144_17 "Lunges" | http://mocap.cs.cmu.edu/subjects/144/144_17.amc (+ 144.asf) | `split_squat` (6.585-7.56 s, right foot forward; the left side is a mirror image) |
-| 144_30 sun salutation | http://mocap.cs.cmu.edu/subjects/144/144_30.amc (+ 144.asf) | `surya_namaskar` (3.35-24.06 s), `sn_prayer`, `sn_raised_arms`, `sn_forward_fold`, `sn_cobra`, `sn_dog`, `sn_rise`, `sn_stand`; the palms-together arms in `vrikshasana` (3.9 s) |
-| 113_28 "Yoga" | http://mocap.cs.cmu.edu/subjects/113/113_28.amc (+ 113.asf) | `sn_lunge_in_r` (8.5-11.0 s, 18.75 s), `sn_lunge_in_l` (25.0-27.2 s, 33.5 s) |
-| 113_29 "Yoga" | http://mocap.cs.cmu.edu/subjects/113/113_29.amc (+ 113.asf) | `vrikshasana` (0.3-18.3 s, legs, trunk, head) |
+| 144_30 sun salutation | http://mocap.cs.cmu.edu/subjects/144/144_30.amc (+ 144.asf) | `sn_prayer` (3.30-4.01 s), `sn_raised_arms` (4.02-5.56 s), `sn_forward_fold` (5.52-8.00 s), `sn_dog` (13.95-16.05 s), `sn_rise` (20.45-21.3 s, then 23.12 s), `sn_stand` (23.12-24.06 s); the palms-together arms in `vrikshasana` (3.9 s) |
+| 113_28 "Yoga" | http://mocap.cs.cmu.edu/subjects/113/113_28.amc (+ 113.asf) | `sn_lunge_in_r` (8.5-11.0 s, then 18.75 s), `sn_lunge_in_l` (25.0-27.2 s, then 33.5 s) |
+| 113_29 "Yoga" | http://mocap.cs.cmu.edu/subjects/113/113_29.amc (+ 113.asf) | `vrikshasana` (0.3-18.3 s: legs, trunk, head) |
 
-Files were downloaded 2026-10-01 (research pass; kept outside the repo in `KitaeruTools/mocap/cmu`).
+Also downloaded and checked, but not used in any clip: 144_17 "Lunges" (the pilot's split squat: dropped), 12_04 "tai chi" (the commencement: built, then left out), 111_13 "March", 13_29, 14_20, 14_06 (checked for marching, squats and stretches). Files were downloaded 2026-10-01 into `KitaeruTools/mocap/cmu` (outside the repo), one by one from the CMU site.
 
 **Terms** (http://mocap.cs.cmu.edu/ and http://mocap.cs.cmu.edu/faqs.php):
 - "This dataset of motions is free for all uses."
 - "You may include this data in commercially-sold products, but you may not resell this data directly, even in converted form."
-- Requested acknowledgement, shown on the review page: "The data used in this project was obtained from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217."
+- Requested acknowledgement, shown on the review page (and owed in the app's credits): "The data used in this project was obtained from mocap.cs.cmu.edu. The database was created with funding from NSF EIA-0196217."
 
-### HDM05 (only `bodyweight_squat` and `jumping_jack`): these two clips are CC BY-SA 3.0
+### HDM05: these clips are CC BY-SA 3.0
 
 | Take | File (HDM05 "cut" library, `HDM05_cut_amc.zip`) | Used for |
 |---|---|---|
-| squat3Reps, actor tr, take 012 | `squat3Reps/HDM_tr_squat3Reps_012_120.amc` (+ `HDM_tr.asf`) | `bodyweight_squat` (2.05-3.97 s, the second rep) |
-| jumpingJack3Reps, actor tr, take 012 | `jumpingJack3Reps/HDM_tr_jumpingJack3Reps_012_120.amc` (+ `HDM_tr.asf`) | `jumping_jack` (1.45-2.61 s, one jack) |
+| squat3Reps, actor tr, take 012 | `squat3Reps/HDM_tr_squat3Reps_012_120.amc` (+ `HDM_tr.asf`) | `bodyweight_squat` (2.05-4.15 s, the second rep) |
+| jumpingJack3Reps, actor tr, take 012 | `jumpingJack3Reps/HDM_tr_jumpingJack3Reps_012_120.amc` (+ `HDM_tr.asf`) | `jumping_jack` (1.73-2.90 s, one jack, top of a hop to the next) |
+| walkOnPlace4StepsRStart, actor bd, take 002 | `walkOnPlace4StepsRStart/HDM_bd_walkOnPlace4StepsRStart_002_120.amc` (+ `HDM_bd.asf`) | `marching_in_place` (0.83-2.29 s: legs, trunk, head) |
+| walkOnPlace4StepsRStart, actor mm, take 011 | `walkOnPlace4StepsRStart/HDM_mm_walkOnPlace4StepsRStart_011_120.amc` (+ `HDM_mm.asf`) | `breath_paced_walk` (0.71-1.98 s); the arms of `marching_in_place` |
+
+Also checked, not used: rotateArms (too big and fast for the app's arm circles), walkOnPlace actor bk 004 (the head tips back), jogOnPlace, kick, hopBothLegs, sitDownChair / standUpSitChair, squat1Reps.
 
 - Source: https://resources.mpi-inf.mpg.de/HDM05/ (zip fetched via the Wayback Machine snapshot of 2025-07-18).
 - Licence: "licensed under a Creative Commons Attribution-ShareAlike 3.0 Unported License" (https://creativecommons.org/licenses/by-sa/3.0/).
 - Attribution: M. Müller, T. Röder, M. Clausen, B. Eberhardt, B. Krüger, A. Weber: *Documentation Mocap Database HDM05*. Technical report CG-2007-2, Universität Bonn, 2007.
-- **ShareAlike:** `mocap/bodyweight_squat.{f,m}.kclip.json` and `mocap/jumping_jack.{f,m}.kclip.json` are adaptations of HDM05 and are themselves licensed CC BY-SA 3.0, with the attribution above. They are kept as separate files and contain no CMU data. Nothing else in the repo is affected.
+- **ShareAlike:** `mocap/bodyweight_squat`, `mocap/jumping_jack`, `mocap/marching_in_place` and `mocap/breath_paced_walk` (`.f` and `.m` `.kclip.json`) are adaptations of HDM05 and are themselves licensed CC BY-SA 3.0, with the attribution above. They are kept as separate files and contain no CMU data (the marching clip combines two HDM05 actors, both CC BY-SA 3.0). Nothing else in the repo is affected: the player code is not a derivative of the data.
 
-**Our changes (all pilot clips):** forward kinematics, a 6 Hz low-pass, knee-extension correction of the source skeleton fit, retargeting to the MakeHuman body, trimming and time-warping to the app's tempo, loop cross-fades, mirroring (`split_squat` left side), compositing (`vrikshasana` arms), foot and hand contact clean-up, finger shapes. See `docs/anim-v3-mocap-pilot.md`.
+**Our changes (all clips):** forward kinematics, a 6 Hz low-pass, knee-extension correction of the source skeleton fit, retargeting to the MakeHuman body, trimming and time-warping to the app's tempo, cross-fades and loop seams, compositing (`vrikshasana` arms from 144_30; `marching_in_place` arms from actor mm), foot, hand and finger contact clean-up (low-passed), floor contact, built prayer hands, an eased stoop (`sn_prayer`), a gentler head (`sn_lunge_in_*`), the back knee lowered to the floor (`sn_lunge_in_l`), palms brought to the floor (`sn_forward_fold`, `sn_lunge_in_*`), relaxed hands (HDM05 clips), finger shapes. See `docs/anim-v3-mocap.md`.
 
 ## Code: three.js example modules (`js/vendor/three-examples/`)
 

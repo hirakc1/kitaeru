@@ -1,5 +1,5 @@
 // Kitaeru service worker: cache-first app shell, versioned caches, runtime caching for fonts.
-const VERSION = 'v2026.10.01-1156';
+const VERSION = 'v2026.10.01-1433';
 const SHELL = `kitaeru-shell-${VERSION}`;
 const RUNTIME = `kitaeru-runtime-${VERSION}`;
 // Large files that rarely change (three.js and the two v3 bodies, ~1.7 MB) live in their own cache, named by a hash
@@ -7,6 +7,11 @@ const RUNTIME = `kitaeru-runtime-${VERSION}`;
 const ASSETS_ID = '02c440eafc';
 const ASSETS = `kitaeru-assets-${ASSETS_ID}`;
 const ASSET_FILES = ['./js/vendor/three.module.min.js', './assets/v3/human_f.glb', './assets/v3/human_m.glb'];
+// Real-motion clips (assets/v3/mocap/*.kclip.json, 8-80 KB each, ~0.6 MB for both bodies): not precached (most people
+// only ever see a few of them, and only the body they chose). Each is cached the first time it is shown, in a cache named
+// by a hash of all the clips that deploy.py writes: kept across app updates, dropped only when a clip changes.
+const MOCAP_ID = 'eeffeb23dc';
+const MOCAP = `kitaeru-mocap-${MOCAP_ID}`;
 
 const SHELL_FILES = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
@@ -22,7 +27,7 @@ const SHELL_FILES = [
   './js/anim/v2/clips/baduanjin.js', './js/anim/v2/clips/stances.js', './js/anim/v2/clips/yoga.js', './js/anim/v2/clips/makko.js',
   // v3 human body (Me -> Animation: Human body, the default): imported on first use, precached for offline
   './js/anim/v3/body-player.js', './js/anim/v3/glb.js', './js/anim/v3/retarget.js', './js/anim/v3/stage.js',
-  './js/anim/v3/look.js', './js/anim/v3/bones.js',   // three.js and the bodies: ASSET_FILES
+  './js/anim/v3/look.js', './js/anim/v3/bones.js', './js/anim/v3/mocap.js', './js/anim/v3/mocap-index.js',   // three.js and the bodies: ASSET_FILES
   './js/engine/planner.js',
   './icons/favicon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
 ];
@@ -42,7 +47,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k.startsWith('kitaeru-') && k !== SHELL && k !== RUNTIME && k !== ASSETS).map(k => caches.delete(k)));
+    await Promise.all(keys.filter(k => k.startsWith('kitaeru-') && k !== SHELL && k !== RUNTIME && k !== ASSETS && k !== MOCAP).map(k => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -73,6 +78,26 @@ self.addEventListener('fetch', event => {
       const hit = await cache.match('./index.html') || await cache.match('./');
       if (hit) { fetch(req).then(res => res.ok && cache.put('./index.html', res.clone())).catch(() => {}); return hit; }
       return fetch(req);
+    })());
+    return;
+  }
+
+  // Real-motion clips: cache-first in their own long-lived cache (see MOCAP above); fetched and kept on first use. The
+  // review pages get them fresh from the network (and fall back to the cache offline).
+  if (/\/assets\/v3\/mocap\/[^/]+\.kclip\.json$/.test(url.pathname)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(MOCAP);
+      const client = event.clientId ? await self.clients.get(event.clientId) : null;
+      const review = client && /\.html$/.test(new URL(client.url).pathname) && !/\/index\.html$/.test(new URL(client.url).pathname);
+      const hit = review ? null : await cache.match(req, { ignoreSearch: true });
+      if (hit) return hit;
+      try {
+        const res = await fetch(req, review ? { cache: 'no-cache' } : undefined);
+        if (res.ok) cache.put(req, res.clone());
+        return res;
+      } catch {
+        return (await cache.match(req, { ignoreSearch: true })) || new Response('Offline', { status: 503, statusText: 'Offline' });
+      }
     })());
     return;
   }

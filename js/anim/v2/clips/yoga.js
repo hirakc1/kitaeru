@@ -215,6 +215,7 @@ function arrival(k, from, to, br) {
     ph.via.forEach((v, i) => {
       Object.assign(k[v], { noBalance: 1, ['knee' + sd]: 0 });
       k[v].rootY = Math.max(k[v].rootY, hi + (fwd ? [0, -4, -14] : [6, 8, 4])[i]);   // the hips stay up while the foot passes (then settle)
+      k[v].legMax = .95;   // ...but never so high that the standing leg locks straight (its foot popped between keys)
     });
     if (!br) ph.b = .5;
     return [ph];
@@ -226,14 +227,14 @@ function arrival(k, from, to, br) {
 function fixVias(k, names, settle) {
   const low = S => Math.min(S.pt.chin[1], S.pt.nose[1], S.pt.headTop[1], S.pt.patellaR[1], S.pt.patellaL[1]);
   for (const n of names) {
-    const v = k[n];
+    const v = k[n], legMax = v.legMax ?? .99; delete v.legMax;
     if (v.straight) {   // legs kept long while the hips travel: the hips sit on the legs' arc about the feet
       const want = v.straight; delete v.straight;
       v.rootX = solve(v.rootX - 60, v.rootX + 60, x => settle({ ...v, rootX: x }).reachLeg, want);
     }
     for (let i = 0; i < 3; i++) {
       if (v.release < .5 && settle(v).reach > .93) v.pitch = solve(10, 175, p => settle({ ...v, pitch: p }).reach, .93);
-      if (settle(v).reachLeg > .99) v.rootY = solve(v.rootY - 50, v.rootY, y => settle({ ...v, rootY: y }).reachLeg, .98);
+      if (settle(v).reachLeg > legMax) v.rootY = solve(v.rootY - 50, v.rootY, y => settle({ ...v, rootY: y }).reachLeg, legMax - .01);
       if (low(settle(v)) < 2.5) v.rootY = solve(v.rootY, v.rootY + 40, y => low(settle({ ...v, rootY: y })), 2.5);
     }
   }

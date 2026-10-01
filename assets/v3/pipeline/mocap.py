@@ -29,6 +29,8 @@ import cmu_to_landmarks as C
 from rig import GLTF, Rig
 
 UP = np.array([0., 1, 0])
+BODY = {}            # the body being built (set by the clip builder: local-space blends need its hierarchy)
+SOFT = .012         # soft IK margin for the clean-up passes and the leg retarget (see soft_reach)
 
 
 # ------------------------------------------------------------------------------------------------ small maths
@@ -111,11 +113,23 @@ def slerp_mats(A, B, t):
     return Rot.from_quat(nrm(q)).as_matrix()
 
 
-def two_bone(a, c, pole_pt, l1, l2):
+def soft_reach(L, Lmax, soft):
+    """soft IK: the reach eases into full extension (L -> Lmax only asymptotically) instead of hitting it. Near a straight
+    limb the knee / elbow position is infinitely sensitive to the goal distance (h = sqrt(l1^2 - x^2)); a millimetre of hip
+    sway then flicks the knee by centimetres from one frame to the next. Past Lmax*(1-soft) the limb is a little short of
+    the goal (at most ~0.4 % of its length) and moves smoothly."""
+    if soft <= 0:
+        return L
+    Ls = Lmax * (1 - soft)
+    k = Lmax * soft
+    return np.where(L > Ls, Ls + k * (1 - np.exp(-(L - Ls) / k)), L)
+
+
+def two_bone(a, c, pole_pt, l1, l2, soft=0.):
     """batched two-bone IK: root a, goal c, knee/elbow towards pole_pt; returns (mid, end, miss)"""
     d = c - a
     L0 = np.linalg.norm(d, axis=-1)
-    L = np.clip(L0, np.abs(l1 - l2) + 1e-4, l1 + l2 - 1e-5)
+    L = np.clip(soft_reach(L0, l1 + l2, soft), np.abs(l1 - l2) + 1e-4, l1 + l2 - 1e-5)
     dn = d / np.maximum(L0, 1e-9)[..., None]
     x = (l1 * l1 - l2 * l2 + L * L) / (2 * L)
     h = np.sqrt(np.maximum(l1 * l1 - x * x, 0))
@@ -183,6 +197,11 @@ class Take:
             self.zero['elbow_ant_' + s] = nrm(perp(fore, hum))
             fem = nrm(pos[s + 'femur'] - pos[s + 'hipjoint'])
             self.zero['knee_ant_' + s] = nrm(perp(np.array([0, 0, 1.]), fem))
+            # the hand's own frame at the zero pose (along the hand; across, towards the thumb at its zero angle): the
+            # thumb segment has its own DOFs and often lies almost along the hand, so it cannot give 'across' per frame
+            al0 = nrm(pos[s + 'hand'] - pos[s + 'radius'])
+            self.zero['hand_along_' + s] = al0
+            self.zero['hand_across_' + s] = nrm(perp(pos[s + 'thumb'] - pos[s + 'wrist'], al0))
             tib = nrm(pos[s + 'tibia'] - pos[s + 'femur'])
             self.zero['shin_ant_' + s] = nrm(perp(np.array([0, 0, 1.]), tib))
 
@@ -237,6 +256,7 @@ class Body:
             self.rest['ua_' + s] = basis(ua, ant)
             self.rest['fa_dir_' + s] = nrm(fa)
             self.rest['palm_' + s] = palm
+            self.rest['across_' + s] = nrm(perp(across, along))
             self.rest['hand_' + s] = basis(along, palm)
             th, ca = h['calf_' + s] - h['thigh_' + s], h['foot_' + s] - h['calf_' + s]
             self.rest['th_' + s] = basis(th, perp(np.array([0, 0, 1.]), th))
@@ -491,6 +511,46 @@ def _knee_fix(J, P, R, pr, rr, take, i0, fs, sc, A, mirror, ref, ref_dur, log, f
     pr.disp = disp
 
 
+
+def stable_twist(d, ant_src, bend_vec, bend_deg, fps, lo=12., hi=30.):
+    """a limb's twist reference (the secondary axis of its first bone, perpendicular to d), steady where the joint is
+    straight. A mocap solver cannot see the upper arm's (or thigh's) twist when the elbow (knee) is straight and lets it
+    spin half a turn there; where the joint is bent, the bend itself (bend_vec, from the joint positions) shows it.
+    So: the twist angle (about d, against a reference carried along d without twist) from the bend where bent enough,
+    interpolated across straight spells, low-passed; the source's own axis only fixes the sign."""
+    F = len(d)
+    dn = nrm(d)
+    ref = np.zeros((F, 3))
+    r = perp(np.array([0, 0, 1.]) if abs(dn[0, 2]) < .9 else np.array([1., 0, 0]), dn[0])
+    for i in range(F):                                     # parallel transport of a reference along d
+        r = r - np.dot(r, dn[i]) * dn[i]
+        r = r / max(np.linalg.norm(r), 1e-9)
+        ref[i] = r
+    ang = lambda v: signed_angle(ref, nrm(perp(v, dn)), dn)
+    phs = np.unwrap(ang(ant_src))
+    bent = bend_deg > hi
+    w = smoothstep(lo, hi, bend_deg)
+    if bent.sum() >= 3:
+        bv = nrm(perp(bend_vec, dn))
+        # the bend vector's sign against the source axis (where bent)
+        sg = np.sign(np.sum(np.sum(bv[bent] * nrm(perp(ant_src, dn))[bent], -1))) or 1.
+        php = ang(bv * sg)
+        idx = np.nonzero(bent)[0]
+        pb = np.unwrap(php[idx])
+        allp = np.interp(np.arange(F), idx, pb)
+        # where bent but not fully, blend towards the unwrapped bend angle of that frame (same branch as allp)
+        dev = np.angle(np.exp(1j * (php - allp)))
+        w = w * (1 - smoothstep(np.radians(35), np.radians(70), np.abs(dev)))   # (a reading flipped across the arm: ignored)
+        phi = allp + w * dev
+        phi = lowpass(phi, fps, 3.)
+    else:
+        phi = lowpass(phs, fps, 1.)
+    # back to a vector
+    ax = dn
+    c, sn = np.cos(phi)[:, None], np.sin(phi)[:, None]
+    return ref * c + np.cross(ax, ref) * sn + ax * np.sum(ax * ref, -1, keepdims=True) * (1 - c)
+
+
 # ------------------------------------------------------------------------------------------------ retarget
 DRIVEN = ['pelvis', 'spine_01', 'spine_02', 'spine_03', 'neck_01', 'head', 'clavicle_l', 'upperarm_l', 'lowerarm_l', 'hand_l',
           'clavicle_r', 'upperarm_r', 'lowerarm_r', 'hand_r', 'thigh_l', 'calf_l', 'foot_l', 'ball_l', 'thigh_r', 'calf_r', 'foot_r', 'ball_r']
@@ -516,16 +576,27 @@ def retarget(pr, body):
         sh = P['upperarm_' + s]
         d = J['elbow_' + s] - J['shoulder_' + s]
         ant = mv(R[s + 'humerus'], z['elbow_ant_' + s])
+        fore = J['wrist_' + s] - J['elbow_' + s]
+        el_deg = np.degrees(np.arccos(np.clip(np.sum(nrm(d) * nrm(fore), -1), -1, 1)))
+        ant = stable_twist(d, ant, fore, el_deg, pr.fps, 20., 40.)
         Gua = basis(d, ant) @ mT(body.rest['ua_' + s])
         G['upperarm_' + s] = Gua
         fdir = nrm(J['wrist_' + s] - J['elbow_' + s])
         hinge = rot_between(mv(Gua, body.rest['fa_dir_' + s]), fdir) @ Gua
         side = 1 if s == 'l' else -1
+        # the hand: its own segment's rotation (the across axis at the zero pose turned with it). Checked against the thumb
+        # marker, which in these takes often lies almost along the hand (its across direction is noise there) and gives
+        # palms facing the wrong way at rest; prayer and floor hands are built later anyway (palms_together, hand_lock)
         along = nrm(J['hand_' + s] - J['wrist_' + s])
-        across = perp(J['thumb_' + s] - J['wristb_' + s], along)
+        across = nrm(perp(mv(R[s + 'hand'], z['hand_across_' + s]), along))
         palm = nrm(np.cross(along, across) * side)
-        pn0 = mv(hinge, body.rest['palm_' + s])
-        tw = signed_angle(nrm(perp(pn0, fdir)), nrm(perp(palm, fdir)), fdir)
+        # forearm twist from the hand's across axis (thumb side), not the palm normal: the palm normal swings onto the forearm
+        # axis when the wrist bends 90 deg (palms flat on the floor), where its twist angle is undefined and flips
+        ac0 = mv(hinge, body.rest['across_' + s])
+        ac1 = across
+        tw = signed_angle(nrm(perp(ac0, fdir)), nrm(perp(ac1, fdir)), fdir)
+        tw = np.unwrap(tw)                     # (the angle wraps at +-180 deg: unwrapped, the forearm never spins a full turn)
+        tw = tw - 2 * np.pi * np.round(np.median(tw) / (2 * np.pi))
         G['lowerarm_' + s] = axis_angle(fdir, .6 * tw) @ hinge
         G['hand_' + s] = basis(along, palm) @ mT(body.rest['hand_' + s])
         # ---- leg: IK from this body's hip along the source's own hip -> ankle vector (scaled to this leg), so a straight
@@ -536,8 +607,13 @@ def retarget(pr, body):
         k = body.leg / lsrc
         tgt = hip + (J['ankle_' + s] - J['hip_' + s]) * k
         pole = hip + (J['knee_' + s] - J['hip_' + s]) * k
-        mid, end, _ = two_bone(hip, tgt, pole + (pole - (hip + tgt) / 2), body.l_thigh, body.l_calf)
         kant = mv(R[s + 'femur'], z['knee_ant_' + s])
+        th_s, sh_s = J['knee_' + s] - J['hip_' + s], J['ankle_' + s] - J['knee_' + s]
+        kn_deg = np.degrees(np.arccos(np.clip(np.sum(nrm(th_s) * nrm(sh_s), -1), -1, 1)))
+        kant = stable_twist(th_s, kant, -sh_s, kn_deg, pr.fps, 15., 35.)
+        # pole: the source knee's offset from the hip-ankle line, plus a little of the femur's own forward axis (a straight
+        # source leg has no offset to speak of, and soft IK always bends the knee a little: it must bend forwards)
+        mid, end, _ = two_bone(hip, tgt, pole + (pole - (hip + tgt) / 2) + kant * .05, body.l_thigh, body.l_calf, soft=SOFT)
         sant = mv(R[s + 'tibia'], z['shin_ant_' + s])
         G['thigh_' + s] = basis(mid - hip, kant) @ mT(body.rest['th_' + s])
         G['calf_' + s] = basis(end - mid, sant) @ mT(body.rest['ca_' + s])
@@ -596,18 +672,25 @@ def concat(ms, fps):
     return Motion(fps, G, np.concatenate([m.pel for m in ms]))
 
 
-def crossfade(a, b, n):
-    """a then b, the last n frames of a blended into the first n of b (b's first frame is reached)"""
+def crossfade(a, b, n, body=None):
+    """a then b, the last n frames of a blended into the first n of b (b's first frame is reached). With a body, the blend
+    is in each bone's local rotation (a hand never swings the long way round because its forearm also turns)"""
     if n <= 0:
         return concat([a, b], a.fps)
     n = min(n, a.F, b.F)
     w = smoothstep(0, 1, (np.arange(n) + 1) / (n + 1))
+    body = body or BODY.get('body')
+    pm = a.pel[-n:] * (1 - w)[:, None] + b.pel[:n] * w[:, None]
+    pel = np.concatenate([a.pel[:-n], pm, b.pel[n:]])
+    if body is not None:
+        La, Lb = locals_of(a, body), locals_of(b, body)
+        L = {k: np.concatenate([La[k][:-n], slerp_mats(La[k][-n:], Lb[k][:n], w), Lb[k][n:]]) for k in La}
+        return from_locals(L, pel, body, a.fps)
     G = {}
     for k in a.G:
         mid = slerp_mats(a.G[k][-n:], b.G[k][:n], w)
         G[k] = np.concatenate([a.G[k][:-n], mid, b.G[k][n:]])
-    pm = a.pel[-n:] * (1 - w)[:, None] + b.pel[:n] * w[:, None]
-    return Motion(a.fps, G, np.concatenate([a.pel[:-n], pm, b.pel[n:]]))
+    return Motion(a.fps, G, pel)
 
 
 def warp(m, knots_src, knots_out, fps_out):
@@ -638,6 +721,80 @@ def loop_seam(m, n):
 
 
 # ------------------------------------------------------------------------------------------------ clean-up on the body
+def locals_of(m, body):
+    """local rotations of the driven bones (parent^T world) and the pelvis position"""
+    P, GG = body.fk(m.G, m.pel)
+    L = {}
+    for b in DRIVEN:
+        p = body.parent[b]
+        L[b] = mT(GG[p]) @ GG[b]
+    return L
+
+
+def from_locals(L, pel, body, fps):
+    """world rotations of the driven bones from their local rotations (bones not driven follow their parent)"""
+    G = {}
+
+    def world(n):
+        if n is None:
+            return None
+        if n in G:
+            return G[n]
+        p = world(body.parent[n])
+        if n in L:
+            G[n] = L[n] if p is None else p @ L[n]
+        else:
+            G[n] = p
+        return G[n]
+    for b in DRIVEN:
+        world(b)
+    F = len(pel)
+    return Motion(fps, {b: (G[b] if G[b] is not None else np.tile(np.eye(3), (F, 1, 1))) for b in DRIVEN}, pel)
+
+
+def continuous_rotvec(rv):
+    """rotation vectors made continuous over time: near half a turn a rotation vector can jump to its antipode
+    (axis flipped, angle 2 pi - a); each frame takes whichever of the two is nearer the previous one"""
+    out = rv.copy()
+    for i in range(1, len(out)):
+        a = np.linalg.norm(out[i])
+        if a < 1e-9:
+            continue
+        alt = out[i] * (1 - 2 * np.pi / a)
+        if np.linalg.norm(alt - out[i - 1]) < np.linalg.norm(out[i] - out[i - 1]):
+            out[i] = alt
+    return out
+
+
+def smooth_fix(before, after, body, cutoff=3.5, cyclic=False, keep=None):
+    """the clean-up passes (foot / hand lock, floor) correct a motion frame by frame; where an IK flips or a contact switches
+    on, that correction has a kink. Keep the correction, without its kinks: the per-bone local correction (after vs before,
+    as a rotation vector) and the pelvis offset are low-passed (zero phase) and re-applied to the motion before.
+    keep: optional (F,) weight 0..1 where the exact correction is kept (e.g. pinned contacts); default none."""
+    F, fps = before.F, before.fps
+    La, Lb = locals_of(after, body), locals_of(before, body)
+    pad = min(F - 1, int(fps)) if cyclic else 0
+
+    def lp(x):
+        if F < 16:
+            return x
+        if cyclic:
+            xe = np.concatenate([x[-pad:], x, x[:pad]])
+            return lowpass(xe, fps, cutoff)[pad:pad + F]
+        return lowpass(x, fps, cutoff)
+    L2 = {}
+    for b in DRIVEN:
+        d = continuous_rotvec(Rot.from_matrix(mT(Lb[b]) @ La[b]).as_rotvec())
+        ds = lp(d)
+        if keep is not None:
+            ds = ds * (1 - keep[:, None]) + d * keep[:, None]
+        L2[b] = Lb[b] @ Rot.from_rotvec(ds).as_matrix()
+    dp = lp(after.pel - before.pel)
+    if keep is not None:
+        dp = dp * (1 - keep[:, None]) + (after.pel - before.pel) * keep[:, None]
+    return from_locals(L2, before.pel + dp, body, fps)
+
+
 def sole_points(body, P, GG, s):
     heel = P['foot_' + s] + mv(GG['foot_' + s], body.sole['heel_' + s])
     toe = P['ball_' + s] + mv(GG['ball_' + s], body.sole['toe_' + s])
@@ -654,7 +811,7 @@ def flatten(Gf):
     return Ry(yaw_of(f))
 
 
-def foot_lock(m, body, cyclic=False, log=print, flat_tol=.03, contact_h=.025, speed=.3, min_len=4, fix_floor=True):
+def foot_lock(m, body, cyclic=False, log=print, flat_tol=.03, contact_h=.025, speed=.3, min_len=4, fix_floor=True, swing_clear=.035, flat=None, always=''):
     """planted feet: the toe point (ball of the foot) is pinned at its phase mean, the leg re-solved with two-bone IK; the foot
     laid flat (heading kept) when heel and toe are both down, otherwise it keeps its roll (landing on the balls of the
     feet, heel rising); afterwards no sole point below the floor."""
@@ -673,15 +830,17 @@ def foot_lock(m, body, cyclic=False, log=print, flat_tol=.03, contact_h=.025, sp
             else:
                 spd = np.linalg.norm(np.gradient(ball[:, [0, 2]], axis=0), axis=-1) * m.fps
             contact = (low < max(0, np.percentile(low, 2)) + contact_h) & (spd < speed)
+            if s in always:                      # (a foot that never leaves the floor in this clip: one plant)
+                contact = np.ones(F, bool)
             runs = [r for r in _cyc_runs(contact, cyclic) if r[1] - r[0] >= min_len]
             stats[s] = len(runs)
             for a, b in runs:
                 ks = np.arange(a, b) % F
                 base = max(0, low[ks].min())
-                flat = (heel[ks, 1] < base + flat_tol).mean() > .5 and (toe[ks, 1] < base + flat_tol).mean() > .5
+                is_flat = flat if flat is not None else ((heel[ks, 1] < base + flat_tol).mean() > .5 and (toe[ks, 1] < base + flat_tol).mean() > .5)
                 Gf = G['foot_' + s][ks]
                 ball_local = mT(Gf) @ G['ball_' + s][ks]
-                if flat:
+                if is_flat:
                     Gf2 = np.tile(Rot.from_matrix(flatten(Gf)).mean().as_matrix(), (len(ks), 1, 1))
                 else:
                     Gf2 = Gf
@@ -693,25 +852,83 @@ def foot_lock(m, body, cyclic=False, log=print, flat_tol=.03, contact_h=.025, sp
                 # the lowest sole point (heel or toe tip) at 4 mm
                 pin[1] = .004 + float(np.max(ball_off[:, 1] - np.minimum(tip[:, 1], heel_off[:, 1])))
                 toe_off = ball_off
-                ramp = 3
-                for k in range(a - ramp, b + ramp):
+                ramp = ramp_frames(m.fps)
+                for k in range(a, b):
                     if not cyclic and (k < 0 or k >= F):
                         continue
                     kk = k % F
-                    wk = 1.0 if a <= k < b else (1 - (a - k) / (ramp + 1) if k < a else 1 - (k - b + 1) / (ramp + 1))
+                    wk = ramp_w(k, a, b, ramp, F, cyclic)
                     j = min(max(k - a, 0), len(ks) - 1)
                     _leg_to(G, P, pel, body, s, kk, pin - toe_off[j], wk, Gf2[j])
         P, GG = body.fk(G, pel)
     if fix_floor:
-        P, GG = body.fk(G, pel)
-        for s in 'lr':
-            heel, toe = sole_points(body, P, GG, s)
-            low = np.minimum(heel[:, 1], toe[:, 1])
-            pen = np.minimum(low - .002, 0)
-            for k in np.nonzero(pen < 0)[0]:     # lift a sinking foot by IK (not the body)
-                tgt = P['foot_' + s][k] - np.array([0, pen[k], 0])
-                _leg_to(G, P, pel, body, s, k, tgt, 1.0, None)
+        _feet_clear(G, pel, m.fps, body, swing_clear)
     log(f'  foot lock: planted phases L {stats.get("l", 0)}, R {stats.get("r", 0)}')
+    return Motion(m.fps, G, pel)
+
+
+def ramp_frames(fps, sec=.15):
+    return max(2, int(round(sec * fps)))
+
+
+def ramp_w(k, a, b, ramp, F=None, cyclic=False):
+    """contact weight at frame k for a contact over [a, b): eased in and out over ramp frames INSIDE the contact (a foot
+    that starts to swing is let go before it moves fast, rather than held back while it accelerates). A contact that runs
+    off either end of a one-shot clip (or covers a whole cycle) is not eased at that end."""
+    if not a <= k < b:
+        return 0.0
+    r = min(ramp, max(1, (b - a) // 3))
+    whole = cyclic and F is not None and b - a >= F
+    open_a = whole or (not cyclic and a <= 0)
+    open_b = whole or (not cyclic and F is not None and b >= F)
+    u = 1.
+    if not open_a:
+        u = min(u, (k - a + 1) / (r + 1))
+    if not open_b:
+        u = min(u, (b - k) / (r + 1))
+    u = min(1., u)
+    return u * u * (3 - 2 * u)
+
+
+def _feet_clear(G, pel, fps, body, swing_clear):
+    """no sole below the floor; a foot that travels fast clears it by up to swing_clear (leg IK, the body unchanged)"""
+    F = len(pel)
+    P, GG = body.fk(G, pel)
+    for s in 'lr':
+        heel, toe = sole_points(body, P, GG, s)
+        low = np.minimum(heel[:, 1], toe[:, 1])
+        # a swinging foot clears the floor (a few cm while it travels fast) instead of skimming or dragging through it
+        sp = np.linalg.norm(np.gradient(P['ball_' + s][:, [0, 2]], axis=0), axis=-1) * fps
+        want = .002 + swing_clear * smoothstep(.35, .9, sp)
+        want = np.maximum(want, lowpass(want, fps, 3.)) if F > 16 else want
+        need = np.maximum(0, want - low)
+        if F > 16 and need.max() > 0:          # eased: a lift that never dips under the need, without per-frame kinks
+            r = max(1, int(.08 * fps))
+            env = np.array([need[max(0, i - r):i + r + 1].max() for i in range(F)])
+            need = np.maximum(need, lowpass(env, fps, 4.))
+        for k in np.nonzero(need > 1e-4)[0]:     # lift the foot by IK (not the body)
+            tgt = P['foot_' + s][k] + np.array([0, need[k], 0])
+            _leg_to(G, P, pel, body, s, k, tgt, 1.0, None)
+
+
+def feet_clear(m, body, swing_clear=.035, log=print):
+    """the last pass: no sole and no palm below the floor (legs / arms lifted by IK, eased; the body unchanged)"""
+    G, pel = {k: v.copy() for k, v in m.G.items()}, m.pel.copy()
+    _feet_clear(G, pel, m.fps, body, swing_clear)
+    F = m.F
+    P, GG = body.fk(G, pel)
+    for s in 'lr':
+        need = np.maximum(0, .004 - palm_point(body, P, GG, s)[:, 1])
+        if need.max() <= 0:
+            continue
+        if F > 16:
+            r = max(1, int(.08 * m.fps))
+            env = np.array([need[max(0, i - r):i + r + 1].max() for i in range(F)])
+            need = np.maximum(need, lowpass(env, m.fps, 4.))
+        for k in np.nonzero(need > 1e-4)[0]:
+            wr = P['hand_' + s][k]
+            _arm_to(G, P, body, s, k, wr + np.array([0, need[k], 0]))
+        P, GG = body.fk(G, pel)
     return Motion(m.fps, G, pel)
 
 
@@ -732,7 +949,8 @@ def _leg_to(G, P, pel, body, s, k, pin, wk, Gfoot):
     knee = hip + G['thigh_' + s][k] @ body.off['calf_' + s]
     ank = knee + G['calf_' + s][k] @ body.off['foot_' + s]
     goal = ank * (1 - wk) + pin * wk
-    mid, end, _ = two_bone(hip[None], goal[None], knee[None] + (knee - (hip + ank) / 2)[None], body.l_thigh, body.l_calf)
+    fwd = G['thigh_' + s][k] @ body.rest['th_' + s][:, 1]          # the knee bends forwards
+    mid, end, _ = two_bone(hip[None], goal[None], (knee + (knee - (hip + ank) / 2) + fwd * .05)[None], body.l_thigh, body.l_calf, soft=SOFT)
     mid, end = mid[0], end[0]
     r1 = rot_between(knee - hip, mid - hip)
     G['thigh_' + s][k] = r1 @ G['thigh_' + s][k]
@@ -747,14 +965,17 @@ def _leg_to(G, P, pel, body, s, k, pin, wk, Gfoot):
     P['foot_' + s][k] = end
 
 
-def _hand_phases(m, body, P, GG, cyclic, h, speed, min_len, sides):
-    """palm-on-floor phases per side: [(side, frames, flat hand rotations, pin)]"""
+def _hand_phases(m, body, P, GG, cyclic, h, speed, min_len, sides, force=None):
+    """palm-on-floor phases per side: [(side, frames, flat hand rotations, pin)]; force: (F,) frames where the palms rest
+    on the floor whatever their height (a take whose palms stop short of it, where the cue puts them on it)"""
     F = m.F
     out = []
     for s in sides:
         pp = palm_point(body, P, GG, s)
         spd = np.linalg.norm(np.gradient(pp[:, [0, 2]], axis=0), axis=-1) * m.fps
         contact = (pp[:, 1] < h) & (spd < speed)
+        if force is not None:
+            contact = contact | force
         for a, b in [r for r in _cyc_runs(contact, cyclic) if r[1] - r[0] >= min_len]:
             ks = np.arange(a, b) % F
             Gh = m.G['hand_' + s][ks]
@@ -768,7 +989,7 @@ def _hand_phases(m, body, P, GG, cyclic, h, speed, min_len, sides):
     return out
 
 
-def hand_lock(m, body, cyclic=False, log=print, h=.05, speed=.25, min_len=4, sides='lr', max_shift=.12):
+def hand_lock(m, body, cyclic=False, log=print, h=.05, speed=.25, min_len=4, sides='lr', max_shift=.12, force=None):
     """palms resting on the floor: pinned, laid flat (palm down, heading kept), the arm re-solved with two-bone IK.
     This body's trunk and arms are not the performer's (scaled by leg length, the CMU performers have longer trunks), so a
     planted hand can be out of reach: then the whole body moves towards the hands (up to max_shift; the feet are re-pinned
@@ -776,7 +997,7 @@ def hand_lock(m, body, cyclic=False, log=print, h=.05, speed=.25, min_len=4, sid
     G, pel = {k: v.copy() for k, v in m.G.items()}, m.pel.copy()
     F = m.F
     P, GG = body.fk(G, pel)
-    ph = _hand_phases(m, body, P, GG, cyclic, h, speed, min_len, sides)
+    ph = _hand_phases(m, body, P, GG, cyclic, h, speed, min_len, sides, force)
     Lr = .995 * (body.l_ua + body.l_fa)
     # pass 1: body shift where a planted hand cannot reach
     sh_num, sh_den = np.zeros((F, 3)), np.zeros(F)
@@ -813,12 +1034,12 @@ def hand_lock(m, body, cyclic=False, log=print, h=.05, speed=.25, min_len=4, sid
             pin = pin + hv / max(np.linalg.norm(hv), 1e-9) * pull
         pulls.append(pull)
         pp = palm_point(body, P, GG, s)
-        ramp = 3
-        for k in range(a - ramp, b + ramp):
+        ramp = ramp_frames(m.fps)
+        for k in range(a, b):
             if not cyclic and (k < 0 or k >= F):
                 continue
             kk = k % F
-            wk = 1.0 if a <= k < b else (1 - (a - k) / (ramp + 1) if k < a else 1 - (k - b + 1) / (ramp + 1))
+            wk = ramp_w(k, a, b, ramp, F, cyclic)
             Gh2 = slerp_mats(G['hand_' + s][kk][None], Gflat[None], np.array([wk]))[0]
             goal_palm = pp[kk] * (1 - wk) + pin * wk
             gap = _arm_to(G, P, body, s, kk, goal_palm - Gh2 @ body.sole['palm_' + s])
@@ -833,11 +1054,13 @@ def hand_lock(m, body, cyclic=False, log=print, h=.05, speed=.25, min_len=4, sid
     return Motion(m.fps, G, pel), float(gaps.max()), float(pull), float(min(nrm_s.max(), max_shift))
 
 
-def _arm_to(G, P, body, s, k, goal):
+def _arm_to(G, P, body, s, k, goal, wk=1.0):
     sh = P['upperarm_' + s][k]
     el = sh + G['upperarm_' + s][k] @ body.off['lowerarm_' + s]
     wr = el + G['lowerarm_' + s][k] @ body.off['hand_' + s]
-    mid, end, miss = two_bone(sh[None], goal[None], el[None] + (el - (sh + wr) / 2)[None], body.l_ua, body.l_fa)
+    goal = wr * (1 - wk) + goal * wk
+    back = -(G['upperarm_' + s][k] @ body.rest['ua_' + s][:, 1])     # the elbow bends backwards (the forearm folds forwards)
+    mid, end, miss = two_bone(sh[None], goal[None], (el + (el - (sh + wr) / 2) + back * .05)[None], body.l_ua, body.l_fa, soft=SOFT)
     mid, end = mid[0], end[0]
     r1 = rot_between(el - sh, mid - sh)
     G['upperarm_' + s][k] = r1 @ G['upperarm_' + s][k]
@@ -855,7 +1078,10 @@ def floor_lift(m, body, log=print, keep_feet=True):
     V = body.skin(P, GG, body.probe)
     low = V[:, :, 1].min(1)
     lift = np.maximum(0, .004 - low)
-    lift = np.maximum(lift, lowpass(lift, m.fps, 2.))
+    # an envelope that never dips under the need: a running max over 0.3 s, then smoothed (and never below the need)
+    r = max(1, int(.15 * m.fps))
+    env = np.array([lift[max(0, i - r):i + r + 1].max() for i in range(len(lift))])
+    lift = np.maximum(lift, lowpass(env, m.fps, 2.))
     if lift.max() > 1e-4:
         Pfoot = {s: P['foot_' + s].copy() for s in 'lr'}
         Ppalm = {s: palm_point(body, P, GG, s) for s in 'lr'}
@@ -863,10 +1089,12 @@ def floor_lift(m, body, log=print, keep_feet=True):
         P, GG = body.fk(G, pel)
         for k in np.nonzero(lift > 1e-4)[0]:
             for s in 'lr':
-                if keep_feet and Pfoot[s][k][1] < .12:
-                    _leg_to(G, P, pel, body, s, k, Pfoot[s][k], 1.0, None)
-                if Ppalm[s][k][1] < .05:
-                    _arm_to(G, P, body, s, k, Ppalm[s][k] - mv(G['hand_' + s][k], body.sole['palm_' + s]))
+                wf = 1 - smoothstep(.09, .15, Pfoot[s][k][1])          # a foot near the floor keeps its place (eased)
+                if keep_feet and wf > 0:
+                    _leg_to(G, P, pel, body, s, k, Pfoot[s][k], wf, None)
+                wh = 1 - smoothstep(.04, .08, Ppalm[s][k][1])
+                if wh > 0:
+                    _arm_to(G, P, body, s, k, Ppalm[s][k] - mv(G['hand_' + s][k], body.sole['palm_' + s]), wh)
     log(f'  floor: lifted the body by up to {lift.max()*100:.1f} cm where flesh met the floor')
     return Motion(m.fps, G, pel), float(lift.max())
 
@@ -947,17 +1175,39 @@ def palms_together(m, body, near=.13, full=.06, log=print):
     d = np.linalg.norm(pl - pr, axis=-1)
     high = np.minimum(pl[:, 1], pr[:, 1]) > P['pelvis'][:, 1]
     w = (1 - smoothstep(full, near, d)) * high
-    w = np.maximum(w, lowpass(w, m.fps, 2.)) if m.F > 16 else w
-    n = 0
-    for k in np.nonzero(w > .01)[0]:
-        mid = (pl[k] + pr[k]) / 2
-        for s, other in (('l', pr[k]), ('r', pl[k])):
-            me = pl[k] if s == 'l' else pr[k]
+    if m.F > 16:                                   # eased in and out over ~0.4 s (no per-frame on / off)
+        r = max(1, int(.25 * m.fps))
+        env = np.array([w[max(0, i - r):i + r + 1].max() for i in range(len(w))])
+        w = np.clip(lowpass(env, m.fps, .8), 0, 1)
+    ks = np.nonzero(w > .01)[0]
+    # the prayer hand is built, not measured: palm towards the other palm (across the chest: the line between two nearly
+    # touching palms is not steady), fingers up and a little forward; the forearm takes half of the hand's turn about its
+    # own axis (unwrapped over time, so it never jumps half a turn), so the wrist never wrings
+    tgt, tws = {}, {}
+    for s in 'lr':
+        T, tw = [], []
+        for k in ks:
+            chest = G['spine_03'][k]
+            ax = -chest[:, 0]
+            up = nrm(perp(chest[:, 1] + .45 * chest[:, 2], ax))
+            want = ax if s == 'l' else -ax
             Gh = G['hand_' + s][k]
-            pn = Gh @ body.rest['palm_' + s]
-            want = nrm(other - me) if np.linalg.norm(other - me) > 1e-3 else pn
-            Gh2 = rot_between(pn, want) @ Gh
-            Gh2 = slerp_mats(Gh[None], Gh2[None], np.array([w[k]]))[0]
+            Gt = basis(up, want) @ mT(body.rest['hand_' + s])
+            Gh2 = slerp_mats(Gh[None], Gt[None], np.array([w[k]]))[0]
+            fa = G['lowerarm_' + s][k] @ nrm(body.H['hand_' + s] - body.H['lowerarm_' + s])
+            pn0, pn1 = Gh @ body.rest['palm_' + s], Gh2 @ body.rest['palm_' + s]
+            T.append(Gh2); tw.append(signed_angle(nrm(perp(pn0, fa)), nrm(perp(pn1, fa)), fa))
+        tgt[s] = T
+        tws[s] = np.unwrap(np.array(tw)) if len(tw) else np.array(tw)
+    n = 0
+    for j, k in enumerate(ks):
+        mid = (pl[k] + pr[k]) / 2
+        ax = -G['spine_03'][k][:, 0]
+        for s, want in (('l', ax), ('r', -ax)):
+            me = pl[k] if s == 'l' else pr[k]
+            Gh2 = tgt[s][j]
+            fa = G['lowerarm_' + s][k] @ nrm(body.H['hand_' + s] - body.H['lowerarm_' + s])
+            G['lowerarm_' + s][k] = axis_angle(fa, .5 * tws[s][j]) @ G['lowerarm_' + s][k]
             goal = me * (1 - w[k]) + (mid - want * .004) * w[k]
             _arm_to(G, P, body, s, k, goal - Gh2 @ body.sole['palm_' + s])
             G['hand_' + s][k] = Gh2
@@ -966,7 +1216,7 @@ def palms_together(m, body, near=.13, full=.06, log=print):
     return Motion(m.fps, G, pel)
 
 
-def auto_fingers(m, body, floor_h=.07, together=.08, min_run=6):
+def auto_fingers(m, body, floor_h=.07, together=.08, min_run=8):
     """finger shape per hand per frame: 'palm' (flat) where the palm rests on the floor, 'prayer' where the palms meet,
     else 'relaxed'; short runs merged. Returns {'l': [(frame, shape), ...], 'r': [...]}"""
     P, GG = body.fk(m.G, m.pel)
@@ -976,7 +1226,13 @@ def auto_fingers(m, body, floor_h=.07, together=.08, min_run=6):
     for s, pp in (('l', pl), ('r', pr)):
         lab = np.array(['relaxed'] * m.F, dtype=object)
         lab[d < together] = 'prayer'
-        lab[pp[:, 1] < floor_h] = 'palm'
+        # on the floor: below floor_h, and it stays 'palm' until the palm is clearly up (hysteresis: no flicker)
+        on = False
+        for i in range(m.F):
+            y = pp[i, 1]
+            on = y < floor_h if not on else y < floor_h + .04
+            if on:
+                lab[i] = 'palm'
         # merge short runs into the previous one
         runs, a = [], 0
         for i in range(1, m.F + 1):
@@ -991,3 +1247,252 @@ def auto_fingers(m, body, floor_h=.07, together=.08, min_run=6):
                 track.append((a, l)); cur = l
         out[s] = track
     return out
+
+
+# ------------------------------------------------------------------------------------------------ edits on the body
+def soften_head(m, body, max_ext=18., w=None, log=print):
+    """a head thrown back (neck and head extended more than max_ext degrees relative to the chest) is brought forward to
+    max_ext, half at the neck and half at the head, eased over time; w: optional (F,) weight"""
+    G = {k: v.copy() for k, v in m.G.items()}
+    Rel = mT(G['spine_03']) @ G['head']
+    x = Rot.from_matrix(Rel).as_rotvec()[:, 0]                 # about the chest's left axis: negative = extension (looking up)
+    ext = np.degrees(-x)
+    need = np.maximum(0, ext - max_ext)
+    need = lowpass(np.maximum(need, lowpass(need, m.fps, 1.)), m.fps, 1.5)
+    need = np.maximum(need, 0) * (1 if w is None else w)
+    a = G['spine_03'][:, :, 0]                                  # the chest's lateral axis (world)
+    for k in range(m.F):
+        if need[k] <= 1e-3:
+            continue
+        r = axis_angle(a[k], np.radians(need[k]))
+        rh = axis_angle(a[k], np.radians(need[k] / 2))
+        G['neck_01'][k] = rh @ G['neck_01'][k]
+        G['head'][k] = r @ G['head'][k]
+    log(f'  head: extension {ext.max():.0f} deg at most, brought to <= {max_ext:.0f} (by up to {need.max():.0f} deg)')
+    return Motion(m.fps, G, m.pel.copy())
+
+
+def peaks(x, fps, min_gap=.35, min_h=None):
+    """times (frames) of local maxima of x at least min_gap s apart (and above min_h)"""
+    from scipy.signal import find_peaks
+    kw = {'distance': max(1, int(min_gap * fps))}
+    if min_h is not None:
+        kw['height'] = min_h
+    return find_peaks(x, **kw)[0]
+
+
+def composite_arms(m, src, tmap, w=None, bones=('clavicle_', 'upperarm_', 'lowerarm_', 'hand_')):
+    """arms (clavicle .. hand) of src carried by m's chest (each bone's local rotation from src); tmap: (F,) source times (s)
+    for each of m's frames; w: (F,) weight (default 1). The blend is per bone in local rotations (slerp), so a weight that
+    eases in and out never swings a hand the long way round."""
+    body = composite_arms.body
+    sm = src.sample(tmap)
+    w = np.ones(m.F) if w is None else np.asarray(w)
+    La, Ls = locals_of(m, body), locals_of(sm, body)
+    for s in 'lr':
+        for b in bones:
+            La[b + s] = slerp_mats(La[b + s], Ls[b + s], w)
+    return from_locals(La, m.pel.copy(), body, m.fps)
+
+
+def add_sink(m, depth, prof):
+    """lower the pelvis by depth * prof (F,) (the foot lock afterwards keeps the feet, so the knees bend)"""
+    out = m.copy()
+    out.pel[:, 1] -= depth * np.asarray(prof)
+    return out
+
+
+def ground(m, body, cyclic=False, log=print, h=.03, speed=.3):
+    """the last pass: planted soles exactly on the floor. Where a foot rests (sole within h of the floor, slow), the whole
+    body is moved up or down (eased, low-passed) so its lowest planted sole point is at 2 mm: soft IK and the smoothed
+    corrections leave a resting foot a few millimetres above (or in) the floor otherwise. Nothing else changes."""
+    P, GG = body.fk(m.G, m.pel)
+    F = m.F
+    gap = np.full(F, np.nan)
+    for s in 'lr':
+        heel, toe = sole_points(body, P, GG, s)
+        low = np.minimum(heel[:, 1], toe[:, 1])
+        ball = P['ball_' + s]
+        spd = np.linalg.norm(np.gradient(ball[:, [0, 2]], axis=0), axis=-1) * m.fps
+        rest = (low < h) & (spd < speed)
+        gap = np.where(rest, np.where(np.isnan(gap), low, np.minimum(gap, low)), gap)
+    has = ~np.isnan(gap)
+    if not has.any():
+        log('  ground: no resting foot')
+        return m
+    d = np.where(has, gap - .002, 0.)
+    # never push anything else into the floor: palms, flesh, a foot that is not resting
+    room = np.full(F, 1.)
+    for s in 'lr':
+        room = np.minimum(room, palm_point(body, P, GG, s)[:, 1] - .004)
+        heel, toe = sole_points(body, P, GG, s)
+        room = np.minimum(room, np.minimum(heel[:, 1], toe[:, 1]) - .002 + np.where(has, 0, 0))
+    V = body.skin(P, GG, body.probe)
+    room = np.minimum(room, V[:, :, 1].min(1) - .003)
+    d = np.where(d > 0, np.minimum(d, np.maximum(room, 0)), d)
+    idx = np.arange(F)
+    if not has.all():
+        d[~has] = np.interp(idx[~has], idx[has], d[has], period=F if cyclic else None)
+    pad = min(F - 1, int(m.fps)) if cyclic else 0
+    ds = lowpass(np.concatenate([d[-pad:], d, d[:pad]]) if pad else d, m.fps, 2.)
+    ds = ds[pad:pad + F] if pad else ds
+    out = m.copy()
+    out.pel[:, 1] -= ds
+    log(f'  ground: body moved by {ds.min()*100:+.1f} .. {ds.max()*100:+.1f} cm to rest the feet on the floor')
+    return out
+
+
+def loop_spread(m, body):
+    """make a cycle seamless by spreading its seam error over the whole cycle: each bone's local rotation (and the pelvis)
+    is corrected by a fraction i/F of the difference between the first frame and where the last frame is heading (its own
+    extrapolation), so the joint velocities stay continuous across the wrap (a short cross-fade to the first pose would
+    stop the motion there)"""
+    L = locals_of(m, body)
+    F = m.F
+    w = (np.arange(F) / F)[:, None]
+    L2 = {}
+    for b, v in L.items():
+        pred = v[-1] @ (mT(v[-2]) @ v[-1])                      # one frame past the end
+        err = Rot.from_matrix(v[0] @ mT(pred)).as_rotvec()      # (world-of-parent side)
+        L2[b] = Rot.from_rotvec(w * err[None]).as_matrix() @ v
+    pp = 2 * m.pel[-1] - m.pel[-2]
+    pel = m.pel + w * (m.pel[0] - pp)[None]
+    return from_locals(L2, pel, body, m.fps)
+
+
+def relax_hands(m, body, deg=28.):
+    """free hands hang relaxed: the hand's own rotation (often the noisiest segment of a take, flicking up and down) is
+    replaced by the rest pose, flexed a little towards the palm"""
+    L = locals_of(m, body)
+    for s in 'lr':
+        ax = nrm(np.cross(body.rest['palm_' + s], nrm(body.H['middle_01_' + s] - body.H['hand_' + s])))
+        L['hand_' + s] = np.tile(axis_angle(ax, np.radians(deg)), (m.F, 1, 1))
+    return from_locals(L, m.pel.copy(), body, m.fps)
+
+
+def palms_down(m, body, w, tilt=10.):
+    """hands turned palm-down (world), fingers along the forearm's horizontal heading, the wrist eased; w: (F,) weight.
+    For takes whose hand segment is unreliable where the cue is about the palms (Tai Chi: 'press the palms down')"""
+    G = {k: v.copy() for k, v in m.G.items()}
+    for s in 'lr':
+        fa = mv(G['lowerarm_' + s], nrm(body.H['hand_' + s] - body.H['lowerarm_' + s]))
+        along = nrm(fa * np.array([1, 0, 1]) + np.array([0, -np.tan(np.radians(tilt)), 0]) * np.linalg.norm(fa * np.array([1, 0, 1]), axis=-1, keepdims=True))
+        Gt = basis(along, np.tile([0, -1., 0], (m.F, 1))) @ mT(body.rest['hand_' + s])
+        G['hand_' + s] = slerp_mats(G['hand_' + s], Gt, np.asarray(w))
+    return Motion(m.fps, G, m.pel.copy())
+
+
+def _seg_dist(p, a, b):
+    ab = b - a
+    t = np.clip(np.sum((p - a) * ab, -1) / np.maximum(np.sum(ab * ab, -1), 1e-9), 0, 1)
+    return np.linalg.norm(p - (a + ab * t[..., None]), axis=-1)
+
+
+def hands_clear_thighs(m, body, clear=.17, log=print):
+    """a hand that would pass through its own thigh (a composite: this performer's arms, another's knees) is swung back
+    from the shoulder until it clears it, eased over time"""
+    G = {k: v.copy() for k, v in m.G.items()}
+    P, GG = body.fk(G, m.pel)
+    worst = 0.
+    for s in 'lr':
+        need = np.zeros(m.F)
+        for k in range(m.F):
+            # how far back (deg) the arm must swing at this frame: search in 3 deg steps
+            sh = P['upperarm_' + s][k]; lat = G['spine_03'][k][:, 0]
+            for deg in range(0, 61, 3):
+                R = axis_angle(lat, np.radians(deg))           # positive: the arm swings back (towards -Z)
+                hand = sh + R @ (palm_point(body, P, GG, s)[k] - sh)
+                if _seg_dist(hand, P['thigh_' + s][k], P['calf_' + s][k]) >= clear:
+                    break
+            need[k] = deg
+        if need.max() == 0:
+            continue
+        r = max(1, int(.12 * m.fps))
+        env = np.array([need[max(0, i - r):i + r + 1].max() for i in range(m.F)])
+        need = np.maximum(need, lowpass(env, m.fps, 2.))
+        worst = max(worst, need.max())
+        for k in range(m.F):
+            if need[k] > .1:
+                R = axis_angle(G['spine_03'][k][:, 0], np.radians(need[k]))
+                for b in ('upperarm_', 'lowerarm_', 'hand_'):
+                    G[b + s][k] = R @ G[b + s][k]
+    log(f'  hands clear of the thighs: arms swung back by up to {worst:.0f} deg')
+    return Motion(m.fps, G, m.pel.copy())
+
+
+def stand_tall(m, body, keep=.45, bones=('spine_01', 'spine_02', 'spine_03', 'neck_01', 'head')):
+    """a stoop eased out: the spine, neck and head keep only `keep` of their bend away from the performer's own standing
+    posture (identity, since the standing reference is the rest pose); the arms ride on the straighter chest"""
+    L = locals_of(m, body)
+    I = np.tile(np.eye(3), (m.F, 1, 1))
+    for b in bones:
+        L[b] = slerp_mats(I, L[b], np.full(m.F, keep))
+    return from_locals(L, m.pel.copy(), body, m.fps)
+
+
+def composite_arms_ik(m, src, tmap, w):
+    """as composite_arms, but the arms are carried by IK: each wrist goes to a blend of its own place and src's (relative to
+    the chest), the arm turning the short way from its own pose; so two performers whose forearms are twisted differently
+    never wring the forearm half a turn while one hands over to the other. Clavicles blend in local rotation; hands blend
+    relative to the chest (the prayer pass builds them anyway)."""
+    body = composite_arms.body
+    sm = src.sample(tmap)
+    w = np.asarray(w)
+    La, Ls = locals_of(m, body), locals_of(sm, body)
+    for s in 'lr':
+        La['clavicle_' + s] = slerp_mats(La['clavicle_' + s], Ls['clavicle_' + s], w)
+    out = from_locals(La, m.pel.copy(), body, m.fps)
+    G = {k: v.copy() for k, v in out.G.items()}
+    P, GG = body.fk(G, out.pel)
+    Ps, GGs = body.fk(sm.G, sm.pel)
+    for s in 'lr':
+        for k in np.nonzero(w > 1e-3)[0]:
+            ch, chs = G['spine_03'][k], sm.G['spine_03'][k]
+            rel = chs.T @ (Ps['hand_' + s][k] - Ps['upperarm_' + s][k])          # src wrist from its shoulder, chest frame
+            own = P['hand_' + s][k]
+            tgt = P['upperarm_' + s][k] + ch @ rel
+            _arm_to(G, P, body, s, k, own * (1 - w[k]) + tgt * w[k])
+            # the hand: its wrist angle (local to the forearm) blended; the forearm was already carried by the IK
+            Lh = slerp_mats(La['hand_' + s][k][None], Ls['hand_' + s][k][None], np.array([w[k]]))[0]
+            G['hand_' + s][k] = G['lowerarm_' + s][k] @ Lh
+    return Motion(m.fps, G, out.pel)
+
+
+def hands_floor_clear(m, body, log=print):
+    """no finger through the floor: where a hand's lowest point (fingers included) is below the floor, the hand turns
+    towards lying flat (palm down, fingers along its heading) and what is still missing lifts the wrist (arm IK); both
+    eased over time"""
+    G, pel = {k: v.copy() for k, v in m.G.items()}, m.pel.copy()
+    F = m.F
+    worst = 0.
+    for s in 'lr':
+        # the hand and the first finger joints (the finger tips are shaped by the player: flat on the floor, 'palm'; the
+        # rest pose here curls them, which would lift a flat hand off the floor for nothing)
+        names = [n for n in body.names if n.endswith('_' + s) and (n.startswith('hand') or any(n.startswith(f + '_01') for f in FINGERS))]
+        idx = np.nonzero(np.isin(body.v_dom, names))[0][::3]
+        P, GG = body.fk(G, pel)
+        low = body.skin(P, GG, idx)[:, :, 1].min(1)
+        need = np.maximum(0, .003 - low)
+        if need.max() <= 1e-4:
+            continue
+        worst = max(worst, need.max())
+        r = max(1, int(.12 * m.fps))
+        env = np.array([need[max(0, i - r):i + r + 1].max() for i in range(F)])
+        need = np.maximum(need, lowpass(env, m.fps, 3.)) if F > 16 else need
+        wf = smoothstep(0, .05, need)
+        along = mv(G['hand_' + s], nrm(body.H['middle_01_' + s] - body.H['hand_' + s]))
+        head = nrm(along * np.array([1, 0, 1]) + np.array([1e-6, 0, 0]))
+        Gflat = basis(head, np.tile([0, -1., 0], (F, 1))) @ mT(body.rest['hand_' + s])
+        for k in np.nonzero(need > 1e-4)[0]:
+            G['hand_' + s][k] = slerp_mats(G['hand_' + s][k][None], Gflat[k][None], np.array([wf[k]]))[0]
+        # what is still under the floor after flattening: lift the wrist
+        P, GG = body.fk(G, pel)
+        low2 = body.skin(P, GG, idx)[:, :, 1].min(1)
+        need2 = np.maximum(0, .003 - low2)
+        if F > 16 and need2.max() > 0:
+            env = np.array([need2[max(0, i - r):i + r + 1].max() for i in range(F)])
+            need2 = np.maximum(need2, lowpass(env, m.fps, 3.))
+        for k in np.nonzero(need2 > 1e-4)[0]:
+            _arm_to(G, P, body, s, k, P['hand_' + s][k] + np.array([0, need2[k], 0]))
+    log(f'  fingers: up to {worst*100:.1f} cm under the floor, hands turned flat / lifted')
+    return Motion(m.fps, G, pel)
