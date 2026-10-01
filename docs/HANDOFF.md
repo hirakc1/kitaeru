@@ -120,21 +120,26 @@ This is the current state for a new Claude session picking up the project. Claud
 - **Next for real motion:** more coverage needs new sources (e.g. CC BY video through `mediapipe_to_landmarks.py`, or our own performer); see the sources doc §7.
 - (Earlier) **Waiting on the founder:** the pilot verdicts (Better / Same / Worse per clip) via Export notes. HDM05 CC BY-SA accepted for the pilot; no Mixamo; Taisō out of real-motion scope.
 
-## In progress / next
-1. **Founder animation review:** the founder is reviewing all 132 clips on `anim-review.html` and will send the exported notes. Route each note to the animator (anim branch `worktree-agent-a9739dc712fdd0781`, which is merged into main). The generic `detail` inset exists for hand and foot close-ups.
-2. **Founder is still reviewing v1.2/v1.3** in depth. Expect more feedback.
-3. **Follow-ups worth doing:**
+## In progress / next (as of 2026-10-01, end of session)
+**Start here next time:** the founder is now using the app (v2026.10.01-1433) and will come back with feedback. Ask for it first.
+
+1. **Founder feedback from using the app.** Expect notes on real motion, the athletic body and anything else. Check first whether the human body now shows reliably on the founder's desktop Chrome. If it doesn't, the review page's red note gives the reason (likely Chrome → Settings → System → "Use graphics acceleration when available").
+2. **Founder still to do:** the seated Taisō check on NHK (`docs/founder-tasks.md`, local only); phone feel of the 3D body on Android; the per-clip review on `anim-review.html` (Figure menu: Human / Skeleton / Both / Real motion vs current) with Export notes.
+3. **Real motion: more coverage (founder: "keep this in mind for later").** Only 13 clips have it, because the free takes are mostly the wrong variant. The two routes to more: (a) openly licensed exercise video through `assets/v3/pipeline/mediapipe_to_landmarks.py` (licence and consent checked per video; e.g. the CC BY 4.0 Mendeley fitness set in `docs/anim-v3-mocap-sources.md` §7); (b) film our own performer (`docs/anim-v3-pilot.md` §9). Rules agreed: no Mixamo without Adobe's written OK; HDM05 CC BY-SA is accepted; the Taisō stays hand-keyed.
+4. **Follow-ups worth doing:**
    - Measure phone performance on the founder's Android. Final QA saw 29 ms median frames at 4× CPU throttle; the player drops to half rate above 8 ms.
    - Lazy-load the v1.2 data and planner: the first load grew to about 230 KB gzip, +72 KB.
    - Check the Radio Taisō trademark (J-PlatPat or Japan Post Insurance) before using the name anywhere beyond the credit line.
    - "Suggest a correction" is parked: it needs a way to filter bad information.
-   - B-direction 3D view later.
    - v1.3+ traditions from `docs/world-movement.md` §7.
-3. **Known gaps:**
+   - A solicitor's review of the terms before promoting the app.
+5. **Known gaps:**
    - A reactive deload isn't done.
    - Deleting a log doesn't roll back level changes.
    - Offline mode on a real phone hasn't been confirmed.
    - Weaker v1 animations: inchworm, bear crawl, front-view arm circles.
+   - Tests that drive animation can stall in a hidden browser tab. Run `tests/planner.test.html` in headless Chrome (CDP helpers in `assets/v3/pipeline/bench_cdp.py` / `shots.py`). Last run: 149,513 passed.
+   - Visual QA: `anim-v3.html?phases=<ids>&n=8&body=f|m&look=solid` is a contact sheet; `shots.py` captures it at full size.
 
 ## Working rules
 - Don't run Claude sessions on **both** PCs at the same time in this folder. OneDrive syncing `.git` mid-write can corrupt the repo.
