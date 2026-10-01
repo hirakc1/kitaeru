@@ -114,6 +114,9 @@ This is the current state for a new Claude session picking up the project. Claud
 - **anim-review.html:** a Figure menu (Human body / Skeleton / Both side by side) and a Female/Male menu.
 - **Real motion:** a research agent is surveying free mocap licences and coverage, writing `docs/anim-v3-mocap-sources.md`. The Taisō is out of scope for real motion if it's costly (founder); it keeps its current animation.
 - Tests: 149,492 passed.
+- **Deployed** as v2026.10.01-0939 (body fix, athletic body), 1154 (real-motion pilot on anim-review.html, see `docs/anim-v3-mocap-pilot.md`; sources in `docs/anim-v3-mocap-sources.md`) and 1156.
+- **Review pages and the offline cache:** `sw.js` used to serve a review page's scripts from the app's cached version while the page itself came fresh, so a deploy could leave the page blank (a missing export). Requests from any non-index `.html` page now go to the network (revalidated). The review page also shows the skeleton with a note (reason, and Chrome's hardware-acceleration setting) when the 3D body can't run, instead of a zero-height box.
+- **Waiting on the founder:** the pilot verdicts (Better / Same / Worse per clip) via Export notes. HDM05 CC BY-SA accepted for the pilot; no Mixamo; Taisō out of real-motion scope.
 
 ## In progress / next
 1. **Founder animation review:** the founder is reviewing all 132 clips on `anim-review.html` and will send the exported notes. Route each note to the animator (anim branch `worktree-agent-a9739dc712fdd0781`, which is merged into main). The generic `detail` inset exists for hand and foot close-ups.
