@@ -783,6 +783,23 @@ export function figurePrefs(state) {
   return { figure, sex, skeleton: s.animSkeleton === true };
 }
 let plateMod = null, v3Mod = null, v3Broken = false;
+// a lost WebGL context is normal on phones (app sent to the background, memory pressure): the player rebuilds the body
+// when the page is visible again. Only repeated losses (more than LOSS_MAX in LOSS_WINDOW ms) give up on v3 for the session.
+let LOSS_MAX = 4, LOSS_WINDOW = 60000, LOSS_GROUP = 2000, LOSS_WAIT_VISIBLE = true;   // (losses within LOSS_GROUP ms are one: it reaches every thumbnail at once)
+let losses = [];
+/** tests only: the loss policy (and a fresh count) */
+export function _lossPolicy(max = 4, windowMs = 60000, groupMs = 2000, waitVisible = true) { LOSS_MAX = max; LOSS_WINDOW = windowMs; LOSS_GROUP = groupMs; LOSS_WAIT_VISIBLE = waitVisible; losses = []; }
+function lossAllowsRetry() {
+  const now = Date.now();
+  losses = losses.filter(t => now - t < LOSS_WINDOW);
+  if (!losses.length || now - losses[losses.length - 1] > LOSS_GROUP) losses.push(now);
+  return losses.length <= LOSS_MAX;
+}
+function whenVisible(fn) {
+  if (!LOSS_WAIT_VISIBLE || typeof document === 'undefined' || !document.hidden) { setTimeout(fn, 250); return; }
+  const on = () => { if (document.hidden) return; document.removeEventListener('visibilitychange', on); setTimeout(fn, 250); };
+  document.addEventListener('visibilitychange', on);
+}
 const groups = new Map(), loaded = new Set();   // clip group -> import promise; groups ready
 function loadGroup(id) {
   const g = V2_GROUP_OF[id];
@@ -823,9 +840,14 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
   const o = { primary: [], secondary: [], size: 280, playing: true, breath: false, trail: false, pace: null, fit: null, muscles: true, look: 'xray',
     figure: pref.figure, sex: pref.sex, skeleton: pref.skeleton, ...opts };
   const mus = () => (o.muscles === false ? { primary: [], secondary: [] } : { primary: o.primary, secondary: o.secondary });
-  let p = null, kind = null, cur = null, gen = 0, dead = false, fixedT = null;
+  let p = null, kind = null, cur = null, gen = 0, dead = false, fixedT = null, stale = false;   // stale: its WebGL context is gone
   const wantV3 = id => o.figure === 'human' && !v3Broken && isV2(id);
   function fail(e) {
+    if (e && e.lost && !v3Broken && lossAllowsRetry()) {
+      const my = ++gen; stale = true;
+      whenVisible(() => { if (!dead && my === gen && kind === 'v3' && wantV3(cur)) mount('v3'); });
+      return;
+    }
     console.warn('anim v3 unavailable, using v2', e);
     v3Broken = true;
     if (dead) return;
@@ -834,7 +856,7 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
     else loadV2(cur).then(() => { if (!dead && my === gen) show(cur, { flow: o.flow }); }, () => { if (!dead && my === gen) mount('v1'); });
   }
   function mount(k) {
-    const old = p;
+    const old = p; stale = false;
     if (k === 'v3') {
       try { p = v3Mod.createBodyPlayer(container, cur, { ...o, ...mus(), onLost: e => fail(e) }); } catch (e) { p = old; fail(e); return; }
     } else p = k === 'v2' ? plateMod.createPlatePlayer(container, cur, { ...o, ...mus() }) : k === 'v1' ? createV1Player(container, cur, { ...o, ...mus() }) : placeholder(container, o.size);
@@ -844,7 +866,7 @@ export function createSkeletonPlayer(container, animId, opts = {}) {
   }
   function show(id, opts) {
     const k = wantV3(id) ? 'v3' : isV2(id) ? 'v2' : 'v1';
-    if (p && kind === k) { const m = mus(); p.setAnim(id, m.primary, m.secondary, { ...opts, muscles: o.muscles !== false, look: o.look }); } else mount(k);
+    if (p && kind === k && !stale) { const m = mus(); p.setAnim(id, m.primary, m.secondary, { ...opts, muscles: o.muscles !== false, look: o.look }); } else mount(k);
   }
   // opts (v2 / v3): { flow, blend } for flow steps: no fades at the step's ends, and a pose blend from the previous step
   function load(id, prim, sec, opts = {}) {

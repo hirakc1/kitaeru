@@ -1,10 +1,10 @@
 // Kitaeru service worker: cache-first app shell, versioned caches, runtime caching for fonts.
-const VERSION = 'v2026.09.30-1558';
+const VERSION = 'v2026.10.01-0939';
 const SHELL = `kitaeru-shell-${VERSION}`;
 const RUNTIME = `kitaeru-runtime-${VERSION}`;
 // Large files that rarely change (three.js and the two v3 bodies, ~1.7 MB) live in their own cache, named by a hash
 // of their contents that deploy.py writes. A normal update never downloads them again; changing one of them does.
-const ASSETS_ID = '499c310006';
+const ASSETS_ID = '02c440eafc';
 const ASSETS = `kitaeru-assets-${ASSETS_ID}`;
 const ASSET_FILES = ['./js/vendor/three.module.min.js', './assets/v3/human_f.glb', './assets/v3/human_m.glb'];
 

@@ -136,7 +136,13 @@ function thumbShared() {
   renderer.setPixelRatio(1); renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.setClearColor(0x000000, 0);
   renderer.setSize(320, 320, false);
   TH = { renderer, stages: {}, size: 320, playing: new Set(), raf: 0, last: 0 };
-  renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); TH.lost = true; for (const p of live) if (p.lod) p._lost(); });
+  // context lost (Android drops it when the app goes to the background or memory runs low): retire this renderer, so the
+  // next thumbnail builds a fresh one, and tell its players (the caller rebuilds them)
+  const S = TH;
+  renderer.domElement.addEventListener('webglcontextlost', e => {
+    e.preventDefault(); S.lost = true; if (S.raf) cancelAnimationFrame(S.raf); S.raf = 0; if (TH === S) TH = null;
+    for (const p of live) if (p.lod && p._ts === S) p._lost();
+  });
   return TH;
 }
 function thumbStage(sex, body) {
@@ -144,10 +150,10 @@ function thumbStage(sex, body) {
   if (!S.stages[sex]) { S.stages[sex] = createStage(body.tpl, body.rt, { lod: 1 }); S.stages[sex].theme(); S.stages[sex].clip = null; }
   return S.stages[sex];
 }
-function thumbTick(ts) {
-  const S = TH; S.raf = 0;
-  if (!S.playing.size) return;
-  S.raf = requestAnimationFrame(thumbTick);
+function thumbTick(S, ts) {
+  S.raf = 0;
+  if (S.lost || !S.playing.size) return;
+  S.raf = requestAnimationFrame(t => thumbTick(S, t));
   if (ts - S.last < 80) return;                               // ~12 fps is plenty for a 64 px thumbnail
   const dt = S.last ? Math.min(200, ts - S.last) : 80; S.last = ts;
   for (const p of S.playing) p._tick(dt);
@@ -167,7 +173,7 @@ export function createBodyPlayer(container, animId, opt = {}) {
   const { rt } = body;
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const lod = o.size < 160 ? 1 : 0;
-  if (lod && TH && TH.lost) throw new Error('WebGL context lost');
+  const TS = lod ? thumbShared() : null;                       // this thumbnail's shared renderer (replaced after a context loss)
   watchTheme();
   const st = { clip: null, id: null, playing: o.playing && !reduce, visible: true, elapsed: 0, last: 0, raf: 0, fixedT: null, rate: 1,
     pace: o.pace, fit: o.fit, flow: !!o.flow, trail: !lod && !!o.trail, breath: !lod && !!o.breath, mus: o.muscles !== false, look: o.look,
@@ -261,7 +267,8 @@ export function createBodyPlayer(container, animId, opt = {}) {
     if (st.drag) { const c = view.c.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), st.drag * K.DEG); view = { ...view, c }; }
     const opv = Math.round(op * 20) / 20;
     if (lod) {
-      const S2 = TH, w = canvas.width, h = canvas.height;
+      if (TS.lost) return;
+      const S2 = TS, w = canvas.width, h = canvas.height;
       stage.place(view, w / h, off);
       S2.renderer.setViewport(0, 0, w, h);
       S2.renderer.render(stage.scene, stage.camera);
@@ -329,7 +336,7 @@ export function createBodyPlayer(container, animId, opt = {}) {
       applyLook();
       setTrailPaths();
     } else {
-      const a = K.clamp(st.view.aspect, .85, 1.3), px = Math.min(TH.size, Math.round(o.size * Math.min(2, devicePixelRatio || 1)));
+      const a = K.clamp(st.view.aspect, .85, 1.3), px = Math.min(TS.size, Math.round(o.size * Math.min(2, devicePixelRatio || 1)));
       canvas.width = a >= 1 ? px : Math.round(px * a); canvas.height = a >= 1 ? Math.round(px / a) : px;
       canvas.style.cssText = `display:block;margin:0 auto;max-width:${o.size}px`;   // (CSS fits it in its box: object-fit contain)
     }
@@ -362,7 +369,8 @@ export function createBodyPlayer(container, animId, opt = {}) {
   }
   function kick() {
     if (lod) {
-      if (st.playing && st.visible) { TH.playing.add(api); if (!TH.raf) { TH.last = 0; TH.raf = requestAnimationFrame(thumbTick); } } else TH.playing.delete(api);
+      if (TS.lost) return;
+      if (st.playing && st.visible) { TS.playing.add(api); if (!TS.raf) { TS.last = 0; TS.raf = requestAnimationFrame(t => thumbTick(TS, t)); } } else TS.playing.delete(api);
       return;
     }
     if (st.playing && st.visible && !st.raf) { st.last = 0; st.raf = requestAnimationFrame(loop); }
@@ -385,7 +393,7 @@ export function createBodyPlayer(container, animId, opt = {}) {
 
   const api = {
     play() { st.fixedT = null; st.playing = true; kick(); },
-    pause() { st.playing = false; if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0; if (lod) TH.playing.delete(api); },
+    pause() { st.playing = false; if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0; if (lod) TS.playing.delete(api); },
     setAnim(id, p, s, opts) { st.fixedT = null; setAnim(id, p, s, opts); kick(); },
     destroy() {
       st.dead = true; api.pause(); live.delete(api); io && io.disconnect(); ro && ro.disconnect();
@@ -398,17 +406,17 @@ export function createBodyPlayer(container, animId, opt = {}) {
     setPace(sec, fit) { st.pace = sec > 0 ? sec : null; st.fit = fit > 0 ? fit : null; if (st.clip) st.rate = rateOf(st.clip); },
     setLook(look, skeleton) { st.look = look; if (skeleton !== undefined) o.skeleton = skeleton; applyLook(); draw(); },
     stats() { const a = st.ms.slice().sort((x, y) => x - y); return { median: a[a.length >> 1] || 0, p95: a[Math.floor(a.length * .95)] || 0, n: a.length,
-      calls: renderer ? renderer.info.render.calls : TH.renderer.info.render.calls, tris: renderer ? renderer.info.render.triangles : TH.renderer.info.render.triangles }; },
+      calls: renderer ? renderer.info.render.calls : TS.renderer.info.render.calls, tris: renderer ? renderer.info.render.triangles : TS.renderer.info.render.triangles }; },
     resetStats() { st.ms.length = 0; },
     orbit(deg) { st.drag = deg; st.dragT = deg ? 1e12 : -1e9; draw(); },   // review pages: look from another side (0 = the clip's view)
     // the WebGL context is gone (GPU reset, too many contexts): the caller swaps in the v2 plate
-    _lost() { if (st.lostSent || st.dead) return; st.lostSent = true; st.lost = true; setTimeout(() => o.onLost && o.onLost(new Error('WebGL context lost')), 0); },
+    _lost() { if (st.lostSent || st.dead) return; st.lostSent = true; st.lost = true; const e = new Error('WebGL context lost'); e.lost = true; setTimeout(() => o.onLost && o.onLost(e), 0); },
     _tick(dt) { if (!st.visible) return; st.elapsed += dt * st.rate; draw(); },
-    _theme() { if (!lod) stage.theme(); else if (TH) for (const s of Object.values(TH.stages)) s.theme(); draw(); },
+    _theme() { if (!lod) stage.theme(); else for (const s of Object.values(TS.stages)) s.theme(); draw(); },
     get skeleton() { return st.S; },
     get look() { return st.look; },
     get svg() { return root; },
-    kind: 'v3', lod: !!lod,
+    kind: 'v3', lod: !!lod, _ts: TS,
   };
   live.add(api);
   root.ktPlayer = api;                                          // (debugging and the bench page)

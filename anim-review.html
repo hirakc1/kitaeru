@@ -38,6 +38,11 @@
   .meta { color: var(--ink-muted); font-size: 13px; }
   .stage { position: relative; aspect-ratio: 4 / 3; margin: 8px 0; }
   .stage > svg { position: absolute; inset: 0; width: 100% !important; height: 100% !important; max-width: none !important; }
+  .stage.human { aspect-ratio: auto; }
+  .stages { display: grid; gap: 8px; margin: 8px 0; }
+  .stages.both { grid-template-columns: 1fr 1fr; align-items: end; }
+  .stages .stage { margin: 0; }
+  .stages .lbl { font-size: 12px; color: var(--ink-muted); text-align: center; }
   .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .controls input[type=range] { flex: 1 1 140px; accent-color: var(--accent); }
   details { margin: 8px 0; font-size: 14px; }
@@ -70,20 +75,23 @@
   <select id="filter" aria-label="Show">
     <option value="all">All</option><option value="todo">Not reviewed</option><option value="fix">Needs work</option><option value="good">Good</option>
   </select>
+  <select id="figure" aria-label="Figure"><option value="human">Human body</option><option value="classic">Skeleton</option><option value="both">Both</option></select>
+  <select id="sex" aria-label="Body"><option value="f">Female</option><option value="m">Male</option></select>
   <button id="theme">Theme</button>
   <button id="export">Export notes</button>
   <button id="import">Import</button>
 </header>
 <main>
   <section class="card" id="card"></section>
-  <p class="hint">Notes save automatically on this device. When you're done (or partway), press <strong>Export notes</strong> and send the file or paste the copied text to Claude.</p>
+  <p class="hint">Use the Figure menu to review the human body, the skeleton, or both side by side; say which one a comment is about. Notes save automatically on this device. When you're done (or partway), press <strong>Export notes</strong> and send the file or paste the copied text to Claude.</p>
   <section class="list" id="list"></section>
 </main>
 <div class="toast" id="toast" role="status"></div>
 <input type="file" id="file" accept=".json,application/json" hidden>
 <script type="module">
   // Founder review of every v2 animation: one clip at a time, Good / Needs work + comment, saved locally, exported as a file.
-  import { createPlatePlayer } from './js/anim/v2/plate.js';
+  import { createSkeletonPlayer } from './js/anim/skeleton.js';
+  import { showsMuscles, bodyLook } from './js/data/traditions.js';
   import { CLIPS, CLIP_IDS } from './js/anim/v2/clips.js';
   import { V2_GROUP_OF } from './js/anim/v2/ids.js';
   import { ALL_BY_ID } from './js/data/exercises.js';
@@ -99,6 +107,22 @@
   const groupOf = id => V2_GROUP_OF[id] || 'other';
   const $ = s => document.querySelector(s);
   let idx = 0, player = null, paused = false;
+  const VIEW = 'kitaeru.animReview.view';
+  try { const v = JSON.parse(localStorage.getItem(VIEW)) || {}; if (v.figure) $('#figure').value = v.figure; if (v.sex) $('#sex').value = v.sex; } catch { /* ignore */ }
+  // one or two players (human body, skeleton or both side by side) behind the single-player calls the page makes
+  function makePlayers(id, ex, m) {
+    const fig = $('#figure').value, sex = $('#sex').value, figs = fig === 'both' ? ['human', 'classic'] : [fig];
+    const wrap = $('#stages'); wrap.className = 'stages' + (figs.length > 1 ? ' both' : '');
+    const ps = figs.map(f => {
+      const cell = document.createElement('div');
+      cell.innerHTML = `<div class="stage${f === 'human' ? ' human' : ''}"></div>${figs.length > 1 ? `<div class="lbl">${f === 'human' ? 'Human body' : 'Skeleton'}</div>` : ''}`;
+      wrap.appendChild(cell);
+      return createSkeletonPlayer(cell.firstChild, id, { primary: m.primary, secondary: m.secondary, size: figs.length > 1 ? 360 : 720, figure: f, sex,
+        muscles: showsMuscles(ex), look: bodyLook(ex), playing: !paused });
+    });
+    const all = k => (...a) => ps.forEach(p => p[k]?.(...a));
+    return { play: all('play'), pause: all('pause'), seek: all('seek'), setTrail: all('setTrail'), setBreath: all('setBreath'), destroy: all('destroy') };
+  }
 
   function visible() {
     const f = $('#filter').value;
@@ -118,7 +142,7 @@
     const m = ex ? ex.muscles : (c.muscles || { primary: [], secondary: [] });
     $('#card').innerHTML = `
       <div class="top"><h2>${esc(nameOf(id))}</h2><span class="meta">${idx + 1} / ${ids.length} · ${esc(groupOf(id))} · <code>${esc(id)}</code></span></div>
-      <div class="stage" id="stage"></div>
+      <div class="stages" id="stages"></div>
       <div class="controls">
         <button id="pp" aria-label="Pause or play">${paused ? 'Play' : 'Pause'}</button>
         <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" aria-label="Scrub through the movement">
@@ -133,7 +157,7 @@
       <textarea id="note" placeholder="e.g. left arm bends backwards at the top; feet slide at the start">${esc(n.note)}</textarea>
       <div class="nav"><button id="prev">← Previous</button><button id="next">Next →</button></div>`;
     try { player && player.destroy(); } catch { /* ignore */ }
-    player = createPlatePlayer($('#stage'), id, { primary: m.primary, secondary: m.secondary, size: 720 });
+    player = makePlayers(id, ex, m);
     if (paused) player.pause();
     $('#pp').onclick = () => { paused = !paused; paused ? player.pause() : player.play(); $('#pp').textContent = paused ? 'Play' : 'Pause'; };
     $('#scrub').oninput = e => { paused = true; $('#pp').textContent = 'Play'; player.pause(); player.seek(+e.target.value); };
@@ -190,6 +214,7 @@
     e.target.value = '';
   };
   $('#filter').onchange = () => { list(); };
+  for (const k of ['figure', 'sex']) $('#' + k).onchange = () => { try { localStorage.setItem(VIEW, JSON.stringify({ figure: $('#figure').value, sex: $('#sex').value })); } catch { /* ignore */ } show(idx); };
   $('#theme').onclick = () => {
     const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
     r.dataset.theme = dark ? 'light' : 'dark';

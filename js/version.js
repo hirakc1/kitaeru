@@ -1,5 +1,5 @@
 // The deployed build, written by deploy.py together with VERSION in sw.js. Shown on Me → About.
-export const VERSION = 'v2026.09.30-1558';
+export const VERSION = 'v2026.10.01-0939';
 
 /** 'v2026.09.29-1525' -> '29 Sep 2026, 15:25' (the build's date and time, UK time). */
 export function versionLabel(v = VERSION) {

@@ -1,6 +1,6 @@
-"""Build Kitaeru's v3 bodies (everyday proportions, sportswear, muscle regions) from the MakeHuman CC0 assets.
+"""Build Kitaeru's v3 bodies (athletic by default, sportswear, muscle regions) from the MakeHuman CC0 assets.
 
-    python build_body.py <MPFB2 src/mpfb/data folder> <out folder>        -> human_f.glb, human_m.glb
+    python build_body.py <MPFB2 src/mpfb/data folder> <out folder> [athletic|everyday]   -> human_f.glb, human_m.glb
 
 Source: the MakeHuman base mesh, macro targets, 'game engine' rig and weights, all CC0 1.0 (they ship in MPFB2's data
 folder; see assets/v3/LICENSES.md). See mh_body.py for how the body is shaped and rigged.
@@ -66,13 +66,31 @@ def laplace(x, E, nv, it=1, lam=.5, mask=None):
     return x
 
 
-def main(data_dir, out_dir):
+# body shapes: MakeHuman macro sliders (0..1, 0.5 = the default). 'athletic' (the app's, founder 2026-10-01): toned and
+# lean, not bodybuilder; 'everyday': MakeHuman's defaults (the first app bodies)
+def _tone(k):
+    """MakeHuman detail targets for a trained look (k scales the regional ones; the female body uses less)."""
+    x = [('torso/measure-shoulder-dist-incr', .45 * k), ('torso/measure-waist-circ-decr', .45 * k), ('torso/torso-muscle-dorsi-incr', .5 * k),
+         ('stomach/stomach-tone-incr', .7), ('torso/torso-muscle-pectoral-incr', .35 * k)]
+    for s in 'lr':
+        x += [(f'arms/{s}-upperarm-muscle-incr', .55 * k), (f'arms/{s}-upperarm-shoulder-muscle-incr', .5 * k), (f'arms/{s}-lowerarm-muscle-incr', .35 * k),
+              (f'legs/{s}-upperleg-muscle-incr', .5 * k), (f'legs/{s}-lowerleg-muscle-incr', .45 * k)]
+    return x
+
+
+SHAPES = {
+    'athletic': {'female': dict(muscle=.9, weight=.38, proportions=1, extra=_tone(.8)), 'male': dict(muscle=1, weight=.4, proportions=1, extra=_tone(1))},
+    'everyday': {'female': {}, 'male': {}},
+}
+
+
+def main(data_dir, out_dir, shape='athletic'):
     for sex, tag in (('female', 'f'), ('male', 'm')):
-        build_one(data_dir, sex, os.path.join(out_dir, f'human_{tag}.glb'))
+        build_one(data_dir, sex, os.path.join(out_dir, f'human_{tag}.glb'), SHAPES[shape][sex])
 
 
-def build_one(data_dir, sex, out):
-    B = mh_body.build(data_dir, sex)
+def build_one(data_dir, sex, out, shape=None):
+    B = mh_body.build(data_dir, sex, **(shape or {}))
     mh, V0, names, bones = B['mh'], B['V'], B['names'], B['bones']
     keep_groups = ['body', 'helper-l-eye', 'helper-r-eye']
     quads = [f for f, g in zip(mh.F, mh.FG) if g in keep_groups]
@@ -319,4 +337,4 @@ def build_one(data_dir, sex, out):
 
 
 if __name__ == '__main__':
-    main(*sys.argv[1:3])
+    main(*sys.argv[1:4])

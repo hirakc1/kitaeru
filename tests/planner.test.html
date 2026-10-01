@@ -980,12 +980,24 @@ const passBeforeV12 = pass, failBeforeV12 = fail;
       const cvs = [...box.querySelectorAll('canvas.kt-v3.lod')];
       ok(ths.every(p => p.renderer === 'v3') && cvs.length === 12 && cvs.every(c => c.getContext('2d')), `thumbnails: 12 human-body thumbnails are 2D canvases fed by one shared renderer (${cvs.length})`);
       ths.forEach(p => p.destroy());
-      // fallback: a lost WebGL context swaps in the v2 plate (for the rest of the session: keep this test last)
-      await SK.loadV2('push_up');
+      // a lost WebGL context (normal on phones: app in the background, memory pressure) rebuilds the human body
+      SK._lossPolicy(2, 60000, 100, false);   // (no wait for a visible page: the test page may be in the background)
       pl = SK.createSkeletonPlayer(box, 'push_up', { primary: pu.primary, secondary: pu.secondary, size: 300, playing: false, figure: 'human', sex: 'f' });
-      const was = pl.renderer; inner()?._lost();
+      let first = inner(); first?._lost();
+      await new Promise(r => setTimeout(r, 400));
+      ok(pl.renderer === 'v3' && inner() && inner() !== first && !SK.v3Failed() && box.querySelectorAll('.kt-v3').length === 1, `recovery: a lost WebGL context rebuilds the human body (${pl.renderer})`);
+      const th = []; for (let i = 0; i < 3; i++) { const el = document.createElement('div'); box.appendChild(el); th.push(SK.createSkeletonPlayer(el, 'push_up', { size: 96, playing: false, figure: 'human', sex: 'f' })); }
+      const ts0 = box.querySelector('canvas.kt-v3.lod').ktPlayer._ts; ts0.renderer.domElement.dispatchEvent(new Event('webglcontextlost'));
+      await new Promise(r => setTimeout(r, 400));
+      const lods = [...box.querySelectorAll('canvas.kt-v3.lod')];
+      ok(th.every(p => p.renderer === 'v3') && lods.length === 3 && lods.every(c => c.ktPlayer._ts !== ts0 && !c.ktPlayer._ts.lost) && !SK.v3Failed(), `recovery: thumbnails move to a fresh shared renderer after it is lost (${lods.length})`);
+      th.forEach(p => p.destroy());
+      // fallback: repeated losses swap in the v2 plate for the rest of the session (keep this test last)
+      await SK.loadV2('push_up');
+      first = inner(); first?._lost();
       await new Promise(r => setTimeout(r, 50));
-      ok(was === 'v3' && pl.renderer === 'v2' && SK.v3Failed() && box.querySelectorAll('.kt-pl').length === 1 && !box.querySelector('.kt-v3'), `fallback: a lost WebGL context swaps the human body for the v2 plate (${was} -> ${pl.renderer})`);
+      ok(pl.renderer === 'v2' && SK.v3Failed() && box.querySelectorAll('.kt-pl').length === 1 && !box.querySelector('.kt-v3'), `fallback: repeated lost WebGL contexts swap the human body for the v2 plate (v3 -> ${pl.renderer})`);
+      SK._lossPolicy();
       pl.destroy(); box.remove();
     }
   }

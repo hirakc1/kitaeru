@@ -64,12 +64,30 @@ class MHData:
         return np.array(idx, np.int64), np.array(d, np.float64).reshape(-1, 3)
 
 
-def build(data_dir, sex, extra=()):
-    """sex: 'female' | 'male'. extra: [(target path, weight)]. Returns dict with mesh, rig and weights (metres)."""
+def _side(v, names):
+    """A MakeHuman macro slider value (0..1, 0.5 = average) -> [(name, weight)] over its min / average / max targets."""
+    lo, mid, hi = names
+    if v >= .5:
+        t = (v - .5) / .5
+        return [(n, w) for n, w in ((mid, 1 - t), (hi, t)) if w > 0]
+    t = (.5 - v) / .5
+    return [(n, w) for n, w in ((mid, 1 - t), (lo, t)) if w > 0]
+
+
+def build(data_dir, sex, extra=(), muscle=.5, weight=.5, proportions=.5):
+    """sex: 'female' | 'male'. extra: [(target path, weight)]. muscle / weight / proportions: MakeHuman's macro sliders
+    (0..1, 0.5 = the defaults), blended over the macro targets the way MakeHuman does. Returns dict with mesh, rig and
+    weights (metres)."""
     mh = MHData(data_dir)
     V = mh.V0.copy()
     mods = [(f'macrodetails/{race}-{sex}-young', 1 / 3) for race in ('african', 'asian', 'caucasian')]
-    mods += [(f'macrodetails/universal-{sex}-young-averagemuscle-averageweight', 1.0)]
+    ms = _side(muscle, ('minmuscle', 'averagemuscle', 'maxmuscle'))
+    ws = _side(weight, ('minweight', 'averageweight', 'maxweight'))
+    for mn, mw in ms:
+        for wn, ww in ws:
+            mods.append((f'macrodetails/universal-{sex}-young-{mn}-{wn}', mw * ww))
+            if proportions > .5:
+                mods.append((f'macrodetails/proportions/{sex}-young-{mn}-{wn}-idealproportions', mw * ww * (proportions - .5) / .5))
     mods += list(extra)
     applied = []
     for rel, w in mods:

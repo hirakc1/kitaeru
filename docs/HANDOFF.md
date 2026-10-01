@@ -108,9 +108,12 @@ This is the current state for a new Claude session picking up the project. Claud
 - **Seated Taisō is on hold:** it needs one official NHK seated video check by the founder (`docs/founder-tasks.md`, local only, excluded from git). The KeikoFlex video the founder used is unofficial and doesn't count as a source.
 - The Makkō-hō courtesy email is dropped. The trademark checks (真向法, ラジオ体操, Systema) are still needed before any marketing use.
 
-## v1.3b "Flow and breath": built 2026-09-30, not yet deployed
-- 8 items: standing post, bow stance, Surya Namaskar, tree (new `balance_hold` family), Warrior II, triangle, Makkō-hō (one flow, step 4 adapted), breath-paced walk (generic). Cards: yoga, Makkō-hō, standing post; the horse-stance card widened to "Martial-arts stances". 27 new clips (anim QA 159/159); tests 148,845 passed.
-- **Still gated:** the yoga card (योग) and Warrior II have `verified: null` and wait for an independent fact-check; until the card passes, every yoga item (Surya Namaskar, tree, triangle, Warrior II) stays hidden. See `?preview=traditions`.
+## 2026-10-01 (not yet deployed)
+- **Human body everywhere, fixed:** one lost WebGL context (normal on Android when the app goes to the background) used to switch every animation to the classic skeleton for the rest of the session. That's why the founder saw only a few human bodies. Now the player rebuilds the body when the page is visible again, and thumbnails move to a fresh shared renderer. Only more than 4 losses in a minute fall back (`skeleton.js` LOSS_*).
+- **Athletic body** (founder): `build_body.py` SHAPES `athletic` (the default) uses MakeHuman muscle/weight/proportion sliders plus CC0 detail targets. `everyday` rebuilds the old bodies byte for byte.
+- **anim-review.html:** a Figure menu (Human body / Skeleton / Both side by side) and a Female/Male menu.
+- **Real motion:** a research agent is surveying free mocap licences and coverage, writing `docs/anim-v3-mocap-sources.md`. The Taisō is out of scope for real motion if it's costly (founder); it keeps its current animation.
+- Tests: 149,492 passed.
 
 ## In progress / next
 1. **Founder animation review:** the founder is reviewing all 132 clips on `anim-review.html` and will send the exported notes. Route each note to the animator (anim branch `worktree-agent-a9739dc712fdd0781`, which is merged into main). The generic `detail` inset exists for hand and foot close-ups.

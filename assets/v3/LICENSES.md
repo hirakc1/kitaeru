@@ -17,7 +17,7 @@ Everything in this folder is either our own work or comes from the sources below
 - Attribution is not required. We credit "MakeHuman (CC0)" anyway.
 
 **Our changes** (`python pipeline/build_body.py <mpfb2>/src/mpfb/data assets/v3`)
-- **Shape:** MakeHuman's adult defaults (age 25; average muscle, weight, height and proportions; the three race targets at 1/3 each), female and male. Heights are 1.59 m and 1.73 m.
+- **Shape:** athletic (founder, 2026-10-01). Age 25, the three race targets at 1/3 each, average height. Female: muscle 0.9, weight 0.38, ideal proportions. Male: muscle 1.0, weight 0.4, ideal proportions. Both add MakeHuman's own CC0 detail targets: wider shoulders, a narrower waist, toned stomach, and more muscle on the lats, chest, arms and legs (female at 80%). Heights are 1.60 m and 1.73 m. `build_body.py ... everyday` rebuilds the earlier everyday bodies (MakeHuman defaults).
 - **Mesh:** kept the body and the two low-poly helper eyes. Dropped every other helper, the UVs and the normals (rebuilt at load).
 - **Rig:** the 53 game-engine joints, placed from MakeHuman's joint helpers, with identity rest rotations. Skin weights are the top 4, in uint8. Positions are int16 in 0.1 mm (KHR_mesh_quantization).
 - **Clothes:** sportswear and hair painted as vertex masks. A T-shirt on both bodies; 7/8 leggings on the female body and above-the-knee shorts on the male. The garments sit a few mm off the skin and are smoothed over the chest and crotch.
