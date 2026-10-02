@@ -8,6 +8,10 @@ A free calisthenics app. It builds a training plan from your goals, time, body, 
 
 **Live:** https://hirakc1.github.io/kitaeru/
 
+## Two computers
+
+The project lives in `C:\Dev\Kitaeru` on each computer and syncs through GitHub. Run `Start session.bat` before working and `End session.bat` after. Full instructions: [docs/TWO_MACHINES.md](docs/TWO_MACHINES.md).
+
 ## Run locally
 
 ```bash

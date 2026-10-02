@@ -3,3 +3,14 @@ __pycache__/
 desktop.ini
 .DS_Store
 .claude/
+# local-only (never published; the repo is public)
+docs/founder-tasks.md
+# phase-1 animation pilot files (Quaternius bodies, test clips, pilot player): kept local
+anim-v3-pilot.html
+js/anim/v3/player.js
+js/anim/v3/kclip.js
+js/vendor/three-examples/
+assets/v3/body_f.glb
+assets/v3/body_m.glb
+assets/v3/Quaternius-UBC-License_Standard.txt
+assets/v3/clips/

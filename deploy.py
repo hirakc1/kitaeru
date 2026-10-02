@@ -72,6 +72,17 @@ def main():
     print(git("push"))
     print(f"Deployed {version}. Live in ~1-2 min at https://hirakc1.github.io/kitaeru/")
 
+    # An "unfinished work" save from this computer (End session, tools/session.py) is now published: drop it, or the
+    # other computer's Start session would bring it back a second time. One from the other computer is left alone.
+    import os
+    if subprocess.run(["git", "rev-parse", "--verify", "-q", "origin/wip"], cwd=ROOT, capture_output=True).returncode == 0:
+        who = git("log", "-1", "--format=%s", "origin/wip")
+        if who.endswith(f"from {os.environ.get('COMPUTERNAME', '')}"):
+            git("push", "--quiet", "origin", "--delete", "wip")
+            print("Removed this computer's old unfinished-work save from GitHub (it is published now).")
+        else:
+            print(f"Note: GitHub also holds unfinished work ({who}). Run Start session or ask Claude to combine it.")
+
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,7 @@ This is the current state for a new Claude session picking up the project. Claud
 
 ## Where things are
 - **Code:** `C:\Dev\Kitaeru` (moved out of OneDrive on 2026-10-02 to stop OneDrive and git clashing). It's a git repo; **GitHub is the only sync** between the founder's two PCs, and each PC has its own clone at `C:\Dev\Kitaeru`.
-  - Setting up the other PC (once): `git clone https://github.com/hirakc1/kitaeru.git C:\Dev\Kitaeru`, then in it `git config user.name hirakc1` and `git config user.email hirakc1@users.noreply.github.com`. Local-only files don't come with a clone: copy `docs/founder-tasks.md`, `.claude/launch.json` and the `.git/info/exclude` lines over if wanted.
+  - **Two computers:** see `docs/TWO_MACHINES.md`. Setup is `Set up this machine.bat`. The routine is **`Start session.bat`** before work and **`End session.bat`** after (both run `tools/session.py`). Because `main` is the live app, End session never publishes: unfinished work goes to a `wip` branch, Start session on the other PC brings it back as uncommitted changes and deletes the branch, and `deploy.py` removes this PC's stale `wip` after publishing. If a session script says "This needs a hand", combine the work by hand (a `wip` commit sits on top of main; `git merge --ff-only origin/wip`, then `git reset --mixed <main>`).
   - The old OneDrive folder (`OneDrive - Eka Finance\Claude\Projects\Kitaeru`) is retired: don't work in it. The founder can delete it once happy.
 - **Tools outside the repo:** `C:\Users\hirak\KitaeruTools\` (MPFB2/MakeHuman data for `build_body.py`, motion-capture downloads in `mocap\`). Not synced; the other PC needs its own copy to rebuild bodies or clips.
 - **Live site:** https://hirakc1.github.io/kitaeru/ (GitHub Pages, main branch, served from the repo root). The repo is github.com/hirakc1/kitaeru.
@@ -124,7 +124,7 @@ This is the current state for a new Claude session picking up the project. Claud
 - (Earlier) **Waiting on the founder:** the pilot verdicts (Better / Same / Worse per clip) via Export notes. HDM05 CC BY-SA accepted for the pilot; no Mixamo; Taisō out of real-motion scope.
 
 ## In progress / next (as of 2026-10-01, end of session)
-**Start here next time:** run `git pull` in `C:\Dev\Kitaeru` (the project moved there from OneDrive on 2026-10-02). The founder is using the app (v2026.10.01-1433) and will come back with feedback: ask for it first.
+**Start here next time:** run `Start session.bat` (or `python tools/session.py start`) in `C:\Dev\Kitaeru` (the project moved there from OneDrive on 2026-10-02). The founder is using the app (v2026.10.01-1433) and will come back with feedback: ask for it first.
 
 1. **Founder feedback from using the app.** Expect notes on real motion, the athletic body and anything else. Check first whether the human body now shows reliably on the founder's desktop Chrome. If it doesn't, the review page's red note gives the reason (likely Chrome → Settings → System → "Use graphics acceleration when available").
 2. **Founder still to do:** the seated Taisō check on NHK (`docs/founder-tasks.md`, local only); phone feel of the 3D body on Android; the per-clip review on `anim-review.html` (Figure menu: Human / Skeleton / Both / Real motion vs current) with Export notes.
@@ -145,5 +145,5 @@ This is the current state for a new Claude session picking up the project. Claud
    - Visual QA: `anim-v3.html?phases=<ids>&n=8&body=f|m&look=solid` is a contact sheet; `shots.py` captures it at full size.
 
 ## Working rules
-- **Start of every session: `git pull`. End: commit and push** (or deploy). That's how the other PC sees the work. Avoid working on both PCs at once; if it happens, pull before pushing.
+- **Start of every session: `Start session.bat`** (or `python tools/session.py start`). **End: `End session.bat`**, or deploy if the founder wants it published. Don't push unfinished work to `main`: `main` is the live app. Work on one PC at a time.
 - Commit or deploy only when the founder asks, or as part of an agreed deploy.

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kitaeru",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-c", "import os, http.server as h\nclass H(h.SimpleHTTPRequestHandler):\n    def end_headers(self):\n        self.send_header('Cache-Control', 'no-store')\n        super().end_headers()\nh.test(H, h.ThreadingHTTPServer, port=int(os.environ.get('PORT', '8770')))"],
+      "port": 8770,
+      "autoPort": true
+    }
+  ]
+}
