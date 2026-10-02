@@ -3,11 +3,14 @@
 This is the current state for a new Claude session picking up the project. Claude acts as **project manager**: it researches, plans, "hires" agents, oversees the build, tests, gathers the founder's feedback and iterates. **Marketing and launch planning start only once the founder says they're happy with the product.**
 
 ## Where things are
-- **Code:** this folder, which is a git repo. It's synced by OneDrive between the founder's two PCs.
+- **Code:** `C:\Dev\Kitaeru` (moved out of OneDrive on 2026-10-02 to stop OneDrive and git clashing). It's a git repo; **GitHub is the only sync** between the founder's two PCs, and each PC has its own clone at `C:\Dev\Kitaeru`.
+  - Setting up the other PC (once): `git clone https://github.com/hirakc1/kitaeru.git C:\Dev\Kitaeru`, then in it `git config user.name hirakc1` and `git config user.email hirakc1@users.noreply.github.com`. Local-only files don't come with a clone: copy `docs/founder-tasks.md`, `.claude/launch.json` and the `.git/info/exclude` lines over if wanted.
+  - The old OneDrive folder (`OneDrive - Eka Finance\Claude\Projects\Kitaeru`) is retired: don't work in it. The founder can delete it once happy.
+- **Tools outside the repo:** `C:\Users\hirak\KitaeruTools\` (MPFB2/MakeHuman data for `build_body.py`, motion-capture downloads in `mocap\`). Not synced; the other PC needs its own copy to rebuild bodies or clips.
 - **Live site:** https://hirakc1.github.io/kitaeru/ (GitHub Pages, main branch, served from the repo root). The repo is github.com/hirakc1/kitaeru.
 - **Git identity** (repo-local): `hirakc1` / `hirakc1@users.noreply.github.com`. Keep using the noreply address.
-- **Deploy:** `python deploy.py "message"`. It bumps the `VERSION` in `sw.js` so phones update, then commits and pushes. Note that it runs `git add -A`, so work-in-progress files must be committed or excluded first.
-- **Run locally:** `python -m http.server 8770`, then open `/?nosw`. There is no Node on the machine; Python 3 is used for everything.
+- **Deploy:** `python deploy.py "message"`. It refuses to run if this copy is behind GitHub (pull first), bumps the `VERSION` in `sw.js` so phones update, then commits and pushes. Note that it runs `git add -A`, so work-in-progress files must be committed or excluded first.
+- **Run locally:** `python -m http.server 8770` (or the `kitaeru` entry in `.claude/launch.json`, which sends no-cache headers), then open `/?nosw`. There is no Node on the machine; Python 3 is used for everything.
 - **Specs:** `docs/CONTRACTS.md` (module APIs), `docs/research.md` (training science), `docs/world-movement.md` (world movement traditions, v1.2 plan).
 - **Tests:** `tests/planner.test.html` in the browser. The last run was 86,882 passed, 0 failed. `anim-test.html` is the animation gallery.
 
@@ -121,7 +124,7 @@ This is the current state for a new Claude session picking up the project. Claud
 - (Earlier) **Waiting on the founder:** the pilot verdicts (Better / Same / Worse per clip) via Export notes. HDM05 CC BY-SA accepted for the pilot; no Mixamo; Taisō out of real-motion scope.
 
 ## In progress / next (as of 2026-10-01, end of session)
-**Start here next time:** the founder is now using the app (v2026.10.01-1433) and will come back with feedback. Ask for it first.
+**Start here next time:** run `git pull` in `C:\Dev\Kitaeru` (the project moved there from OneDrive on 2026-10-02). The founder is using the app (v2026.10.01-1433) and will come back with feedback: ask for it first.
 
 1. **Founder feedback from using the app.** Expect notes on real motion, the athletic body and anything else. Check first whether the human body now shows reliably on the founder's desktop Chrome. If it doesn't, the review page's red note gives the reason (likely Chrome → Settings → System → "Use graphics acceleration when available").
 2. **Founder still to do:** the seated Taisō check on NHK (`docs/founder-tasks.md`, local only); phone feel of the 3D body on Android; the per-clip review on `anim-review.html` (Figure menu: Human / Skeleton / Both / Real motion vs current) with Export notes.
@@ -142,5 +145,5 @@ This is the current state for a new Claude session picking up the project. Claud
    - Visual QA: `anim-v3.html?phases=<ids>&n=8&body=f|m&look=solid` is a contact sheet; `shots.py` captures it at full size.
 
 ## Working rules
-- Don't run Claude sessions on **both** PCs at the same time in this folder. OneDrive syncing `.git` mid-write can corrupt the repo.
+- **Start of every session: `git pull`. End: commit and push** (or deploy). That's how the other PC sees the work. Avoid working on both PCs at once; if it happens, pull before pushing.
 - Commit or deploy only when the founder asks, or as part of an agreed deploy.

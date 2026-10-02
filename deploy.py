@@ -23,10 +23,18 @@ def git(*args):
 def main():
     message = " ".join(sys.argv[1:]).strip() or "Update Kitaeru"
 
+    # Each PC has its own clone (C:\Dev\Kitaeru), synced through GitHub: never deploy from a copy that is behind it,
+    # or the push is rejected (and the other PC's work could be overwritten by a stale sw.js).
+    if git("remote"):
+        git("fetch", "--quiet")
+        behind = git("rev-list", "--count", "HEAD..@{u}")
+        if behind != "0":
+            sys.exit(f"This copy is {behind} commit(s) behind GitHub. Run `git pull` first, then deploy again.")
+
     if not git("status", "--porcelain"):
         ahead = git("rev-list", "--count", "@{u}..HEAD") if git("remote") else "0"
         if ahead == "0":
-            print("Nothing to deploy: OneDrive copy already matches GitHub.")
+            print("Nothing to deploy: this copy already matches GitHub.")
             return
 
     version = datetime.now().strftime("v%Y.%m.%d-%H%M")
